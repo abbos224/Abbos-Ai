@@ -9,6 +9,7 @@ import { createJob, getJob, updateClip, type Job, type Translation } from './sto
 import { processJob } from './pipeline.js';
 import { renderTranslation } from './videoPipeline.js';
 import { SUPPORTED_LANGUAGES } from './translate.js';
+import { getBrandKit, updateBrandKit } from './brandKit.js';
 
 const app = express();
 app.use(cors());
@@ -26,6 +27,20 @@ const upload = multer({
     },
   }),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB
+});
+
+const brandDir = path.join(env.storageDir, 'brand');
+fs.mkdirSync(brandDir, { recursive: true });
+
+const uploadLogo = multer({
+  storage: multer.diskStorage({
+    destination: brandDir,
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.png';
+      cb(null, `logo${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB — a logo, not a video
 });
 
 app.get('/health', (_req, res) => {
@@ -68,6 +83,35 @@ app.get('/jobs/:id', (req, res) => {
 app.get('/languages', (_req, res) => {
   res.json(SUPPORTED_LANGUAGES);
 });
+
+app.get('/brand-kit', (_req, res) => {
+  const kit = getBrandKit();
+  res.json({
+    logoUrl: kit.logoFile ? `/brand-assets/${path.basename(kit.logoFile)}` : undefined,
+    accentColor: kit.accentColor,
+  });
+});
+
+app.put('/brand-kit', (req, res) => {
+  const { accentColor } = req.body as { accentColor?: string };
+  if (accentColor && !/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
+    res.status(400).json({ error: 'accentColor must be a hex color like "#1F3A5F"' });
+    return;
+  }
+  const kit = updateBrandKit({ accentColor });
+  res.json({ accentColor: kit.accentColor });
+});
+
+app.post('/brand-kit/logo', uploadLogo.single('logo'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No logo file uploaded (field name: "logo")' });
+    return;
+  }
+  const kit = updateBrandKit({ logoFile: `brand/${req.file.filename}` });
+  res.json({ logoUrl: `/brand-assets/${req.file.filename}` });
+});
+
+app.use('/brand-assets', express.static(brandDir));
 
 app.post('/jobs/:jobId/clips/:clipId/translate', async (req, res) => {
   const { jobId, clipId } = req.params;

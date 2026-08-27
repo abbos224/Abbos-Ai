@@ -5,6 +5,7 @@ import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
 import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
+import { getBrandKit } from './brandKit.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -137,6 +138,30 @@ async function burnSubtitles(input: string, assPath: string, outPath: string): P
   ]);
 }
 
+async function overlayLogo(input: string, logoPath: string, outPath: string): Promise<void> {
+  await runFfmpeg([
+    '-i', input,
+    '-i', logoPath,
+    '-filter_complex', '[1:v]scale=180:-1[logo];[0:v][logo]overlay=W-w-30:30',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'copy',
+    outPath,
+  ]);
+}
+
+/** Applies the account's Brand Kit logo (top-right corner) if one is set; otherwise a plain copy. */
+async function applyBrandOverlay(input: string, outPath: string): Promise<void> {
+  const brandKit = getBrandKit();
+  if (brandKit.logoFile) {
+    const logoPath = path.join(env.storageDir, brandKit.logoFile);
+    if (fs.existsSync(logoPath)) {
+      await overlayLogo(input, logoPath, outPath);
+      return;
+    }
+  }
+  fs.copyFileSync(input, outPath);
+}
+
 /**
  * Like `cropTo9x16`, but crops each speaker turn to follow that speaker's on-screen position
  * instead of one static center crop for the whole clip. Only meaningful when the source has
@@ -236,6 +261,7 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   const cutPath = path.join(workDir, '1_cut.mp4');
   const silenceRemovedPath = path.join(workDir, '2_nosilence.mp4');
   const croppedPath = path.join(workDir, '3_cropped.mp4');
+  const captionedPath = path.join(workDir, '4_captioned.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -256,12 +282,14 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
   const captionCues = buildCaptionCues(clipWords);
-  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
+  const accentColor = getBrandKit().accentColor;
+  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues, accentColor), 'utf-8');
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
-  await burnSubtitles(croppedPath, assPath, finalPath);
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, finalPath);
 
   return `/files/${clip.id}/final.mp4`;
 }
@@ -298,10 +326,13 @@ export async function renderTranslation(
   const translationDir = path.join(workDir, 'translations', targetLanguage);
   fs.mkdirSync(translationDir, { recursive: true });
   const assPath = path.join(translationDir, 'captions.ass');
+  const captionedPath = path.join(translationDir, 'captioned.mp4');
   const outPath = path.join(translationDir, 'final.mp4');
 
-  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues), 'utf-8');
-  await burnSubtitles(croppedPath, assPath, outPath);
+  const accentColor = getBrandKit().accentColor;
+  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues, accentColor), 'utf-8');
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, outPath);
 
   return {
     outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,

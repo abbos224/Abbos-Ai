@@ -41,10 +41,20 @@ function escapeAssText(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/\n/g, '\\N');
 }
 
+/** Converts a "#RRGGBB" web hex color into ASS's &HAABBGGRR format (opaque, alpha 00). */
+function hexToAssColor(hex: string): string {
+  const clean = hex.replace('#', '');
+  const r = clean.slice(0, 2);
+  const g = clean.slice(2, 4);
+  const b = clean.slice(4, 6);
+  return `&H00${b}${g}${r}`.toUpperCase();
+}
+
 /** Builds a full .ass subtitle file: a "Hook" headline for the first ~3s, plus bold word-group captions. */
 const HOOK_DURATION = 2.5;
 
-export function buildAssFile(hookText: string, captionCues: CaptionCue[]): string {
+export function buildAssFile(hookText: string, captionCues: CaptionCue[], accentColorHex?: string): string {
+  const outlineColor = accentColorHex ? hexToAssColor(accentColorHex) : '&H00000000';
   // The hook headline always gets its own fixed window up front. Real captions are pushed
   // out of that window (clipped, not dropped) so they never fight the hook for screen time.
   const cues = captionCues
@@ -59,8 +69,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Hook,Arial Black,78,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,0,8,60,60,140,1
-Style: Caption,Arial Black,66,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,0,2,60,60,180,1
+Style: Hook,Arial Black,78,&H00FFFFFF,&H00FFFFFF,${outlineColor},&H80000000,-1,0,0,0,100,100,0,0,1,5,0,8,60,60,140,1
+Style: Caption,Arial Black,66,&H00FFFFFF,&H00FFFFFF,${outlineColor},&H80000000,-1,0,0,0,100,100,0,0,1,5,0,2,60,60,180,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

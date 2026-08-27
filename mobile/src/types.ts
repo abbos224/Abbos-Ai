@@ -52,9 +52,12 @@ export type Job = {
   clips: Clip[];
 };
 
+export type BrandKit = { logoUrl?: string; accentColor?: string };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
   Results: { jobId: string };
   Preview: { clip: Clip };
+  BrandKit: undefined;
 };
