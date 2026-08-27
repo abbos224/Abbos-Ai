@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { uploadVideo } from '../api';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Upload'>;
 
@@ -58,23 +59,24 @@ export default function UploadScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.eyebrow}>New Reel</Text>
       <Text style={styles.title}>Create your first Reel</Text>
 
       <TouchableOpacity style={styles.uploadButton} onPress={pickVideo} disabled={uploading}>
-        <Text style={styles.uploadButtonText}>+ Upload Video</Text>
+        <Text style={styles.uploadButtonText}>Upload video</Text>
       </TouchableOpacity>
 
       {picked && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Video: {picked.fileName}</Text>
-          {picked.durationMs != null && (
-            <Text style={styles.cardLabel}>
-              Duration: {(picked.durationMs / 1000).toFixed(0)}s
+          <Text style={styles.cardLabel}>{picked.fileName}</Text>
+          <View style={styles.metaRow}>
+            {picked.durationMs != null && (
+              <Text style={styles.cardMeta}>{(picked.durationMs / 1000).toFixed(0)}s</Text>
+            )}
+            <Text style={styles.cardMeta}>
+              {picked.width}×{picked.height}
             </Text>
-          )}
-          <Text style={styles.cardLabel}>
-            Resolution: {picked.width}x{picked.height}
-          </Text>
+          </View>
 
           <TouchableOpacity
             style={[styles.uploadButton, styles.primaryButton]}
@@ -82,9 +84,9 @@ export default function UploadScreen({ navigation }: Props) {
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.surface} />
             ) : (
-              <Text style={styles.uploadButtonText}>Start Processing</Text>
+              <Text style={styles.primaryButtonText}>Start processing</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -94,22 +96,37 @@ export default function UploadScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0B0F', padding: 24, paddingTop: 80 },
-  title: { color: '#fff', fontSize: 26, fontWeight: '700', marginBottom: 32 },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 80 },
+  eyebrow: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  title: { color: colors.textPrimary, fontSize: 24, fontWeight: '600', marginBottom: spacing.xl },
   uploadButton: {
-    backgroundColor: '#1F1F27',
-    borderRadius: 14,
-    paddingVertical: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
-  primaryButton: { backgroundColor: '#6C5CE7' },
-  uploadButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  primaryButton: { backgroundColor: colors.accent, borderColor: colors.accent },
+  uploadButtonText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  primaryButtonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
   card: {
-    backgroundColor: '#16161D',
-    borderRadius: 14,
-    padding: 18,
-    marginTop: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.xs,
   },
-  cardLabel: { color: '#B8B8C2', fontSize: 14, marginBottom: 6 },
+  cardLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  metaRow: { flexDirection: 'row', gap: 16, marginBottom: spacing.md },
+  cardMeta: { color: colors.textSecondary, fontSize: 13 },
 });

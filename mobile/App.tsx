@@ -7,14 +7,23 @@ import UploadScreen from './src/screens/UploadScreen';
 import ProcessingScreen from './src/screens/ProcessingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
 import PreviewScreen from './src/screens/PreviewScreen';
+import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <StatusBar style="light" />
-      <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: '#0B0B0F' }, headerTintColor: '#fff' }}>
+      <StatusBar style="dark" />
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          headerTintColor: colors.textPrimary,
+          headerTitleStyle: { fontWeight: '600' },
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen name="Upload" component={UploadScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: 'Processing' }} />
         <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
