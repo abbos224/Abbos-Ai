@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from './env.js';
+import { getAnthropicClient } from './anthropicClient.js';
 import type { Word } from './transcription.js';
 import type { ClipScore } from './store.js';
 
@@ -12,16 +11,6 @@ export type ClipCandidate = {
   score_breakdown: ClipScore;
   hook_options: string[];
 };
-
-let client: Anthropic | undefined;
-
-function getClient(): Anthropic {
-  if (!env.anthropicApiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not set. Add it to server/.env');
-  }
-  if (!client) client = new Anthropic({ apiKey: env.anthropicApiKey });
-  return client;
-}
 
 /** Groups words into sentence-like chunks on punctuation boundaries, for a compact transcript. */
 export function groupIntoSentences(words: Word[]): Sentence[] {
@@ -93,7 +82,7 @@ export async function findBestClips(
   const sentences = groupIntoSentences(words);
   const transcript = formatTranscript(sentences);
 
-  const message = await getClient().messages.create({
+  const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
