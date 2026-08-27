@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
-import { buildAssFile, buildCaptionCues } from './ass.js';
+import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
+import { translateCaptions } from './translate.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -171,8 +172,54 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   }));
   const captionCues = buildCaptionCues(clipWords);
   fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
+  // Persisted so a later translation request can re-burn captions in another language onto the
+  // same already-cropped video, without re-running transcription/silence-removal/cropping.
+  fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
   await burnSubtitles(croppedPath, assPath, finalPath);
 
   return `/files/${clip.id}/final.mp4`;
+}
+
+/**
+ * Re-burns a clip's captions in another language, reusing the already-cropped video from the
+ * original render (`3_cropped.mp4`) — only translation + a caption burn pass are needed, no
+ * re-transcription, silence removal, or cropping.
+ */
+export async function renderTranslation(
+  clip: Clip,
+  targetLanguage: string,
+): Promise<{ outputFile: string; hook: string }> {
+  const workDir = path.join(env.storageDir, 'clips', clip.id);
+  const croppedPath = path.join(workDir, '3_cropped.mp4');
+  const cuesPath = path.join(workDir, 'captionCues.json');
+
+  if (!fs.existsSync(croppedPath) || !fs.existsSync(cuesPath)) {
+    throw new Error('Original clip render is missing required intermediate files; re-render the clip first.');
+  }
+
+  const originalCues: CaptionCue[] = JSON.parse(fs.readFileSync(cuesPath, 'utf-8'));
+  const translated = await translateCaptions(
+    originalCues.map((c) => c.text),
+    clip.chosenHook,
+    targetLanguage,
+  );
+
+  const translatedCues: CaptionCue[] = originalCues.map((cue, i) => ({
+    ...cue,
+    text: translated.cues[i],
+  }));
+
+  const translationDir = path.join(workDir, 'translations', targetLanguage);
+  fs.mkdirSync(translationDir, { recursive: true });
+  const assPath = path.join(translationDir, 'captions.ass');
+  const outPath = path.join(translationDir, 'final.mp4');
+
+  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues), 'utf-8');
+  await burnSubtitles(croppedPath, assPath, outPath);
+
+  return {
+    outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,
+    hook: translated.hook,
+  };
 }

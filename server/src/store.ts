@@ -13,6 +13,16 @@ export type ClipScore = {
 
 export type ClipStatus = 'pending' | 'rendering' | 'done' | 'failed';
 
+export type Translation = {
+  id: string;
+  language: string; // BCP-47-ish code, e.g. 'ru', 'ar', 'es'
+  languageLabel: string; // human-readable, e.g. 'Russian'
+  hook: string;
+  status: 'rendering' | 'done' | 'failed';
+  outputFile?: string;
+  error?: string;
+};
+
 export type Clip = {
   id: string;
   jobId: string;
@@ -26,6 +36,7 @@ export type Clip = {
   status: ClipStatus;
   outputFile?: string;
   error?: string;
+  translations?: Translation[];
 };
 
 export type JobStatus =
