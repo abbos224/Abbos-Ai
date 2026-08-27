@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from './env.js';
+import { getAnthropicClient } from './anthropicClient.js';
 
 export type Language = { code: string; label: string };
 
@@ -10,16 +9,6 @@ export const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'es', label: 'Spanish' },
   { code: 'fr', label: 'French' },
 ];
-
-let client: Anthropic | undefined;
-
-function getClient(): Anthropic {
-  if (!env.anthropicApiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not set. Add it to server/.env');
-  }
-  if (!client) client = new Anthropic({ apiKey: env.anthropicApiKey });
-  return client;
-}
 
 export type TranslatedCaptions = { cues: string[]; hook: string };
 
@@ -33,7 +22,7 @@ export async function translateCaptions(
   hookText: string,
   targetLanguage: string,
 ): Promise<TranslatedCaptions> {
-  const message = await getClient().messages.create({
+  const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 2048,
     system:

@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
 import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
+import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -136,10 +137,92 @@ async function burnSubtitles(input: string, assPath: string, outPath: string): P
   ]);
 }
 
+/**
+ * Like `cropTo9x16`, but crops each speaker turn to follow that speaker's on-screen position
+ * instead of one static center crop for the whole clip. Only meaningful when the source has
+ * horizontal room to pan (the same `width/height > targetAspect` condition `cropTo9x16` checks) —
+ * callers should fall back to `cropTo9x16` otherwise.
+ */
+async function cropToSpeakerFraming(
+  input: string,
+  turns: SpeakerTurn[],
+  positions: Map<string, number>,
+  outPath: string,
+): Promise<void> {
+  const { width, height, durationSec } = await probe(input);
+  const targetAspect = 9 / 16;
+  const cropWidth = Math.round((height * targetAspect) / 2) * 2;
+  const maxX = width - cropWidth;
+
+  const filterParts: string[] = [];
+  const labels: string[] = [];
+
+  turns.forEach((turn, i) => {
+    const xFraction = positions.get(turn.speaker) ?? 0.5;
+    const rawX = xFraction * width - cropWidth / 2;
+    const x = Math.round(Math.max(0, Math.min(maxX, rawX)) / 2) * 2;
+    // Extend each segment to the start of the next turn (not just this turn's own end) so any
+    // silent gap between speaker turns stays on-screen instead of being dropped from the output.
+    // The first/last turn is snapped to the clip's actual bounds.
+    const start = i === 0 ? 0 : turn.start;
+    const end = i === turns.length - 1 ? durationSec : turns[i + 1].start;
+
+    filterParts.push(
+      `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,crop=${cropWidth}:${height}:${x}:0,scale=1080:1920[v${i}]`,
+      `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}]`,
+    );
+    labels.push(`[v${i}][a${i}]`);
+  });
+
+  const filterComplex =
+    filterParts.join(';') + `;${labels.join('')}concat=n=${turns.length}:v=1:a=1[outv][outa]`;
+
+  await runFfmpeg([
+    '-i', input,
+    '-filter_complex', filterComplex,
+    '-map', '[outv]', '-map', '[outa]',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'aac',
+    outPath,
+  ]);
+}
+
+/**
+ * Uses speaker-following crop when the clip has ≥2 distinct speakers, the source has room to pan
+ * horizontally, and every speaker's on-screen position was successfully detected. Falls back to
+ * the static center crop otherwise, so single-speaker content (the common case) is unaffected and
+ * a failed vision call never breaks the render.
+ */
+async function cropWithSpeakerFramingOrFallback(
+  input: string,
+  clipWords: Word[],
+  workDir: string,
+  outPath: string,
+): Promise<void> {
+  const { width, height } = await probe(input);
+  const canPan = width / height > 9 / 16;
+  const distinctSpeakers = new Set(clipWords.map((w) => w.speaker).filter((s): s is string => s != null));
+
+  if (canPan && distinctSpeakers.size >= 2) {
+    const turns = groupIntoSpeakerTurns(clipWords);
+    if (turns.length >= 2) {
+      const positions = await detectSpeakerPositions(input, turns, workDir);
+      if (turns.every((t) => positions.has(t.speaker))) {
+        console.log(`[speakerFraming] following ${turns.length} turns across ${distinctSpeakers.size} speakers`);
+        await cropToSpeakerFraming(input, turns, positions, outPath);
+        return;
+      }
+      console.log(`[speakerFraming] falling back to static crop — positioned ${positions.size}/${distinctSpeakers.size} speakers`);
+    }
+  }
+
+  await cropTo9x16(input, outPath);
+}
+
 function wordsInRange(words: Word[], start: number, end: number): Word[] {
   return words
     .filter((w) => w.start >= start && w.end <= end)
-    .map((w) => ({ text: w.text, start: w.start - start, end: w.end - start }));
+    .map((w) => ({ text: w.text, start: w.start - start, end: w.end - start, speaker: w.speaker }));
 }
 
 /**
@@ -163,13 +246,15 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   const segments = keepSegments(silences, cutDuration);
   await removeSilence(cutPath, segments, silenceRemovedPath);
 
-  await cropTo9x16(silenceRemovedPath, croppedPath);
-
   const clipWords = wordsInRange(allWords, clip.startTime, clip.endTime).map((w) => ({
     text: w.text,
     start: remapTime(w.start, segments),
     end: remapTime(w.end, segments),
+    speaker: w.speaker,
   }));
+
+  await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
+
   const captionCues = buildCaptionCues(clipWords);
   fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
   // Persisted so a later translation request can re-burn captions in another language onto the

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Clip, RootStackParamList } from '../types';
 import { getJob } from '../api';
+import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
@@ -17,7 +18,7 @@ export default function ResultsScreen({ route, navigation }: Props) {
   if (!clips) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#6C5CE7" />
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -38,7 +39,9 @@ export default function ResultsScreen({ route, navigation }: Props) {
               <Text style={styles.cardTopic} numberOfLines={1}>
                 {item.topic}
               </Text>
-              <Text style={styles.cardScore}>{item.score}</Text>
+              <View style={styles.scorePill}>
+                <Text style={styles.scorePillText}>{item.score}</Text>
+              </View>
             </View>
             <Text style={styles.cardHook} numberOfLines={2}>
               &ldquo;{item.chosenHook}&rdquo;
@@ -59,16 +62,29 @@ export default function ResultsScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0B0F', padding: 20, paddingTop: 60 },
-  center: { flex: 1, backgroundColor: '#0B0B0F', alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 16 },
-  card: { backgroundColor: '#16161D', borderRadius: 14, padding: 16, marginBottom: 12 },
+  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
+  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600', marginBottom: spacing.md },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTopic: { color: '#fff', fontSize: 15, fontWeight: '600', flex: 1, marginRight: 8 },
-  cardScore: { color: '#6C5CE7', fontSize: 18, fontWeight: '800' },
-  cardHook: { color: '#B8B8C2', fontSize: 13, marginTop: 6, fontStyle: 'italic' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  cardMeta: { color: '#6C6C78', fontSize: 12 },
-  cardStatus: { color: '#4CD964', fontSize: 12, fontWeight: '600' },
-  cardStatusFailed: { color: '#FF6B6B' },
+  cardTopic: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', flex: 1, marginRight: spacing.sm },
+  scorePill: {
+    backgroundColor: colors.accentSurface,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  scorePillText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  cardHook: { color: colors.textSecondary, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
+  cardMeta: { color: colors.textMuted, fontSize: 12 },
+  cardStatus: { color: colors.success, fontSize: 12, fontWeight: '600' },
+  cardStatusFailed: { color: colors.danger },
 });
