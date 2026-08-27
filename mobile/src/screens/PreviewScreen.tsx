@@ -1,24 +1,55 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../types';
-import { clipFileUrl } from '../api';
+import type { RootStackParamList, Language, Translation } from '../types';
+import { clipFileUrl, getLanguages, translateClip } from '../api';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 
+const ORIGINAL_KEY = '__original__';
+
 export default function PreviewScreen({ route }: Props) {
   const { clip } = route.params;
   const [exporting, setExporting] = useState(false);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [translations, setTranslations] = useState<Translation[]>(clip.translations ?? []);
+  const [translatingLang, setTranslatingLang] = useState<string | null>(null);
+  const [activeKey, setActiveKey] = useState<string>(ORIGINAL_KEY);
 
-  const videoUrl = clip.outputFile ? clipFileUrl(clip.outputFile) : undefined;
+  useEffect(() => {
+    getLanguages().then(setLanguages).catch(() => {});
+  }, []);
+
+  const activeTranslation = translations.find((t) => t.language === activeKey);
+  const activeFile = activeKey === ORIGINAL_KEY ? clip.outputFile : activeTranslation?.outputFile;
+  const activeHook = activeKey === ORIGINAL_KEY ? clip.chosenHook : activeTranslation?.hook || clip.chosenHook;
+
+  const videoUrl = activeFile ? clipFileUrl(activeFile) : undefined;
   const player = useVideoPlayer(videoUrl ?? null, (p) => {
     p.loop = true;
     p.play();
   });
+
+  useEffect(() => {
+    if (videoUrl) player.replaceAsync(videoUrl).then(() => player.play());
+  }, [videoUrl]);
+
+  async function handleTranslate(language: string) {
+    setTranslatingLang(language);
+    try {
+      const translation = await translateClip(clip.jobId, clip.id, language);
+      setTranslations((prev) => [...prev.filter((t) => t.language !== language), translation]);
+      setActiveKey(language);
+    } catch (err) {
+      Alert.alert('Translation failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setTranslatingLang(null);
+    }
+  }
 
   async function handleExport() {
     if (!videoUrl) return;
@@ -55,7 +86,41 @@ export default function PreviewScreen({ route }: Props) {
       {videoUrl && <VideoView player={player} style={styles.video} contentFit="contain" />}
 
       <Text style={styles.topic}>{clip.topic}</Text>
-      <Text style={styles.hook}>&ldquo;{clip.chosenHook}&rdquo;</Text>
+      <Text style={styles.hook}>&ldquo;{activeHook}&rdquo;</Text>
+
+      <View style={styles.languageRow}>
+        <TouchableOpacity
+          style={[styles.languageChip, activeKey === ORIGINAL_KEY && styles.languageChipActive]}
+          onPress={() => setActiveKey(ORIGINAL_KEY)}
+        >
+          <Text style={[styles.languageChipText, activeKey === ORIGINAL_KEY && styles.languageChipTextActive]}>
+            Original
+          </Text>
+        </TouchableOpacity>
+        {languages
+          .filter((l) => l.code !== 'en')
+          .map((lang) => {
+            const existing = translations.find((t) => t.language === lang.code);
+            const isActive = activeKey === lang.code;
+            const isLoading = translatingLang === lang.code;
+            return (
+              <TouchableOpacity
+                key={lang.code}
+                style={[styles.languageChip, isActive && styles.languageChipActive]}
+                disabled={isLoading}
+                onPress={() => (existing ? setActiveKey(lang.code) : handleTranslate(lang.code))}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Text style={[styles.languageChipText, isActive && styles.languageChipTextActive]}>
+                    {lang.label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+      </View>
 
       <View style={styles.scoreCard}>
         <View style={styles.scoreHeader}>
@@ -86,6 +151,20 @@ const styles = StyleSheet.create({
   video: { width: '100%', aspectRatio: 9 / 16, borderRadius: radius.lg, backgroundColor: '#000', marginTop: spacing.md },
   topic: { color: colors.textPrimary, fontSize: 17, fontWeight: '600', marginTop: spacing.md },
   hook: { color: colors.textSecondary, fontSize: 14, fontStyle: 'italic', marginTop: 6, marginBottom: spacing.md },
+  languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
+  languageChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  languageChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  languageChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  languageChipTextActive: { color: colors.surface },
   scoreCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,

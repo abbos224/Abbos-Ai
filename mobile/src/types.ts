@@ -9,6 +9,18 @@ export type ClipScore = {
 
 export type ClipStatus = 'pending' | 'rendering' | 'done' | 'failed';
 
+export type Translation = {
+  id: string;
+  language: string;
+  languageLabel: string;
+  hook: string;
+  status: 'rendering' | 'done' | 'failed';
+  outputFile?: string;
+  error?: string;
+};
+
+export type Language = { code: string; label: string };
+
 export type Clip = {
   id: string;
   jobId: string;
@@ -22,6 +34,7 @@ export type Clip = {
   status: ClipStatus;
   outputFile?: string;
   error?: string;
+  translations?: Translation[];
 };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';

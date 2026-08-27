@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config';
-import type { Job } from './types';
+import type { Job, Language, Translation } from './types';
 
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
@@ -32,4 +32,29 @@ export async function getJob(jobId: string): Promise<Job> {
 
 export function clipFileUrl(outputFile: string): string {
   return `${API_BASE_URL}${outputFile}`;
+}
+
+export async function getLanguages(): Promise<Language[]> {
+  const res = await fetch(`${API_BASE_URL}/languages`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch languages: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function translateClip(
+  jobId: string,
+  clipId: string,
+  language: string,
+): Promise<Translation> {
+  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Translation failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
 }
