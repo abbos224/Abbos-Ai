@@ -1,7 +1,9 @@
 import { AssemblyAI } from 'assemblyai';
 import { env } from './env.js';
 
-export type Word = { text: string; start: number; end: number }; // seconds
+// seconds. `speaker` is AssemblyAI's diarization label (e.g. "A", "B") when there's more than
+// one voice in the audio; undefined for single-speaker content.
+export type Word = { text: string; start: number; end: number; speaker?: string };
 
 let client: AssemblyAI | undefined;
 
@@ -14,7 +16,10 @@ function getClient(): AssemblyAI {
 }
 
 export async function transcribeVideo(filePath: string): Promise<Word[]> {
-  const transcript = await getClient().transcripts.transcribe({ audio: filePath });
+  const transcript = await getClient().transcripts.transcribe({
+    audio: filePath,
+    speaker_labels: true,
+  });
 
   if (transcript.status === 'error') {
     throw new Error(`Transcription failed: ${transcript.error}`);
@@ -25,5 +30,6 @@ export async function transcribeVideo(filePath: string): Promise<Word[]> {
     text: w.text,
     start: w.start / 1000,
     end: w.end / 1000,
+    speaker: w.speaker ?? undefined,
   }));
 }

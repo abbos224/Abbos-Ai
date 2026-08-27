@@ -55,3 +55,14 @@ export function probe(filePath: string): Promise<ProbeResult> {
 export function escapeFfmpegFilterPath(filePath: string): string {
   return filePath.replace(/\\/g, '/').replace(/:/g, '\\:');
 }
+
+/** Extracts a single frame at `atSeconds` as a PNG, for e.g. sending to a vision model. */
+export async function extractFrame(filePath: string, atSeconds: number, outPath: string): Promise<void> {
+  await runFfmpeg([
+    '-ss', Math.max(0, atSeconds).toFixed(3),
+    '-i', filePath,
+    '-frames:v', '1',
+    '-update', '1',
+    outPath,
+  ]);
+}
