@@ -121,7 +121,7 @@ async function cropTo9x16(input: string, outPath: string): Promise<void> {
 
   await runFfmpeg([
     '-i', input,
-    '-vf', `${cropFilter},scale=1080:1920`,
+    '-vf', `${cropFilter},scale=1080:1920,setsar=1`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
     '-c:a', 'copy',
     outPath,
@@ -169,7 +169,7 @@ async function cropToSpeakerFraming(
     const end = i === turns.length - 1 ? durationSec : turns[i + 1].start;
 
     filterParts.push(
-      `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,crop=${cropWidth}:${height}:${x}:0,scale=1080:1920[v${i}]`,
+      `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,crop=${cropWidth}:${height}:${x}:0,scale=1080:1920,setsar=1[v${i}]`,
       `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}]`,
     );
     labels.push(`[v${i}][a${i}]`);
@@ -235,13 +235,13 @@ async function insertBroll(input: string, moments: BrollSegment[], outPath: stri
 
   segments.forEach((seg, i) => {
     if (seg.type === 'main') {
-      filterParts.push(`[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[v${i}]`);
+      filterParts.push(`[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS,setsar=1[v${i}]`);
     } else {
       const idx = brollInputIndex.get(seg.brollPath!);
       const dur = (seg.end - seg.start).toFixed(3);
       filterParts.push(
         `[${idx}:v]trim=start=0:end=${dur},setpts=PTS-STARTPTS,` +
-          'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' +
+          'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1' +
           `[v${i}]`,
       );
     }
