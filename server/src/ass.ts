@@ -41,14 +41,23 @@ function escapeAssText(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/\n/g, '\\N');
 }
 
-/** Builds a full .ass subtitle file: a "Hook" headline for the first ~3s, plus bold word-group captions. */
+/** Builds a full .ass subtitle file: a "Hook" headline for the first ~3s, plus bold word-group
+ * captions, plus an optional CTA line burned into the last ~2.5s of the clip. */
 const HOOK_DURATION = 2.5;
+const CTA_DURATION = 2.5;
 
-export function buildAssFile(hookText: string, captionCues: CaptionCue[]): string {
-  // The hook headline always gets its own fixed window up front. Real captions are pushed
-  // out of that window (clipped, not dropped) so they never fight the hook for screen time.
+export function buildAssFile(
+  hookText: string,
+  captionCues: CaptionCue[],
+  clipDurationSec: number,
+  ctaText?: string,
+): string {
+  // The hook headline always gets its own fixed window up front, and the CTA (if any) gets one at
+  // the end. Real captions are pushed out of the hook window and clipped before the CTA window —
+  // never dropped, just kept from fighting either for screen time.
+  const ctaStart = ctaText ? Math.max(HOOK_DURATION, clipDurationSec - CTA_DURATION) : clipDurationSec;
   const cues = captionCues
-    .map((cue) => ({ ...cue, start: Math.max(cue.start, HOOK_DURATION) }))
+    .map((cue) => ({ ...cue, start: Math.max(cue.start, HOOK_DURATION), end: Math.min(cue.end, ctaStart) }))
     .filter((cue) => cue.end - cue.start > 0.05);
 
   const header = `[Script Info]
@@ -73,6 +82,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   for (const cue of cues) {
     lines.push(
       `Dialogue: 0,${formatAssTime(cue.start)},${formatAssTime(cue.end)},Caption,,0,0,0,,${escapeAssText(cue.text)}`,
+    );
+  }
+  if (ctaText) {
+    lines.push(
+      `Dialogue: 0,${formatAssTime(ctaStart)},${formatAssTime(clipDurationSec)},Caption,,0,0,0,,${escapeAssText(ctaText.toUpperCase())}`,
     );
   }
 

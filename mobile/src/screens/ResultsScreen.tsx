@@ -46,6 +46,11 @@ export default function ResultsScreen({ route, navigation }: Props) {
             <Text style={styles.cardHook} numberOfLines={2}>
               &ldquo;{item.chosenHook}&rdquo;
             </Text>
+            {item.cta && (
+              <Text style={styles.cardCta} numberOfLines={1}>
+                CTA: {item.cta}
+              </Text>
+            )}
             <View style={styles.cardFooter}>
               <Text style={styles.cardMeta}>
                 {(item.endTime - item.startTime).toFixed(0)}s
@@ -83,6 +88,7 @@ const styles = StyleSheet.create({
   },
   scorePillText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   cardHook: { color: colors.textSecondary, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
+  cardCta: { color: colors.accent, fontSize: 11, fontWeight: '600', marginTop: 6 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   cardMeta: { color: colors.textMuted, fontSize: 12 },
   cardStatus: { color: colors.success, fontSize: 12, fontWeight: '600' },

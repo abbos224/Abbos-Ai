@@ -31,6 +31,9 @@ export type Clip = {
   scoreBreakdown: ClipScore;
   hookOptions: string[];
   chosenHook: string;
+  cta: string;
+  coverOptions: string[];
+  coverImages?: string[];
   status: ClipStatus;
   outputFile?: string;
   error?: string;

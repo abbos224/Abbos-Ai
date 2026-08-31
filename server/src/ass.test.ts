@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCaptionCues } from './ass.js';
+import { buildCaptionCues, buildAssFile } from './ass.js';
 import type { Word } from './transcription.js';
 
 function word(text: string, start: number, end: number): Word {
@@ -47,4 +47,21 @@ test('buildCaptionCues: flushes when a cue would exceed ~2.2s even with few word
 
 test('buildCaptionCues: returns an empty array for no words', () => {
   assert.deepEqual(buildCaptionCues([]), []);
+});
+
+test('buildAssFile: burns a CTA line into the last ~2.5s and clips regular captions before it', () => {
+  const cues = [{ start: 5, end: 11, text: 'RUNS RIGHT UP TO THE END' }];
+
+  const ass = buildAssFile('hook text', cues, 12, 'save this video');
+
+  assert.match(ass, /SAVE THIS VIDEO/);
+  // The CTA dialogue line should start at duration - 2.5 = 9.5s.
+  assert.match(ass, /Dialogue: 0,0:00:09\.50,0:00:12\.00,Caption,,0,0,0,,SAVE THIS VIDEO/);
+  // The regular caption cue (5-11s) must not extend past where the CTA window starts (9.5s).
+  assert.doesNotMatch(ass, /0:00:1[01]\.\d\d,Caption,,0,0,0,,RUNS RIGHT UP TO THE END/);
+});
+
+test('buildAssFile: omits the CTA line entirely when no ctaText is given', () => {
+  const ass = buildAssFile('hook text', [], 12);
+  assert.equal((ass.match(/Dialogue:/g) ?? []).length, 1); // just the hook line
 });

@@ -33,6 +33,8 @@ export async function processJob(jobId: string): Promise<void> {
       scoreBreakdown: c.score_breakdown,
       hookOptions: c.hook_options,
       chosenHook: c.hook_options[0] ?? c.topic,
+      cta: c.cta,
+      coverOptions: c.cover_options,
       status: 'pending',
     }));
     setClips(jobId, clips);
@@ -41,8 +43,8 @@ export async function processJob(jobId: string): Promise<void> {
     for (const clip of clips) {
       try {
         updateClip(jobId, clip.id, { status: 'rendering' });
-        const outputFile = await renderClip(job.sourceFile, clip, words);
-        updateClip(jobId, clip.id, { status: 'done', outputFile });
+        const { outputFile, coverImages } = await renderClip(job.sourceFile, clip, words);
+        updateClip(jobId, clip.id, { status: 'done', outputFile, coverImages });
       } catch (err) {
         updateClip(jobId, clip.id, {
           status: 'failed',

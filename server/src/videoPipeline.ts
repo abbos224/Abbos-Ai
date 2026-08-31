@@ -137,6 +137,54 @@ async function burnSubtitles(input: string, assPath: string, outPath: string): P
   ]);
 }
 
+/** Escapes text for safe use inside an ffmpeg drawtext `text=` value. Straight apostrophes are
+ * swapped for a typographic one so we never have to fight drawtext's quote-escaping rules. */
+function escapeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '%%')
+    .replace(/'/g, '’');
+}
+
+/**
+ * Renders one still-frame cover image per title option: a mid-clip frame with the title
+ * drawn over it in bold caps on a translucent bar, matching the "AI cover" step of the spec.
+ */
+async function renderCovers(
+  croppedPath: string,
+  coverOptions: string[],
+  clipId: string,
+  workDir: string,
+): Promise<string[]> {
+  if (coverOptions.length === 0) return [];
+
+  const { durationSec } = await probe(croppedPath);
+  const midpoint = durationSec / 2;
+  const urls: string[] = [];
+
+  for (let i = 0; i < coverOptions.length; i++) {
+    const framePath = path.join(workDir, `cover_${i}.jpg`);
+    const text = escapeDrawtext(coverOptions[i].toUpperCase());
+
+    await runFfmpeg([
+      '-ss', midpoint.toFixed(3),
+      '-i', croppedPath,
+      '-vf',
+        `drawtext=fontfile='C\\:/Windows/Fonts/arialbd.ttf':text='${text}':fontsize=88:` +
+        "fontcolor=white:line_spacing=14:box=1:boxcolor=black@0.55:boxborderw=28:" +
+        'x=(w-text_w)/2:y=(h-text_h)/2',
+      '-frames:v', '1',
+      '-update', '1',
+      framePath,
+    ]);
+
+    urls.push(`/files/${clipId}/cover_${i}.jpg`);
+  }
+
+  return urls;
+}
+
 /**
  * Like `cropTo9x16`, but crops each speaker turn to follow that speaker's on-screen position
  * instead of one static center crop for the whole clip. Only meaningful when the source has
@@ -226,10 +274,15 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 }
 
 /**
- * Full per-clip render: cut -> remove silence -> crop to 9:16 -> burn captions + hook.
- * Returns the public URL path (served via express.static) of the finished mp4.
+ * Full per-clip render: cut -> remove silence -> crop to 9:16 -> burn captions + hook + CTA,
+ * plus a still cover image per cover-title option.
+ * Returns the public URL path (served via express.static) of the finished mp4, and the cover URLs.
  */
-export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[]): Promise<string> {
+export async function renderClip(
+  sourceFile: string,
+  clip: Clip,
+  allWords: Word[],
+): Promise<{ outputFile: string; coverImages: string[] }> {
   const workDir = path.join(env.storageDir, 'clips', clip.id);
   fs.mkdirSync(workDir, { recursive: true });
 
@@ -255,15 +308,17 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
 
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
+  const { durationSec: finalDuration } = await probe(croppedPath);
   const captionCues = buildCaptionCues(clipWords);
-  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
+  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues, finalDuration, clip.cta), 'utf-8');
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
   await burnSubtitles(croppedPath, assPath, finalPath);
+  const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], clip.id, workDir);
 
-  return `/files/${clip.id}/final.mp4`;
+  return { outputFile: `/files/${clip.id}/final.mp4`, coverImages };
 }
 
 /**
@@ -288,6 +343,7 @@ export async function renderTranslation(
     originalCues.map((c) => c.text),
     clip.chosenHook,
     targetLanguage,
+    clip.cta,
   );
 
   const translatedCues: CaptionCue[] = originalCues.map((cue, i) => ({
@@ -300,7 +356,12 @@ export async function renderTranslation(
   const assPath = path.join(translationDir, 'captions.ass');
   const outPath = path.join(translationDir, 'final.mp4');
 
-  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues), 'utf-8');
+  const { durationSec: finalDuration } = await probe(croppedPath);
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(translated.hook, translatedCues, finalDuration, translated.cta),
+    'utf-8',
+  );
   await burnSubtitles(croppedPath, assPath, outPath);
 
   return {

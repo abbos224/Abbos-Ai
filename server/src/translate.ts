@@ -10,34 +10,37 @@ export const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'fr', label: 'French' },
 ];
 
-export type TranslatedCaptions = { cues: string[]; hook: string };
+export type TranslatedCaptions = { cues: string[]; hook: string; cta?: string };
 
 /**
- * Translates a clip's caption cues and hook line into another language, preserving cue count and
- * order (so each translated cue can be dropped into the same timing slot as the original) while
- * still giving the model the full picture for a coherent, natural translation.
+ * Translates a clip's caption cues, hook line, and (optionally) CTA into another language,
+ * preserving cue count and order (so each translated cue can be dropped into the same timing slot
+ * as the original) while still giving the model the full picture for a coherent, natural
+ * translation.
  */
 export async function translateCaptions(
   cueTexts: string[],
   hookText: string,
   targetLanguage: string,
+  ctaText?: string,
 ): Promise<TranslatedCaptions> {
   const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 2048,
     system:
-      `You translate short-form video captions and hooks into ${targetLanguage}. Keep the punchy, ` +
-      'attention-grabbing tone of the original — this is for a social media Reel, not a formal ' +
-      'document. Respond with ONLY valid JSON (no markdown fences, no commentary) matching this ' +
-      'shape exactly: { "hook": string, "cues": string[] }. "cues" MUST have exactly the same ' +
-      'number of entries, in the same order, as the input cues — each entry is the translation of ' +
-      'the corresponding input cue. Use the full list of cues as context for a coherent ' +
-      'translation, but keep each translated cue roughly as short as its original so it still ' +
-      "fits on screen for the same amount of time.",
+      `You translate short-form video captions, hooks, and calls-to-action into ${targetLanguage}. ` +
+      'Keep the punchy, attention-grabbing tone of the original — this is for a social media Reel, ' +
+      'not a formal document. Respond with ONLY valid JSON (no markdown fences, no commentary) ' +
+      'matching this shape exactly: { "hook": string, "cues": string[], "cta": string | null }. ' +
+      '"cues" MUST have exactly the same number of entries, in the same order, as the input cues — ' +
+      'each entry is the translation of the corresponding input cue. Use the full list of cues as ' +
+      'context for a coherent translation, but keep each translated cue roughly as short as its ' +
+      'original so it still fits on screen for the same amount of time. Set "cta" to null if no ' +
+      'input CTA was given, otherwise translate it, keeping it just as short and direct.',
     messages: [
       {
         role: 'user',
-        content: JSON.stringify({ hook: hookText, cues: cueTexts }),
+        content: JSON.stringify({ hook: hookText, cues: cueTexts, cta: ctaText ?? null }),
       },
     ],
   });
@@ -49,7 +52,7 @@ export async function translateCaptions(
 
   const jsonText = textBlock.text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
 
-  let parsed: TranslatedCaptions;
+  let parsed: { hook: string; cues: string[]; cta: string | null };
   try {
     parsed = JSON.parse(jsonText);
   } catch {
@@ -62,5 +65,5 @@ export async function translateCaptions(
     );
   }
 
-  return parsed;
+  return { hook: parsed.hook, cues: parsed.cues, cta: parsed.cta ?? undefined };
 }
