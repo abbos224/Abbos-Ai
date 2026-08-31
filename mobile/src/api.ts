@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config';
-import type { BrandKit, CaptionStyleName, Job, Language, Translation } from './types';
+import type { BrandKit, CalendarEntry, CaptionStyleName, Job, Language, Translation } from './types';
 
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
@@ -114,6 +114,41 @@ export async function uploadBrandLogo(uri: string, fileName: string): Promise<Br
   });
   if (!res.ok) {
     throw new Error(`Logo upload failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function scheduleClip(
+  jobId: string,
+  clipId: string,
+  scheduledFor: string | null,
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/schedule`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scheduledFor }),
+  });
+  if (!res.ok) {
+    throw new Error(`Scheduling failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+export async function getCalendar(): Promise<CalendarEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/calendar`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch calendar: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function autoScheduleCalendar(intervalDays?: number): Promise<CalendarEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/calendar/auto-schedule`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(intervalDays ? { intervalDays } : {}),
+  });
+  if (!res.ok) {
+    throw new Error(`Auto-schedule failed: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

@@ -64,9 +64,14 @@ export default function UploadScreen({ navigation }: Props) {
           <Text style={styles.eyebrow}>New Reel</Text>
           <Text style={styles.title}>Create your first Reel</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('BrandKit')}>
-          <Text style={styles.brandKitLink}>Brand Kit</Text>
-        </TouchableOpacity>
+        <View style={styles.navLinks}>
+          <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
+            <Text style={styles.navLink}>Calendar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('BrandKit')}>
+            <Text style={styles.navLink}>Brand Kit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TouchableOpacity style={styles.uploadButton} onPress={pickVideo} disabled={uploading}>
@@ -110,7 +115,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: spacing.xl,
   },
-  brandKitLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
+  navLinks: { flexDirection: 'row', gap: 16 },
+  navLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
   eyebrow: {
     color: colors.textMuted,
     fontSize: 12,
