@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -67,6 +67,19 @@ export default function PreviewScreen({ route }: Props) {
     }
   }
 
+  async function shareRemoteFile(url: string) {
+    const destination = new Directory(Paths.cache);
+    destination.create({ idempotent: true });
+    const file = await File.downloadFileAsync(url, destination, { idempotent: true });
+
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(file.uri);
+    } else {
+      Alert.alert('Saved', `File saved to ${file.uri}`);
+    }
+  }
+
   async function handleSchedule(date: string | null) {
     setScheduling(true);
     try {
@@ -83,20 +96,19 @@ export default function PreviewScreen({ route }: Props) {
     if (!videoUrl) return;
     setExporting(true);
     try {
-      const destination = new Directory(Paths.cache);
-      destination.create({ idempotent: true });
-      const file = await File.downloadFileAsync(videoUrl, destination, { idempotent: true });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(file.uri);
-      } else {
-        Alert.alert('Saved', `Clip saved to ${file.uri}`);
-      }
+      await shareRemoteFile(videoUrl);
     } catch (err) {
       Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleExportCover(coverUrl: string) {
+    try {
+      await shareRemoteFile(clipFileUrl(coverUrl));
+    } catch (err) {
+      Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -115,6 +127,28 @@ export default function PreviewScreen({ route }: Props) {
 
       <Text style={styles.topic}>{clip.topic}</Text>
       <Text style={styles.hook}>&ldquo;{activeHook}&rdquo;</Text>
+      {clip.cta && (
+        <View style={styles.ctaRow}>
+          <Text style={styles.ctaLabel}>CTA</Text>
+          <Text style={styles.ctaText}>{clip.cta}</Text>
+        </View>
+      )}
+
+      {clip.coverImages && clip.coverImages.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Cover</Text>
+          <View style={styles.coverRow}>
+            {clip.coverImages.map((cover, i) => (
+              <TouchableOpacity key={cover} onPress={() => handleExportCover(cover)}>
+                <Image source={{ uri: clipFileUrl(cover) }} style={styles.coverThumb} />
+                <Text style={styles.coverCaption} numberOfLines={1}>
+                  {clip.coverOptions[i]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
       <View style={styles.languageRow}>
         <TouchableOpacity
@@ -209,7 +243,38 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
   video: { width: '100%', aspectRatio: 9 / 16, borderRadius: radius.lg, backgroundColor: '#000', marginTop: spacing.md },
   topic: { color: colors.textPrimary, fontSize: 17, fontWeight: '600', marginTop: spacing.md },
-  hook: { color: colors.textSecondary, fontSize: 14, fontStyle: 'italic', marginTop: 6, marginBottom: spacing.md },
+  hook: { color: colors.textSecondary, fontSize: 14, fontStyle: 'italic', marginTop: 6 },
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: spacing.md },
+  ctaLabel: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    backgroundColor: colors.accentSurface,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ctaText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', flex: 1 },
+  sectionLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: spacing.sm,
+  },
+  coverRow: { flexDirection: 'row', gap: 10, marginBottom: spacing.md },
+  coverThumb: {
+    width: 84,
+    aspectRatio: 9 / 16,
+    borderRadius: radius.sm,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  coverCaption: { color: colors.textSecondary, fontSize: 10, marginTop: 4, width: 84 },
   languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   languageChip: {
     backgroundColor: colors.surface,

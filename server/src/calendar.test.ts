@@ -14,6 +14,8 @@ function clip(overrides: Partial<Clip>): Clip {
     scoreBreakdown: { hook: 8, retention: 8, emotion: 8, clarity: 8, shareability: 8, cta: 8 },
     hookOptions: ['hook'],
     chosenHook: 'hook',
+    cta: 'cta',
+    coverOptions: ['cover'],
     status: 'done',
     ...overrides,
   };

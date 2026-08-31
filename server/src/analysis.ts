@@ -10,6 +10,8 @@ export type ClipCandidate = {
   topic: string;
   score_breakdown: ClipScore;
   hook_options: string[];
+  cta: string;
+  cover_options: string[];
 };
 
 /** Groups words into sentence-like chunks on punctuation boundaries, for a compact transcript. */
@@ -68,12 +70,20 @@ Respond with ONLY valid JSON (no markdown fences, no commentary), matching this 
         "shareability": number,
         "cta": number
       },
-      "hook_options": [string, string, string]
+      "hook_options": [string, string, string],
+      "cta": string,
+      "cover_options": [string, string, string]
     }
   ]
 }
 
-Each score is 0-100, representing your estimate of that clip's potential, not a promise of real views. hook_options are three alternative punchy opening lines (under 12 words) that could replace the clip's actual opening line to make it more attention-grabbing. Return between 3 and 10 clips, ordered by overall potential descending.`;
+Each score is 0-100, representing your estimate of that clip's potential, not a promise of real views. hook_options are three alternative punchy opening lines (under 12 words) that could replace the clip's actual opening line to make it more attention-grabbing.
+
+"cta" is a single call-to-action line (under 8 words) for the very end of the clip, matched to the content type — e.g. "Save this video" for an educational tip, "Follow for more" for a personal/blog moment, "DM us to learn more" for a business/service pitch, "Book a consultation" for a professional service, "Comment your thoughts" for something opinion-driven. Pick whichever fits, don't default to the same one every time.
+
+"cover_options" are three short, punchy cover/thumbnail titles (under 6 words, title-case, no ending punctuation) that would work as bold on-screen text over a paused frame of the clip — think "3 Buyer Mistakes" or "Don't Sign Yet", not a full sentence.
+
+Return between 3 and 10 clips, ordered by overall potential descending.`;
 
 export async function findBestClips(
   words: Word[],

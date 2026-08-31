@@ -49,11 +49,28 @@ test('buildCaptionCues: returns an empty array for no words', () => {
   assert.deepEqual(buildCaptionCues([]), []);
 });
 
+test('buildAssFile: burns a CTA line into the last ~2.5s and clips regular captions before it', () => {
+  const cues = [{ start: 5, end: 11, text: 'RUNS RIGHT UP TO THE END' }];
+
+  const ass = buildAssFile('hook text', cues, 12, 'save this video');
+
+  assert.match(ass, /SAVE THIS VIDEO/);
+  // The CTA dialogue line should start at duration - 2.5 = 9.5s.
+  assert.match(ass, /Dialogue: 0,0:00:09\.50,0:00:12\.00,Caption,,0,0,0,,SAVE THIS VIDEO/);
+  // The regular caption cue (5-11s) must not extend past where the CTA window starts (9.5s).
+  assert.doesNotMatch(ass, /0:00:1[01]\.\d\d,Caption,,0,0,0,,RUNS RIGHT UP TO THE END/);
+});
+
+test('buildAssFile: omits the CTA line entirely when no ctaText is given', () => {
+  const ass = buildAssFile('hook text', [], 12);
+  assert.equal((ass.match(/Dialogue:/g) ?? []).length, 1); // just the hook line
+});
+
 test('buildAssFile: every caption style preset produces a valid, uppercase-consistent .ass file', () => {
   const cues = [{ start: 3, end: 4.5, text: 'check this before you sign' }];
 
   for (const style of CAPTION_STYLES) {
-    const ass = buildAssFile('nobody tells you this', cues, undefined, style);
+    const ass = buildAssFile('nobody tells you this', cues, 6, undefined, undefined, style);
 
     assert.match(ass, /^\[Script Info\]/);
     assert.match(ass, /\[V4\+ Styles\]/);
@@ -70,7 +87,7 @@ test('buildAssFile: every caption style preset produces a valid, uppercase-consi
 });
 
 test('buildAssFile: an explicit accent color overrides the preset default', () => {
-  const ass = buildAssFile('hook', [], '#123ABC', 'bold');
+  const ass = buildAssFile('hook', [], 6, undefined, '#123ABC', 'bold');
   // #123ABC -> ASS BGR with 00 alpha prefix -> &H00BC3A12
   assert.match(ass, /&H00BC3A12/i);
 });

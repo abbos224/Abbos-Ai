@@ -114,13 +114,17 @@ const PRESETS: Record<CaptionStyleName, StylePreset> = {
 export const CAPTION_STYLES: CaptionStyleName[] = Object.keys(PRESETS) as CaptionStyleName[];
 
 const HOOK_DURATION = 2.5;
+const CTA_DURATION = 2.5;
 /** Pop-in scale animation applied to each cue's start, for the "kinetic" preset. */
 const KINETIC_PREFIX = '{\\t(0,120,\\fscx112\\fscy112)\\t(120,220,\\fscx100\\fscy100)}';
 
-/** Builds a full .ass subtitle file: a "Hook" headline for the first ~3s, plus word-group captions. */
+/** Builds a full .ass subtitle file: a "Hook" headline for the first ~3s, word-group captions in
+ * between, and an optional CTA line burned into the last ~2.5s of the clip. */
 export function buildAssFile(
   hookText: string,
   captionCues: CaptionCue[],
+  clipDurationSec: number,
+  ctaText?: string,
   accentColorHex?: string,
   styleName: CaptionStyleName = 'bold',
 ): string {
@@ -130,10 +134,12 @@ export function buildAssFile(
   const primaryColor = preset.colorRole === 'fill' ? accentAss : '&H00FFFFFF';
   const outlineColor = preset.colorRole === 'outline' ? accentAss : '&H00000000';
 
-  // The hook headline always gets its own fixed window up front. Real captions are pushed
-  // out of that window (clipped, not dropped) so they never fight the hook for screen time.
+  // The hook headline always gets its own fixed window up front, and the CTA (if any) gets one at
+  // the end. Real captions are pushed out of the hook window and clipped before the CTA window —
+  // never dropped, just kept from fighting either for screen time.
+  const ctaStart = ctaText ? Math.max(HOOK_DURATION, clipDurationSec - CTA_DURATION) : clipDurationSec;
   const cues = captionCues
-    .map((cue) => ({ ...cue, start: Math.max(cue.start, HOOK_DURATION) }))
+    .map((cue) => ({ ...cue, start: Math.max(cue.start, HOOK_DURATION), end: Math.min(cue.end, ctaStart) }))
     .filter((cue) => cue.end - cue.start > 0.05);
 
   const header = `[Script Info]
@@ -161,6 +167,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   for (const cue of cues) {
     lines.push(
       `Dialogue: 0,${formatAssTime(cue.start)},${formatAssTime(cue.end)},Caption,,0,0,0,,${animPrefix}${escapeAssText(applyCase(cue.text))}`,
+    );
+  }
+  if (ctaText) {
+    lines.push(
+      `Dialogue: 0,${formatAssTime(ctaStart)},${formatAssTime(clipDurationSec)},Caption,,0,0,0,,${animPrefix}${escapeAssText(applyCase(ctaText))}`,
     );
   }
 
