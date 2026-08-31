@@ -1,9 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../types';
-import { getBrandKit, setBrandAccentColor, uploadBrandLogo, clipFileUrl } from '../api';
+import type { CaptionStyleName, RootStackParamList } from '../types';
+import {
+  getBrandKit,
+  setBrandAccentColor,
+  uploadBrandLogo,
+  clipFileUrl,
+  getCaptionStyles,
+  setCaptionStyle,
+} from '../api';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BrandKit'>;
@@ -17,14 +24,19 @@ export default function BrandKitScreen({}: Props) {
   const [accentColor, setAccentColor] = useState<string | undefined>();
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [savingColor, setSavingColor] = useState<string | null>(null);
+  const [captionStyles, setCaptionStyles] = useState<CaptionStyleName[]>([]);
+  const [activeStyle, setActiveStyle] = useState<CaptionStyleName>('bold');
+  const [savingStyle, setSavingStyle] = useState<CaptionStyleName | null>(null);
 
   useEffect(() => {
     getBrandKit()
       .then((kit) => {
         setLogoUrl(kit.logoUrl);
         setAccentColor(kit.accentColor);
+        if (kit.captionStyle) setActiveStyle(kit.captionStyle);
       })
       .catch(() => {});
+    getCaptionStyles().then(setCaptionStyles).catch(() => {});
   }, []);
 
   async function pickLogo() {
@@ -61,8 +73,20 @@ export default function BrandKitScreen({}: Props) {
     }
   }
 
+  async function pickStyle(style: CaptionStyleName) {
+    setSavingStyle(style);
+    try {
+      await setCaptionStyle(style);
+      setActiveStyle(style);
+    } catch (err) {
+      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingStyle(null);
+    }
+  }
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.sectionTitle}>Logo</Text>
       <Text style={styles.sectionHint}>Appears in the top-right corner of every Reel you export.</Text>
 
@@ -95,12 +119,35 @@ export default function BrandKitScreen({}: Props) {
           </TouchableOpacity>
         ))}
       </View>
-    </View>
+
+      <Text style={styles.sectionTitle}>Caption style</Text>
+      <Text style={styles.sectionHint}>How every hook and caption is set — from a quiet minimal look to a full kinetic pop.</Text>
+
+      <View style={styles.styleGrid}>
+        {captionStyles.map((style) => (
+          <TouchableOpacity
+            key={style}
+            style={[styles.styleChip, activeStyle === style && styles.styleChipActive]}
+            onPress={() => pickStyle(style)}
+            disabled={savingStyle !== null}
+          >
+            {savingStyle === style ? (
+              <ActivityIndicator size="small" color={activeStyle === style ? colors.surface : colors.accent} />
+            ) : (
+              <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
+                {style[0].toUpperCase() + style.slice(1)}
+              </Text>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.lg, paddingBottom: spacing.xl },
   sectionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginTop: spacing.md },
   sectionHint: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: spacing.md },
   logoBox: {
@@ -123,4 +170,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   swatchActive: { borderWidth: 3, borderColor: colors.textPrimary },
+  styleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  styleChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minWidth: 78,
+    alignItems: 'center',
+  },
+  styleChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  styleChipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  styleChipTextActive: { color: colors.surface },
 });

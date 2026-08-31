@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config';
-import type { BrandKit, Job, Language, Translation } from './types';
+import type { BrandKit, CaptionStyleName, Job, Language, Translation } from './types';
 
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
@@ -75,6 +75,26 @@ export async function setBrandAccentColor(accentColor: string): Promise<BrandKit
   });
   if (!res.ok) {
     throw new Error(`Failed to save accent color: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getCaptionStyles(): Promise<CaptionStyleName[]> {
+  const res = await fetch(`${API_BASE_URL}/caption-styles`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch caption styles: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function setCaptionStyle(captionStyle: CaptionStyleName): Promise<BrandKit> {
+  const res = await fetch(`${API_BASE_URL}/brand-kit`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ captionStyle }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save caption style: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

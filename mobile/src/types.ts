@@ -52,7 +52,9 @@ export type Job = {
   clips: Clip[];
 };
 
-export type BrandKit = { logoUrl?: string; accentColor?: string };
+export type CaptionStyleName = 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'luxury' | 'gaming';
+
+export type BrandKit = { logoUrl?: string; accentColor?: string; captionStyle?: CaptionStyleName };
 
 export type RootStackParamList = {
   Upload: undefined;

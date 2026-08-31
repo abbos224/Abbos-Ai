@@ -10,6 +10,7 @@ import { processJob } from './pipeline.js';
 import { renderTranslation } from './videoPipeline.js';
 import { SUPPORTED_LANGUAGES } from './translate.js';
 import { getBrandKit, updateBrandKit } from './brandKit.js';
+import { CAPTION_STYLES } from './ass.js';
 
 const app = express();
 app.use(cors());
@@ -84,22 +85,38 @@ app.get('/languages', (_req, res) => {
   res.json(SUPPORTED_LANGUAGES);
 });
 
+app.get('/caption-styles', (_req, res) => {
+  res.json(CAPTION_STYLES);
+});
+
 app.get('/brand-kit', (_req, res) => {
   const kit = getBrandKit();
   res.json({
     logoUrl: kit.logoFile ? `/brand-assets/${path.basename(kit.logoFile)}` : undefined,
     accentColor: kit.accentColor,
+    captionStyle: kit.captionStyle,
   });
 });
 
 app.put('/brand-kit', (req, res) => {
-  const { accentColor } = req.body as { accentColor?: string };
-  if (accentColor && !/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
+  const { accentColor, captionStyle } = req.body as { accentColor?: string; captionStyle?: string };
+
+  if (accentColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
     res.status(400).json({ error: 'accentColor must be a hex color like "#1F3A5F"' });
     return;
   }
-  const kit = updateBrandKit({ accentColor });
-  res.json({ accentColor: kit.accentColor });
+  if (captionStyle !== undefined && !CAPTION_STYLES.includes(captionStyle as (typeof CAPTION_STYLES)[number])) {
+    res.status(400).json({ error: `captionStyle must be one of: ${CAPTION_STYLES.join(', ')}` });
+    return;
+  }
+
+  // Only patch the fields actually sent, so setting one doesn't wipe out the other.
+  const patch: { accentColor?: string; captionStyle?: (typeof CAPTION_STYLES)[number] } = {};
+  if (accentColor !== undefined) patch.accentColor = accentColor;
+  if (captionStyle !== undefined) patch.captionStyle = captionStyle as (typeof CAPTION_STYLES)[number];
+
+  const kit = updateBrandKit(patch);
+  res.json({ accentColor: kit.accentColor, captionStyle: kit.captionStyle });
 });
 
 app.post('/brand-kit/logo', uploadLogo.single('logo'), (req, res) => {

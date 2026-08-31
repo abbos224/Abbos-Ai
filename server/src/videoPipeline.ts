@@ -282,8 +282,12 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
   const captionCues = buildCaptionCues(clipWords);
-  const accentColor = getBrandKit().accentColor;
-  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues, accentColor), 'utf-8');
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(clip.chosenHook, captionCues, brandForCaptions.accentColor, brandForCaptions.captionStyle),
+    'utf-8',
+  );
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
@@ -329,8 +333,12 @@ export async function renderTranslation(
   const captionedPath = path.join(translationDir, 'captioned.mp4');
   const outPath = path.join(translationDir, 'final.mp4');
 
-  const accentColor = getBrandKit().accentColor;
-  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues, accentColor), 'utf-8');
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(translated.hook, translatedCues, brandForCaptions.accentColor, brandForCaptions.captionStyle),
+    'utf-8',
+  );
   await burnSubtitles(croppedPath, assPath, captionedPath);
   await applyBrandOverlay(captionedPath, outPath);
 
