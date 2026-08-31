@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config';
-import type { BrandKit, CalendarEntry, CaptionStyleName, Job, Language, Translation } from './types';
+import type { BrandKit, CalendarEntry, CaptionStyleName, Job, Language, Persona, PersonaName, Translation } from './types';
 
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
@@ -149,6 +149,26 @@ export async function autoScheduleCalendar(intervalDays?: number): Promise<Calen
   });
   if (!res.ok) {
     throw new Error(`Auto-schedule failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getPersonas(): Promise<{ personas: Persona[]; activePersona: PersonaName | null }> {
+  const res = await fetch(`${API_BASE_URL}/personas`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch personas: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function setActivePersona(persona: PersonaName | null): Promise<{ activePersona: PersonaName | null }> {
+  const res = await fetch(`${API_BASE_URL}/personas/active`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persona }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save persona: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

@@ -1,6 +1,7 @@
 import { getAnthropicClient } from './anthropicClient.js';
 import type { Word } from './transcription.js';
 import type { ClipScore } from './store.js';
+import { getPersonaVoiceGuidance, type PersonaName } from './personas.js';
 
 export type Sentence = { start: number; end: number; text: string };
 
@@ -88,14 +89,18 @@ Return between 3 and 10 clips, ordered by overall potential descending.`;
 export async function findBestClips(
   words: Word[],
   durationSec: number,
+  persona?: PersonaName,
 ): Promise<ClipCandidate[]> {
   const sentences = groupIntoSentences(words);
   const transcript = formatTranscript(sentences);
+  const system = persona
+    ? `${SYSTEM_PROMPT}\n\nVoice for hook_options, cta, and cover_options: ${getPersonaVoiceGuidance(persona)}`
+    : SYSTEM_PROMPT;
 
   const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
+    system,
     messages: [
       {
         role: 'user',

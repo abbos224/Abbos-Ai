@@ -69,6 +69,10 @@ export type CaptionStyleName = 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'lux
 
 export type BrandKit = { logoUrl?: string; accentColor?: string; captionStyle?: CaptionStyleName };
 
+export type PersonaName = 'trustedAdvisor' | 'boldContrarian' | 'friendlyNeighbor' | 'luxuryConcierge' | 'energeticCoach';
+
+export type Persona = { name: PersonaName; label: string; description: string };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
@@ -76,4 +80,5 @@ export type RootStackParamList = {
   Preview: { clip: Clip };
   BrandKit: undefined;
   Calendar: undefined;
+  Personas: undefined;
 };
