@@ -39,7 +39,10 @@ export type Clip = {
   error?: string;
   translations?: Translation[];
   scheduledFor?: string;
+  publishedYoutubeUrl?: string;
 };
+
+export type YoutubeStatus = { configured: boolean; connected: boolean; channelTitle?: string };
 
 export type CalendarEntry = {
   jobId: string;

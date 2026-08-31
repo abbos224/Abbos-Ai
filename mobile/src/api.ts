@@ -1,5 +1,15 @@
 import { API_BASE_URL } from './config';
-import type { BrandKit, CalendarEntry, CaptionStyleName, Job, Language, Persona, PersonaName, Translation } from './types';
+import type {
+  BrandKit,
+  CalendarEntry,
+  CaptionStyleName,
+  Job,
+  Language,
+  Persona,
+  PersonaName,
+  Translation,
+  YoutubeStatus,
+} from './types';
 
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
@@ -169,6 +179,41 @@ export async function setActivePersona(persona: PersonaName | null): Promise<{ a
   });
   if (!res.ok) {
     throw new Error(`Failed to save persona: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getYoutubeStatus(): Promise<YoutubeStatus> {
+  const res = await fetch(`${API_BASE_URL}/youtube/status`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch YouTube status: ${res.status}`);
+  }
+  return res.json();
+}
+
+export function youtubeConnectUrl(): string {
+  return `${API_BASE_URL}/oauth/youtube/start`;
+}
+
+export async function disconnectYoutube(): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/youtube/disconnect`, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`Failed to disconnect YouTube: ${res.status}`);
+  }
+}
+
+export async function publishToYoutube(
+  jobId: string,
+  clipId: string,
+  options: { title?: string; description?: string; privacyStatus?: 'private' | 'unlisted' | 'public' },
+): Promise<{ videoId: string; url: string }> {
+  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/publish/youtube`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) {
+    throw new Error(`Publish failed: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

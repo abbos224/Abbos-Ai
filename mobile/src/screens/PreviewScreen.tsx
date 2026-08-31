@@ -1,11 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image, Linking } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, Language, Translation } from '../types';
-import { clipFileUrl, getLanguages, scheduleClip, translateClip } from '../api';
+import type { RootStackParamList, Language, Translation, YoutubeStatus } from '../types';
+import {
+  clipFileUrl,
+  disconnectYoutube,
+  getLanguages,
+  getYoutubeStatus,
+  publishToYoutube,
+  scheduleClip,
+  translateClip,
+  youtubeConnectUrl,
+} from '../api';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
@@ -35,10 +45,21 @@ export default function PreviewScreen({ route }: Props) {
   const [activeKey, setActiveKey] = useState<string>(ORIGINAL_KEY);
   const [scheduledFor, setScheduledFor] = useState<string | undefined>(clip.scheduledFor);
   const [scheduling, setScheduling] = useState(false);
+  const [youtubeStatus, setYoutubeStatus] = useState<YoutubeStatus | null>(null);
+  const [publishedUrl, setPublishedUrl] = useState<string | undefined>(clip.publishedYoutubeUrl);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     getLanguages().then(setLanguages).catch(() => {});
   }, []);
+
+  // Re-check connection status whenever this screen regains focus — the user connects YouTube in
+  // an external browser (Google disallows in-app WebView OAuth), so we won't hear back any other way.
+  useFocusEffect(
+    useCallback(() => {
+      getYoutubeStatus().then(setYoutubeStatus).catch(() => {});
+    }, [])
+  );
 
   const activeTranslation = translations.find((t) => t.language === activeKey);
   const activeFile = activeKey === ORIGINAL_KEY ? clip.outputFile : activeTranslation?.outputFile;
@@ -90,6 +111,47 @@ export default function PreviewScreen({ route }: Props) {
     } finally {
       setScheduling(false);
     }
+  }
+
+  async function handleConnectYoutube() {
+    await Linking.openURL(youtubeConnectUrl());
+  }
+
+  async function handleDisconnectYoutube() {
+    try {
+      await disconnectYoutube();
+      setYoutubeStatus((prev) => (prev ? { ...prev, connected: false, channelTitle: undefined } : prev));
+    } catch (err) {
+      Alert.alert('Failed to disconnect', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handlePublish() {
+    Alert.alert(
+      'Publish to YouTube',
+      `Upload this clip to ${youtubeStatus?.channelTitle ?? 'your channel'} as a private video? You can make it public later from YouTube Studio.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Publish',
+          onPress: async () => {
+            setPublishing(true);
+            try {
+              const { url } = await publishToYoutube(clip.jobId, clip.id, {
+                title: clip.chosenHook,
+                description: clip.cta,
+                privacyStatus: 'private',
+              });
+              setPublishedUrl(url);
+            } catch (err) {
+              Alert.alert('Publish failed', err instanceof Error ? err.message : String(err));
+            } finally {
+              setPublishing(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function handleExport() {
@@ -228,6 +290,44 @@ export default function PreviewScreen({ route }: Props) {
         </View>
       </View>
 
+      {youtubeStatus?.configured && (
+        <View style={styles.scheduleCard}>
+          <View style={styles.scoreHeader}>
+            <Text style={styles.scoreLabel}>YouTube</Text>
+            {youtubeStatus.connected && (
+              <Text style={styles.scheduleCurrent} numberOfLines={1}>
+                {youtubeStatus.channelTitle ?? 'Connected'}
+              </Text>
+            )}
+          </View>
+
+          {!youtubeStatus.connected ? (
+            <TouchableOpacity style={styles.scheduleChip} onPress={handleConnectYoutube}>
+              <Text style={styles.scheduleChipText}>Connect YouTube</Text>
+            </TouchableOpacity>
+          ) : publishedUrl ? (
+            <TouchableOpacity onPress={() => Linking.openURL(publishedUrl)}>
+              <Text style={styles.publishedLink} numberOfLines={1}>
+                Published — view on YouTube ↗
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.scheduleRow}>
+              <TouchableOpacity style={styles.scheduleChip} disabled={publishing} onPress={handlePublish}>
+                {publishing ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Text style={styles.scheduleChipText}>Publish (private)</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDisconnectYoutube}>
+                <Text style={styles.disconnectLink}>Disconnect</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
       <TouchableOpacity style={styles.exportButton} onPress={handleExport} disabled={exporting}>
         {exporting ? (
           <ActivityIndicator color={colors.surface} />
@@ -327,6 +427,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   scheduleChipText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  publishedLink: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  disconnectLink: { color: colors.textMuted, fontSize: 12, marginLeft: spacing.sm, alignSelf: 'center' },
   exportButton: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,

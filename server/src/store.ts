@@ -41,6 +41,7 @@ export type Clip = {
   error?: string;
   translations?: Translation[];
   scheduledFor?: string; // ISO date (yyyy-mm-dd), when the user plans to post this clip
+  publishedYoutubeUrl?: string; // set once this clip has been uploaded to YouTube
 };
 
 export type JobStatus =
