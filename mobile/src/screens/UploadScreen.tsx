@@ -71,6 +71,9 @@ export default function UploadScreen({ navigation }: Props) {
           <TouchableOpacity onPress={() => navigation.navigate('BrandKit')}>
             <Text style={styles.navLink}>Brand Kit</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Personas')}>
+            <Text style={styles.navLink}>Voice</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -115,7 +118,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: spacing.xl,
   },
-  navLinks: { flexDirection: 'row', gap: 16 },
+  navLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, maxWidth: 160 },
   navLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
   eyebrow: {
     color: colors.textMuted,

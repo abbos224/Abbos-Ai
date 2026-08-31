@@ -12,6 +12,7 @@ import { SUPPORTED_LANGUAGES } from './translate.js';
 import { getBrandKit, updateBrandKit } from './brandKit.js';
 import { CAPTION_STYLES } from './ass.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
+import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 
 const app = express();
 app.use(cors());
@@ -226,6 +227,22 @@ app.post('/calendar/auto-schedule', (req, res) => {
       scheduledFor: dates[i],
     }))
   );
+});
+
+app.get('/personas', (_req, res) => {
+  res.json({ personas: listPersonas(), activePersona: getActivePersona() ?? null });
+});
+
+app.put('/personas/active', (req, res) => {
+  const { persona } = req.body as { persona?: string | null };
+
+  if (persona != null && !isPersonaName(persona)) {
+    res.status(400).json({ error: `persona must be one of: ${listPersonas().map((p) => p.name).join(', ')}, or null` });
+    return;
+  }
+
+  const activePersona = setActivePersona(persona ?? null);
+  res.json({ activePersona: activePersona ?? null });
 });
 
 app.use('/files', express.static(path.join(env.storageDir, 'clips')));

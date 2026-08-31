@@ -4,6 +4,7 @@ import { probe } from './ffmpegRunner.js';
 import { transcribeVideo } from './transcription.js';
 import { findBestClips } from './analysis.js';
 import { renderClip } from './videoPipeline.js';
+import { getActivePersona } from './personas.js';
 
 function average(scores: Clip['scoreBreakdown']): number {
   const values = Object.values(scores);
@@ -21,7 +22,7 @@ export async function processJob(jobId: string): Promise<void> {
     const words = await transcribeVideo(job.sourceFile);
 
     updateJob(jobId, { status: 'analyzing' });
-    const candidates = await findBestClips(words, durationSec);
+    const candidates = await findBestClips(words, durationSec, getActivePersona());
 
     const clips: Clip[] = candidates.map((c) => ({
       id: uuid(),
