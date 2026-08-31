@@ -5,6 +5,7 @@ import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
 import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
+import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -187,6 +188,112 @@ async function cropToSpeakerFraming(
   ]);
 }
 
+export type BrollSegment = { start: number; end: number; brollPath: string };
+export type TimelineSegment = { type: 'main' | 'broll'; start: number; end: number; brollPath?: string };
+
+/**
+ * Interleaves B-roll windows into the main timeline as an alternating main/broll segment list,
+ * dropping any B-roll window that overlaps one already placed (first-come, first-kept) rather
+ * than fight over the timeline. Pure and unit-tested — the actual cutting lives in `insertBroll`.
+ */
+export function buildTimelineSegments(moments: BrollSegment[], durationSec: number): TimelineSegment[] {
+  const sorted = [...moments].sort((a, b) => a.start - b.start);
+
+  const segments: TimelineSegment[] = [];
+  let cursor = 0;
+  for (const m of sorted) {
+    if (m.start < cursor) continue;
+    if (m.start > cursor) segments.push({ type: 'main', start: cursor, end: m.start });
+    segments.push({ type: 'broll', start: m.start, end: m.end, brollPath: m.brollPath });
+    cursor = m.end;
+  }
+  if (durationSec - cursor > 0.05) segments.push({ type: 'main', start: cursor, end: durationSec });
+
+  return segments;
+}
+
+/**
+ * Cuts away from the main video to a B-roll clip for each given window, while the original audio
+ * plays through unbroken underneath (the standard short-form "cutaway" pattern — no audio concat
+ * needed at all, since the soundtrack never changes). No-ops (plain copy) if `moments` is empty.
+ */
+async function insertBroll(input: string, moments: BrollSegment[], outPath: string): Promise<void> {
+  if (moments.length === 0) {
+    fs.copyFileSync(input, outPath);
+    return;
+  }
+
+  const { durationSec } = await probe(input);
+  const segments = buildTimelineSegments(moments, durationSec);
+
+  const brollFiles = [...new Set(segments.filter((s) => s.type === 'broll').map((s) => s.brollPath!))];
+  const inputArgs = ['-i', input, ...brollFiles.flatMap((f) => ['-i', f])];
+  const brollInputIndex = new Map(brollFiles.map((f, i) => [f, i + 1]));
+
+  const filterParts: string[] = [];
+  const videoLabels: string[] = [];
+
+  segments.forEach((seg, i) => {
+    if (seg.type === 'main') {
+      filterParts.push(`[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[v${i}]`);
+    } else {
+      const idx = brollInputIndex.get(seg.brollPath!);
+      const dur = (seg.end - seg.start).toFixed(3);
+      filterParts.push(
+        `[${idx}:v]trim=start=0:end=${dur},setpts=PTS-STARTPTS,` +
+          'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' +
+          `[v${i}]`,
+      );
+    }
+    videoLabels.push(`[v${i}]`);
+  });
+
+  const filterComplex =
+    filterParts.join(';') + `;${videoLabels.join('')}concat=n=${segments.length}:v=1:a=0[outv]`;
+
+  await runFfmpeg([
+    ...inputArgs,
+    '-filter_complex', filterComplex,
+    '-map', '[outv]',
+    '-map', '0:a',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'copy',
+    outPath,
+  ]);
+}
+
+/**
+ * Finds B-roll moments for this clip (via Claude) and downloads matching stock footage (via
+ * Pexels), returning ready-to-use {start, end, brollPath} segments. Returns an empty array
+ * whenever no Pexels key is configured, nothing suitable is suggested, or a search/download
+ * fails for a given moment — B-roll is a nice-to-have, never a reason to fail the render.
+ */
+async function prepareBrollSegments(
+  clipWords: Word[],
+  clipDurationSec: number,
+  workDir: string,
+): Promise<BrollSegment[]> {
+  if (!env.pexelsApiKey) return [];
+
+  const moments = await suggestBrollMoments(clipWords, clipDurationSec);
+  const segments: BrollSegment[] = [];
+
+  for (let i = 0; i < moments.length; i++) {
+    const moment = moments[i];
+    try {
+      const videoUrl = await searchPexelsVideo(moment.keyword);
+      if (!videoUrl) continue;
+      const brollPath = path.join(workDir, `broll_${i}.mp4`);
+      await downloadBroll(videoUrl, brollPath);
+      segments.push({ start: moment.start, end: moment.end, brollPath });
+    } catch (err) {
+      console.log(`[broll] skipping moment "${moment.keyword}": ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  return segments;
+}
+
 /**
  * Uses speaker-following crop when the clip has ≥2 distinct speakers, the source has room to pan
  * horizontally, and every speaker's on-screen position was successfully detected. Falls back to
@@ -236,6 +343,7 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   const cutPath = path.join(workDir, '1_cut.mp4');
   const silenceRemovedPath = path.join(workDir, '2_nosilence.mp4');
   const croppedPath = path.join(workDir, '3_cropped.mp4');
+  const brollPath = path.join(workDir, '4_broll.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -255,28 +363,35 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
 
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
+  const { durationSec: finalDuration } = await probe(croppedPath);
+  const brollSegments = await prepareBrollSegments(clipWords, finalDuration, workDir);
+  await insertBroll(croppedPath, brollSegments, brollPath);
+
   const captionCues = buildCaptionCues(clipWords);
   fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
-  await burnSubtitles(croppedPath, assPath, finalPath);
+  await burnSubtitles(brollPath, assPath, finalPath);
 
   return `/files/${clip.id}/final.mp4`;
 }
 
 /**
- * Re-burns a clip's captions in another language, reusing the already-cropped video from the
- * original render (`3_cropped.mp4`) — only translation + a caption burn pass are needed, no
- * re-transcription, silence removal, or cropping.
+ * Re-burns a clip's captions in another language, reusing the already-cropped-and-broll'd video
+ * from the original render — only translation + a caption burn pass are needed, no
+ * re-transcription, silence removal, cropping, or B-roll search.
  */
 export async function renderTranslation(
   clip: Clip,
   targetLanguage: string,
 ): Promise<{ outputFile: string; hook: string }> {
   const workDir = path.join(env.storageDir, 'clips', clip.id);
-  const croppedPath = path.join(workDir, '3_cropped.mp4');
+  // Prefer the post-B-roll video so translated versions keep the same cutaways; fall back to the
+  // plain crop for clips rendered before B-roll insertion existed.
+  const brollPath = path.join(workDir, '4_broll.mp4');
+  const croppedPath = fs.existsSync(brollPath) ? brollPath : path.join(workDir, '3_cropped.mp4');
   const cuesPath = path.join(workDir, 'captionCues.json');
 
   if (!fs.existsSync(croppedPath) || !fs.existsSync(cuesPath)) {
