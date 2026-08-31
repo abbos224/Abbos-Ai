@@ -13,6 +13,7 @@ import { getBrandKit, updateBrandKit } from './brandKit.js';
 import { CAPTION_STYLES } from './ass.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
+import * as youtube from './youtube.js';
 
 const app = express();
 app.use(cors());
@@ -243,6 +244,86 @@ app.put('/personas/active', (req, res) => {
 
   const activePersona = setActivePersona(persona ?? null);
   res.json({ activePersona: activePersona ?? null });
+});
+
+app.get('/youtube/status', (_req, res) => {
+  res.json({ configured: youtube.isConfigured(), ...youtube.getConnectionStatus() });
+});
+
+app.get('/oauth/youtube/start', (_req, res) => {
+  if (!youtube.isConfigured()) {
+    res.status(400).send('YouTube is not configured on the server (missing YOUTUBE_CLIENT_ID/SECRET).');
+    return;
+  }
+  res.redirect(youtube.getAuthUrl());
+});
+
+app.get('/oauth/youtube/callback', async (req, res) => {
+  const { code, error } = req.query as { code?: string; error?: string };
+  if (error) {
+    res.status(400).send(`YouTube connection was not granted: ${error}`);
+    return;
+  }
+  if (!code) {
+    res.status(400).send('Missing "code" from Google redirect.');
+    return;
+  }
+
+  try {
+    await youtube.completeAuth(code);
+    res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).send(`YouTube connection failed: ${message}`);
+  }
+});
+
+app.post('/youtube/disconnect', (_req, res) => {
+  youtube.disconnect();
+  res.json({ connected: false });
+});
+
+app.post('/jobs/:jobId/clips/:clipId/publish/youtube', async (req, res) => {
+  const { jobId, clipId } = req.params;
+  const { title, description, privacyStatus } = req.body as {
+    title?: string;
+    description?: string;
+    privacyStatus?: youtube.PrivacyStatus;
+  };
+
+  const job = getJob(jobId);
+  const clip = job?.clips.find((c) => c.id === clipId);
+  if (!job || !clip) {
+    res.status(404).json({ error: 'Job or clip not found' });
+    return;
+  }
+  if (clip.status !== 'done' || !clip.outputFile) {
+    res.status(400).json({ error: 'Clip has not finished rendering yet' });
+    return;
+  }
+  if (!youtube.getConnectionStatus().connected) {
+    res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
+    return;
+  }
+
+  const localPath = path.join(env.storageDir, 'clips', clip.outputFile.replace(/^\/files\//, ''));
+  if (!fs.existsSync(localPath)) {
+    res.status(404).json({ error: 'Rendered video file not found on disk' });
+    return;
+  }
+
+  try {
+    const { videoId, url } = await youtube.uploadVideo(
+      localPath,
+      title || clip.chosenHook || clip.topic,
+      description || clip.cta || '',
+      privacyStatus ?? 'private',
+    );
+    updateClip(jobId, clipId, { publishedYoutubeUrl: url });
+    res.json({ videoId, url });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 app.use('/files', express.static(path.join(env.storageDir, 'clips')));
