@@ -7,6 +7,8 @@ import UploadScreen from './src/screens/UploadScreen';
 import ProcessingScreen from './src/screens/ProcessingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
 import PreviewScreen from './src/screens/PreviewScreen';
+import BrandKitScreen from './src/screens/BrandKitScreen';
+import CalendarScreen from './src/screens/CalendarScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -28,6 +30,8 @@ export default function App() {
         <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: 'Processing' }} />
         <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
         <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
+        <Stack.Screen name="BrandKit" component={BrandKitScreen} options={{ title: 'Brand Kit' }} />
+        <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

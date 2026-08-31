@@ -38,6 +38,16 @@ export type Clip = {
   outputFile?: string;
   error?: string;
   translations?: Translation[];
+  scheduledFor?: string;
+};
+
+export type CalendarEntry = {
+  jobId: string;
+  clipId: string;
+  scheduledFor: string;
+  topic: string;
+  chosenHook: string;
+  outputFile?: string;
 };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
@@ -55,9 +65,15 @@ export type Job = {
   clips: Clip[];
 };
 
+export type CaptionStyleName = 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'luxury' | 'gaming';
+
+export type BrandKit = { logoUrl?: string; accentColor?: string; captionStyle?: CaptionStyleName };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
   Results: { jobId: string };
   Preview: { clip: Clip };
+  BrandKit: undefined;
+  Calendar: undefined;
 };

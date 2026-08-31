@@ -5,6 +5,9 @@ import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
 import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
+import { getBrandKit } from './brandKit.js';
+import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
+import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -120,7 +123,7 @@ async function cropTo9x16(input: string, outPath: string): Promise<void> {
 
   await runFfmpeg([
     '-i', input,
-    '-vf', `${cropFilter},scale=1080:1920`,
+    '-vf', `${cropFilter},scale=1080:1920,setsar=1`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
     '-c:a', 'copy',
     outPath,
@@ -185,6 +188,30 @@ async function renderCovers(
   return urls;
 }
 
+async function overlayLogo(input: string, logoPath: string, outPath: string): Promise<void> {
+  await runFfmpeg([
+    '-i', input,
+    '-i', logoPath,
+    '-filter_complex', '[1:v]scale=180:-1[logo];[0:v][logo]overlay=W-w-30:30',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'copy',
+    outPath,
+  ]);
+}
+
+/** Applies the account's Brand Kit logo (top-right corner) if one is set; otherwise a plain copy. */
+async function applyBrandOverlay(input: string, outPath: string): Promise<void> {
+  const brandKit = getBrandKit();
+  if (brandKit.logoFile) {
+    const logoPath = path.join(env.storageDir, brandKit.logoFile);
+    if (fs.existsSync(logoPath)) {
+      await overlayLogo(input, logoPath, outPath);
+      return;
+    }
+  }
+  fs.copyFileSync(input, outPath);
+}
+
 /**
  * Like `cropTo9x16`, but crops each speaker turn to follow that speaker's on-screen position
  * instead of one static center crop for the whole clip. Only meaningful when the source has
@@ -216,7 +243,7 @@ async function cropToSpeakerFraming(
     const end = i === turns.length - 1 ? durationSec : turns[i + 1].start;
 
     filterParts.push(
-      `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,crop=${cropWidth}:${height}:${x}:0,scale=1080:1920[v${i}]`,
+      `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS,crop=${cropWidth}:${height}:${x}:0,scale=1080:1920,setsar=1[v${i}]`,
       `[0:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${i}]`,
     );
     labels.push(`[v${i}][a${i}]`);
@@ -233,6 +260,112 @@ async function cropToSpeakerFraming(
     '-c:a', 'aac',
     outPath,
   ]);
+}
+
+export type BrollSegment = { start: number; end: number; brollPath: string };
+export type TimelineSegment = { type: 'main' | 'broll'; start: number; end: number; brollPath?: string };
+
+/**
+ * Interleaves B-roll windows into the main timeline as an alternating main/broll segment list,
+ * dropping any B-roll window that overlaps one already placed (first-come, first-kept) rather
+ * than fight over the timeline. Pure and unit-tested — the actual cutting lives in `insertBroll`.
+ */
+export function buildTimelineSegments(moments: BrollSegment[], durationSec: number): TimelineSegment[] {
+  const sorted = [...moments].sort((a, b) => a.start - b.start);
+
+  const segments: TimelineSegment[] = [];
+  let cursor = 0;
+  for (const m of sorted) {
+    if (m.start < cursor) continue;
+    if (m.start > cursor) segments.push({ type: 'main', start: cursor, end: m.start });
+    segments.push({ type: 'broll', start: m.start, end: m.end, brollPath: m.brollPath });
+    cursor = m.end;
+  }
+  if (durationSec - cursor > 0.05) segments.push({ type: 'main', start: cursor, end: durationSec });
+
+  return segments;
+}
+
+/**
+ * Cuts away from the main video to a B-roll clip for each given window, while the original audio
+ * plays through unbroken underneath (the standard short-form "cutaway" pattern — no audio concat
+ * needed at all, since the soundtrack never changes). No-ops (plain copy) if `moments` is empty.
+ */
+async function insertBroll(input: string, moments: BrollSegment[], outPath: string): Promise<void> {
+  if (moments.length === 0) {
+    fs.copyFileSync(input, outPath);
+    return;
+  }
+
+  const { durationSec } = await probe(input);
+  const segments = buildTimelineSegments(moments, durationSec);
+
+  const brollFiles = [...new Set(segments.filter((s) => s.type === 'broll').map((s) => s.brollPath!))];
+  const inputArgs = ['-i', input, ...brollFiles.flatMap((f) => ['-i', f])];
+  const brollInputIndex = new Map(brollFiles.map((f, i) => [f, i + 1]));
+
+  const filterParts: string[] = [];
+  const videoLabels: string[] = [];
+
+  segments.forEach((seg, i) => {
+    if (seg.type === 'main') {
+      filterParts.push(`[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS,setsar=1[v${i}]`);
+    } else {
+      const idx = brollInputIndex.get(seg.brollPath!);
+      const dur = (seg.end - seg.start).toFixed(3);
+      filterParts.push(
+        `[${idx}:v]trim=start=0:end=${dur},setpts=PTS-STARTPTS,` +
+          'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1' +
+          `[v${i}]`,
+      );
+    }
+    videoLabels.push(`[v${i}]`);
+  });
+
+  const filterComplex =
+    filterParts.join(';') + `;${videoLabels.join('')}concat=n=${segments.length}:v=1:a=0[outv]`;
+
+  await runFfmpeg([
+    ...inputArgs,
+    '-filter_complex', filterComplex,
+    '-map', '[outv]',
+    '-map', '0:a',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'copy',
+    outPath,
+  ]);
+}
+
+/**
+ * Finds B-roll moments for this clip (via Claude) and downloads matching stock footage (via
+ * Pexels), returning ready-to-use {start, end, brollPath} segments. Returns an empty array
+ * whenever no Pexels key is configured, nothing suitable is suggested, or a search/download
+ * fails for a given moment — B-roll is a nice-to-have, never a reason to fail the render.
+ */
+async function prepareBrollSegments(
+  clipWords: Word[],
+  clipDurationSec: number,
+  workDir: string,
+): Promise<BrollSegment[]> {
+  if (!env.pexelsApiKey) return [];
+
+  const moments = await suggestBrollMoments(clipWords, clipDurationSec);
+  const segments: BrollSegment[] = [];
+
+  for (let i = 0; i < moments.length; i++) {
+    const moment = moments[i];
+    try {
+      const videoUrl = await searchPexelsVideo(moment.keyword);
+      if (!videoUrl) continue;
+      const brollPath = path.join(workDir, `broll_${i}.mp4`);
+      await downloadBroll(videoUrl, brollPath);
+      segments.push({ start: moment.start, end: moment.end, brollPath });
+    } catch (err) {
+      console.log(`[broll] skipping moment "${moment.keyword}": ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  return segments;
 }
 
 /**
@@ -267,6 +400,81 @@ async function cropWithSpeakerFramingOrFallback(
   await cropTo9x16(input, outPath);
 }
 
+/**
+ * Mixes a background music track under the clip's existing audio, ducked automatically whenever
+ * speech is present (via sidechaincompress, using the speech track itself as the trigger) and
+ * faded in/out at the clip's edges. No-ops (plain copy) when `musicPath` is null.
+ */
+async function addBackgroundMusic(
+  input: string,
+  musicPath: string | null,
+  clipDurationSec: number,
+  outPath: string,
+): Promise<void> {
+  if (!musicPath) {
+    fs.copyFileSync(input, outPath);
+    return;
+  }
+
+  const fadeOutStart = Math.max(0, clipDurationSec - 1).toFixed(3);
+  const dur = clipDurationSec.toFixed(3);
+
+  const filterComplex = [
+    `[1:a]atrim=start=0:end=${dur},asetpts=PTS-STARTPTS,volume=0.5,` +
+      `afade=t=in:d=1,afade=t=out:st=${fadeOutStart}:d=1[music]`,
+    '[0:a]asplit=2[speechForDuck][speechOut]',
+    '[music][speechForDuck]sidechaincompress=threshold=0.05:ratio=8:attack=5:release=400[duckedMusic]',
+    '[speechOut][duckedMusic]amix=inputs=2:duration=first:normalize=0[outa]',
+  ].join(';');
+
+  await runFfmpeg([
+    '-i', input,
+    '-i', musicPath,
+    '-filter_complex', filterComplex,
+    '-map', '0:v',
+    '-map', '[outa]',
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    outPath,
+  ]);
+}
+
+/**
+ * Picks a mood-matched music track for this clip (via Claude + Jamendo) and downloads it,
+ * persisting the choice to `music.json` so a later translation can reuse the exact same track
+ * instead of re-classifying/re-searching. Returns null (meaning "no music") whenever no Jamendo
+ * key is configured or nothing suitable is found — never a reason to fail the render.
+ */
+async function prepareMusic(clip: Clip, clipDurationSec: number, workDir: string): Promise<string | null> {
+  if (!env.jamendoClientId) return null;
+
+  try {
+    const mood = await classifyMood(clip.topic, clip.chosenHook);
+    const trackUrl = await searchMoodTrack(mood, clipDurationSec);
+    if (!trackUrl) return null;
+
+    const musicPath = path.join(workDir, 'music.mp3');
+    await downloadTrack(trackUrl, musicPath);
+    fs.writeFileSync(path.join(workDir, 'music.json'), JSON.stringify({ mood, musicPath }), 'utf-8');
+    return musicPath;
+  } catch (err) {
+    console.log(`[music] skipping background music: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+/** Loads a previously-persisted music choice for this clip, if any (used by renderTranslation). */
+function loadPersistedMusic(workDir: string): string | null {
+  const musicJsonPath = path.join(workDir, 'music.json');
+  if (!fs.existsSync(musicJsonPath)) return null;
+  try {
+    const { musicPath } = JSON.parse(fs.readFileSync(musicJsonPath, 'utf-8')) as { musicPath: string };
+    return fs.existsSync(musicPath) ? musicPath : null;
+  } catch {
+    return null;
+  }
+}
+
 function wordsInRange(words: Word[], start: number, end: number): Word[] {
   return words
     .filter((w) => w.start >= start && w.end <= end)
@@ -274,9 +482,10 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 }
 
 /**
- * Full per-clip render: cut -> remove silence -> crop to 9:16 -> burn captions + hook + CTA,
- * plus a still cover image per cover-title option.
- * Returns the public URL path (served via express.static) of the finished mp4, and the cover URLs.
+ * Full per-clip render: cut -> remove silence -> crop to 9:16 -> insert B-roll cutaways -> burn
+ * captions + hook + CTA -> overlay brand logo -> add mood-matched background music, plus a still
+ * cover image per cover-title option. Returns the public URL path (served via express.static) of
+ * the finished mp4, and the cover URLs.
  */
 export async function renderClip(
   sourceFile: string,
@@ -289,6 +498,9 @@ export async function renderClip(
   const cutPath = path.join(workDir, '1_cut.mp4');
   const silenceRemovedPath = path.join(workDir, '2_nosilence.mp4');
   const croppedPath = path.join(workDir, '3_cropped.mp4');
+  const brollPath = path.join(workDir, '4_broll.mp4');
+  const captionedPath = path.join(workDir, '5_captioned.mp4');
+  const brandedPath = path.join(workDir, '6_branded.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -309,29 +521,51 @@ export async function renderClip(
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
   const { durationSec: finalDuration } = await probe(croppedPath);
+  const brollSegments = await prepareBrollSegments(clipWords, finalDuration, workDir);
+  await insertBroll(croppedPath, brollSegments, brollPath);
+
   const captionCues = buildCaptionCues(clipWords);
-  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues, finalDuration, clip.cta), 'utf-8');
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(
+      clip.chosenHook,
+      captionCues,
+      finalDuration,
+      clip.cta,
+      brandForCaptions.accentColor,
+      brandForCaptions.captionStyle,
+    ),
+    'utf-8',
+  );
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
-  await burnSubtitles(croppedPath, assPath, finalPath);
+  await burnSubtitles(brollPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, brandedPath);
   const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], clip.id, workDir);
+
+  const musicPath = await prepareMusic(clip, finalDuration, workDir);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, finalPath);
 
   return { outputFile: `/files/${clip.id}/final.mp4`, coverImages };
 }
 
 /**
- * Re-burns a clip's captions in another language, reusing the already-cropped video from the
- * original render (`3_cropped.mp4`) — only translation + a caption burn pass are needed, no
- * re-transcription, silence removal, or cropping.
+ * Re-burns a clip's captions in another language, reusing the already-cropped-and-broll'd video
+ * from the original render — only translation + a caption burn pass are needed, no
+ * re-transcription, silence removal, cropping, or B-roll search.
  */
 export async function renderTranslation(
   clip: Clip,
   targetLanguage: string,
 ): Promise<{ outputFile: string; hook: string }> {
   const workDir = path.join(env.storageDir, 'clips', clip.id);
-  const croppedPath = path.join(workDir, '3_cropped.mp4');
+  // Prefer the post-B-roll video so translated versions keep the same cutaways; fall back to the
+  // plain crop for clips rendered before B-roll insertion existed.
+  const brollPath = path.join(workDir, '4_broll.mp4');
+  const croppedPath = fs.existsSync(brollPath) ? brollPath : path.join(workDir, '3_cropped.mp4');
   const cuesPath = path.join(workDir, 'captionCues.json');
 
   if (!fs.existsSync(croppedPath) || !fs.existsSync(cuesPath)) {
@@ -354,15 +588,29 @@ export async function renderTranslation(
   const translationDir = path.join(workDir, 'translations', targetLanguage);
   fs.mkdirSync(translationDir, { recursive: true });
   const assPath = path.join(translationDir, 'captions.ass');
+  const captionedPath = path.join(translationDir, 'captioned.mp4');
+  const brandedPath = path.join(translationDir, 'branded.mp4');
   const outPath = path.join(translationDir, 'final.mp4');
 
   const { durationSec: finalDuration } = await probe(croppedPath);
+  const brandForCaptions = getBrandKit();
   fs.writeFileSync(
     assPath,
-    buildAssFile(translated.hook, translatedCues, finalDuration, translated.cta),
+    buildAssFile(
+      translated.hook,
+      translatedCues,
+      finalDuration,
+      translated.cta,
+      brandForCaptions.accentColor,
+      brandForCaptions.captionStyle,
+    ),
     'utf-8',
   );
-  await burnSubtitles(croppedPath, assPath, outPath);
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, brandedPath);
+
+  const musicPath = loadPersistedMusic(workDir);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, outPath);
 
   return {
     outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,

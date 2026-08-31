@@ -5,12 +5,26 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, Language, Translation } from '../types';
-import { clipFileUrl, getLanguages, translateClip } from '../api';
+import { clipFileUrl, getLanguages, scheduleClip, translateClip } from '../api';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 
 const ORIGINAL_KEY = '__original__';
+
+function addDaysIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatScheduledDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 export default function PreviewScreen({ route }: Props) {
   const { clip } = route.params;
@@ -19,6 +33,8 @@ export default function PreviewScreen({ route }: Props) {
   const [translations, setTranslations] = useState<Translation[]>(clip.translations ?? []);
   const [translatingLang, setTranslatingLang] = useState<string | null>(null);
   const [activeKey, setActiveKey] = useState<string>(ORIGINAL_KEY);
+  const [scheduledFor, setScheduledFor] = useState<string | undefined>(clip.scheduledFor);
+  const [scheduling, setScheduling] = useState(false);
 
   useEffect(() => {
     getLanguages().then(setLanguages).catch(() => {});
@@ -61,6 +77,18 @@ export default function PreviewScreen({ route }: Props) {
       await Sharing.shareAsync(file.uri);
     } else {
       Alert.alert('Saved', `File saved to ${file.uri}`);
+    }
+  }
+
+  async function handleSchedule(date: string | null) {
+    setScheduling(true);
+    try {
+      await scheduleClip(clip.jobId, clip.id, date);
+      setScheduledFor(date ?? undefined);
+    } catch (err) {
+      Alert.alert('Scheduling failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setScheduling(false);
     }
   }
 
@@ -169,6 +197,37 @@ export default function PreviewScreen({ route }: Props) {
         ))}
       </View>
 
+      <View style={styles.scheduleCard}>
+        <View style={styles.scoreHeader}>
+          <Text style={styles.scoreLabel}>Schedule</Text>
+          <Text style={styles.scheduleCurrent}>
+            {scheduledFor ? formatScheduledDate(scheduledFor) : 'Not scheduled'}
+          </Text>
+        </View>
+        <View style={styles.scheduleRow}>
+          {[
+            { label: 'Tomorrow', date: addDaysIso(1) },
+            { label: '+3 days', date: addDaysIso(3) },
+            { label: '+1 week', date: addDaysIso(7) },
+          ].map((opt) => (
+            <TouchableOpacity
+              key={opt.label}
+              style={styles.scheduleChip}
+              disabled={scheduling}
+              onPress={() => handleSchedule(opt.date)}
+            >
+              <Text style={styles.scheduleChipText}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+          {scheduledFor && (
+            <TouchableOpacity style={styles.scheduleChip} disabled={scheduling} onPress={() => handleSchedule(null)}>
+              <Text style={styles.scheduleChipText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+          {scheduling && <ActivityIndicator size="small" color={colors.accent} />}
+        </View>
+      </View>
+
       <TouchableOpacity style={styles.exportButton} onPress={handleExport} disabled={exporting}>
         {exporting ? (
           <ActivityIndicator color={colors.surface} />
@@ -251,6 +310,23 @@ const styles = StyleSheet.create({
   scoreRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
   scoreRowLabel: { color: colors.textSecondary, fontSize: 14 },
   scoreRowValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  scheduleCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  scheduleCurrent: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  scheduleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  scheduleChip: {
+    backgroundColor: colors.accentSurface,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  scheduleChipText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   exportButton: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,

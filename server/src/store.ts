@@ -40,6 +40,7 @@ export type Clip = {
   outputFile?: string;
   error?: string;
   translations?: Translation[];
+  scheduledFor?: string; // ISO date (yyyy-mm-dd), when the user plans to post this clip
 };
 
 export type JobStatus =
@@ -85,6 +86,10 @@ export function createJob(job: Job) {
 
 export function getJob(id: string): Job | undefined {
   return readDb().jobs[id];
+}
+
+export function listAllJobs(): Job[] {
+  return Object.values(readDb().jobs);
 }
 
 export function updateJob(id: string, patch: Partial<Job>) {
