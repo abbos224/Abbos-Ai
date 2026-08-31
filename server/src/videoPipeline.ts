@@ -6,6 +6,7 @@ import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
 import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
+import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
 import type { Word } from './transcription.js';
 import type { Clip } from './store.js';
 import { env } from './env.js';
@@ -326,6 +327,81 @@ async function cropWithSpeakerFramingOrFallback(
   await cropTo9x16(input, outPath);
 }
 
+/**
+ * Mixes a background music track under the clip's existing audio, ducked automatically whenever
+ * speech is present (via sidechaincompress, using the speech track itself as the trigger) and
+ * faded in/out at the clip's edges. No-ops (plain copy) when `musicPath` is null.
+ */
+async function addBackgroundMusic(
+  input: string,
+  musicPath: string | null,
+  clipDurationSec: number,
+  outPath: string,
+): Promise<void> {
+  if (!musicPath) {
+    fs.copyFileSync(input, outPath);
+    return;
+  }
+
+  const fadeOutStart = Math.max(0, clipDurationSec - 1).toFixed(3);
+  const dur = clipDurationSec.toFixed(3);
+
+  const filterComplex = [
+    `[1:a]atrim=start=0:end=${dur},asetpts=PTS-STARTPTS,volume=0.5,` +
+      `afade=t=in:d=1,afade=t=out:st=${fadeOutStart}:d=1[music]`,
+    '[0:a]asplit=2[speechForDuck][speechOut]',
+    '[music][speechForDuck]sidechaincompress=threshold=0.05:ratio=8:attack=5:release=400[duckedMusic]',
+    '[speechOut][duckedMusic]amix=inputs=2:duration=first:normalize=0[outa]',
+  ].join(';');
+
+  await runFfmpeg([
+    '-i', input,
+    '-i', musicPath,
+    '-filter_complex', filterComplex,
+    '-map', '0:v',
+    '-map', '[outa]',
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    outPath,
+  ]);
+}
+
+/**
+ * Picks a mood-matched music track for this clip (via Claude + Jamendo) and downloads it,
+ * persisting the choice to `music.json` so a later translation can reuse the exact same track
+ * instead of re-classifying/re-searching. Returns null (meaning "no music") whenever no Jamendo
+ * key is configured or nothing suitable is found — never a reason to fail the render.
+ */
+async function prepareMusic(clip: Clip, clipDurationSec: number, workDir: string): Promise<string | null> {
+  if (!env.jamendoClientId) return null;
+
+  try {
+    const mood = await classifyMood(clip.topic, clip.chosenHook);
+    const trackUrl = await searchMoodTrack(mood, clipDurationSec);
+    if (!trackUrl) return null;
+
+    const musicPath = path.join(workDir, 'music.mp3');
+    await downloadTrack(trackUrl, musicPath);
+    fs.writeFileSync(path.join(workDir, 'music.json'), JSON.stringify({ mood, musicPath }), 'utf-8');
+    return musicPath;
+  } catch (err) {
+    console.log(`[music] skipping background music: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+/** Loads a previously-persisted music choice for this clip, if any (used by renderTranslation). */
+function loadPersistedMusic(workDir: string): string | null {
+  const musicJsonPath = path.join(workDir, 'music.json');
+  if (!fs.existsSync(musicJsonPath)) return null;
+  try {
+    const { musicPath } = JSON.parse(fs.readFileSync(musicJsonPath, 'utf-8')) as { musicPath: string };
+    return fs.existsSync(musicPath) ? musicPath : null;
+  } catch {
+    return null;
+  }
+}
+
 function wordsInRange(words: Word[], start: number, end: number): Word[] {
   return words
     .filter((w) => w.start >= start && w.end <= end)
@@ -333,8 +409,9 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 }
 
 /**
- * Full per-clip render: cut -> remove silence -> crop to 9:16 -> burn captions + hook.
- * Returns the public URL path (served via express.static) of the finished mp4.
+ * Full per-clip render: cut -> remove silence -> crop to 9:16 -> insert B-roll cutaways -> burn
+ * captions + hook -> add mood-matched background music. Returns the public URL path (served via
+ * express.static) of the finished mp4.
  */
 export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[]): Promise<string> {
   const workDir = path.join(env.storageDir, 'clips', clip.id);
@@ -344,6 +421,7 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   const silenceRemovedPath = path.join(workDir, '2_nosilence.mp4');
   const croppedPath = path.join(workDir, '3_cropped.mp4');
   const brollPath = path.join(workDir, '4_broll.mp4');
+  const captionedPath = path.join(workDir, '5_captioned.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -373,7 +451,10 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
-  await burnSubtitles(brollPath, assPath, finalPath);
+  await burnSubtitles(brollPath, assPath, captionedPath);
+
+  const musicPath = await prepareMusic(clip, finalDuration, workDir);
+  await addBackgroundMusic(captionedPath, musicPath, finalDuration, finalPath);
 
   return `/files/${clip.id}/final.mp4`;
 }
@@ -413,10 +494,15 @@ export async function renderTranslation(
   const translationDir = path.join(workDir, 'translations', targetLanguage);
   fs.mkdirSync(translationDir, { recursive: true });
   const assPath = path.join(translationDir, 'captions.ass');
+  const captionedPath = path.join(translationDir, 'captioned.mp4');
   const outPath = path.join(translationDir, 'final.mp4');
 
   fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues), 'utf-8');
-  await burnSubtitles(croppedPath, assPath, outPath);
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+
+  const { durationSec: finalDuration } = await probe(croppedPath);
+  const musicPath = loadPersistedMusic(workDir);
+  await addBackgroundMusic(captionedPath, musicPath, finalDuration, outPath);
 
   return {
     outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,

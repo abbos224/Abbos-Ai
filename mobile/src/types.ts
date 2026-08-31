@@ -35,6 +35,16 @@ export type Clip = {
   outputFile?: string;
   error?: string;
   translations?: Translation[];
+  scheduledFor?: string;
+};
+
+export type CalendarEntry = {
+  jobId: string;
+  clipId: string;
+  scheduledFor: string;
+  topic: string;
+  chosenHook: string;
+  outputFile?: string;
 };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
@@ -57,4 +67,5 @@ export type RootStackParamList = {
   Processing: { jobId: string };
   Results: { jobId: string };
   Preview: { clip: Clip };
+  Calendar: undefined;
 };

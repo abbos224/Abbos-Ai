@@ -6,4 +6,5 @@ export const env = {
   assemblyAiApiKey: process.env.ASSEMBLYAI_API_KEY ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
   pexelsApiKey: process.env.PEXELS_API_KEY ?? '',
+  jamendoClientId: process.env.JAMENDO_CLIENT_ID ?? '',
 };
