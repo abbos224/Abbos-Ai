@@ -5,6 +5,7 @@ import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
 import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
+import { getBrandKit } from './brandKit.js';
 import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
 import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
 import type { Word } from './transcription.js';
@@ -137,6 +138,30 @@ async function burnSubtitles(input: string, assPath: string, outPath: string): P
     '-c:a', 'copy',
     outPath,
   ]);
+}
+
+async function overlayLogo(input: string, logoPath: string, outPath: string): Promise<void> {
+  await runFfmpeg([
+    '-i', input,
+    '-i', logoPath,
+    '-filter_complex', '[1:v]scale=180:-1[logo];[0:v][logo]overlay=W-w-30:30',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'copy',
+    outPath,
+  ]);
+}
+
+/** Applies the account's Brand Kit logo (top-right corner) if one is set; otherwise a plain copy. */
+async function applyBrandOverlay(input: string, outPath: string): Promise<void> {
+  const brandKit = getBrandKit();
+  if (brandKit.logoFile) {
+    const logoPath = path.join(env.storageDir, brandKit.logoFile);
+    if (fs.existsSync(logoPath)) {
+      await overlayLogo(input, logoPath, outPath);
+      return;
+    }
+  }
+  fs.copyFileSync(input, outPath);
 }
 
 /**
@@ -422,6 +447,7 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   const croppedPath = path.join(workDir, '3_cropped.mp4');
   const brollPath = path.join(workDir, '4_broll.mp4');
   const captionedPath = path.join(workDir, '5_captioned.mp4');
+  const brandedPath = path.join(workDir, '6_branded.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -446,15 +472,21 @@ export async function renderClip(sourceFile: string, clip: Clip, allWords: Word[
   await insertBroll(croppedPath, brollSegments, brollPath);
 
   const captionCues = buildCaptionCues(clipWords);
-  fs.writeFileSync(assPath, buildAssFile(clip.chosenHook, captionCues), 'utf-8');
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(clip.chosenHook, captionCues, brandForCaptions.accentColor, brandForCaptions.captionStyle),
+    'utf-8',
+  );
   // Persisted so a later translation request can re-burn captions in another language onto the
   // same already-cropped video, without re-running transcription/silence-removal/cropping.
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
   await burnSubtitles(brollPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, brandedPath);
 
   const musicPath = await prepareMusic(clip, finalDuration, workDir);
-  await addBackgroundMusic(captionedPath, musicPath, finalDuration, finalPath);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, finalPath);
 
   return `/files/${clip.id}/final.mp4`;
 }
@@ -495,14 +527,21 @@ export async function renderTranslation(
   fs.mkdirSync(translationDir, { recursive: true });
   const assPath = path.join(translationDir, 'captions.ass');
   const captionedPath = path.join(translationDir, 'captioned.mp4');
+  const brandedPath = path.join(translationDir, 'branded.mp4');
   const outPath = path.join(translationDir, 'final.mp4');
 
-  fs.writeFileSync(assPath, buildAssFile(translated.hook, translatedCues), 'utf-8');
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(translated.hook, translatedCues, brandForCaptions.accentColor, brandForCaptions.captionStyle),
+    'utf-8',
+  );
   await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, brandedPath);
 
   const { durationSec: finalDuration } = await probe(croppedPath);
   const musicPath = loadPersistedMusic(workDir);
-  await addBackgroundMusic(captionedPath, musicPath, finalDuration, outPath);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, outPath);
 
   return {
     outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,

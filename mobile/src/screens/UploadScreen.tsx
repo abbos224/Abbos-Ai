@@ -59,14 +59,19 @@ export default function UploadScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
+      <View style={styles.headerRow}>
         <View>
           <Text style={styles.eyebrow}>New Reel</Text>
           <Text style={styles.title}>Create your first Reel</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
-          <Text style={styles.navLink}>Calendar</Text>
-        </TouchableOpacity>
+        <View style={styles.navLinks}>
+          <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
+            <Text style={styles.navLink}>Calendar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('BrandKit')}>
+            <Text style={styles.navLink}>Brand Kit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TouchableOpacity style={styles.uploadButton} onPress={pickVideo} disabled={uploading}>
@@ -104,8 +109,14 @@ export default function UploadScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 80 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  navLink: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xl,
+  },
+  navLinks: { flexDirection: 'row', gap: 16 },
+  navLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
   eyebrow: {
     color: colors.textMuted,
     fontSize: 12,
@@ -114,7 +125,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 6,
   },
-  title: { color: colors.textPrimary, fontSize: 24, fontWeight: '600', marginBottom: spacing.xl },
+  title: { color: colors.textPrimary, fontSize: 24, fontWeight: '600' },
   uploadButton: {
     backgroundColor: colors.surface,
     borderWidth: 1,
