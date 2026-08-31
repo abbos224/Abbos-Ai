@@ -59,8 +59,15 @@ export default function UploadScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.eyebrow}>New Reel</Text>
-      <Text style={styles.title}>Create your first Reel</Text>
+      <View style={styles.topRow}>
+        <View>
+          <Text style={styles.eyebrow}>New Reel</Text>
+          <Text style={styles.title}>Create your first Reel</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
+          <Text style={styles.navLink}>Calendar</Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={styles.uploadButton} onPress={pickVideo} disabled={uploading}>
         <Text style={styles.uploadButtonText}>Upload video</Text>
@@ -97,6 +104,8 @@ export default function UploadScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 80 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  navLink: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
   eyebrow: {
     color: colors.textMuted,
     fontSize: 12,
