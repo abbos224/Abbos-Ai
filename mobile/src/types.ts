@@ -108,7 +108,14 @@ export type Job = {
 
 export type CaptionStyleName = 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'luxury' | 'gaming';
 
-export type BrandKit = { logoUrl?: string; accentColor?: string; captionStyle?: CaptionStyleName };
+export type SoundEffectsStyle = 'professional' | 'minimal' | 'dynamic';
+
+export type BrandKit = {
+  logoUrl?: string;
+  accentColor?: string;
+  captionStyle?: CaptionStyleName;
+  soundEffectsStyle?: SoundEffectsStyle;
+};
 
 export type PersonaName = 'trustedAdvisor' | 'boldContrarian' | 'friendlyNeighbor' | 'luxuryConcierge' | 'energeticCoach';
 

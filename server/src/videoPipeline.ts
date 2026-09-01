@@ -9,6 +9,7 @@ import { getBrandKit } from './brandKit.js';
 import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
 import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
 import { regenerateCreative } from './regenerate.js';
+import { buildSoundEffectCues, applySoundEffects } from './soundEffects.js';
 import type { Word } from './transcription.js';
 import type { Clip, RegenerateModifier, SocialCaption } from './store.js';
 import { env } from './env.js';
@@ -555,9 +556,9 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 
 /**
  * Full per-clip render: cut -> remove silence -> crop to 9:16 -> auto zoom -> insert B-roll
- * cutaways -> burn captions + hook + CTA -> overlay brand logo -> add mood-matched background
- * music, plus a still cover image per cover-title option. Returns the public URL path (served via
- * express.static) of the finished mp4, and the cover URLs.
+ * cutaways -> burn captions + hook + CTA -> overlay brand logo -> add sound effect accents -> add
+ * mood-matched background music, plus a still cover image per cover-title option. Returns the
+ * public URL path (served via express.static) of the finished mp4, and the cover URLs.
  */
 export async function renderClip(
   sourceFile: string,
@@ -574,6 +575,7 @@ export async function renderClip(
   const brollPath = path.join(workDir, '5_broll.mp4');
   const captionedPath = path.join(workDir, '6_captioned.mp4');
   const brandedPath = path.join(workDir, '7_branded.mp4');
+  const effectsPath = path.join(workDir, '8_effects.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -622,8 +624,11 @@ export async function renderClip(
   await applyBrandOverlay(captionedPath, brandedPath);
   const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], workDir, clip.id);
 
+  const soundEffectCues = buildSoundEffectCues(captionCues, zoomKeyframes, brandForCaptions.soundEffectsStyle ?? 'professional');
+  await applySoundEffects(brandedPath, soundEffectCues, effectsPath);
+
   const musicPath = await prepareMusic(clip, finalDuration, workDir);
-  await addBackgroundMusic(brandedPath, musicPath, finalDuration, finalPath);
+  await addBackgroundMusic(effectsPath, musicPath, finalDuration, finalPath);
 
   return { outputFile: `/files/${clip.id}/final.mp4`, coverImages };
 }

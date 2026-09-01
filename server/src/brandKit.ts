@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { env } from './env.js';
 import type { CaptionStyleName } from './ass.js';
+import type { SoundEffectsStyle } from './soundEffects.js';
 
 export type BrandKit = {
   logoFile?: string; // path relative to storage dir, e.g. 'brand/logo.png'
   accentColor?: string; // '#RRGGBB'
   captionStyle?: CaptionStyleName;
+  soundEffectsStyle?: SoundEffectsStyle; // defaults to 'professional' (no effects) when unset
 };
 
 const brandKitPath = path.join(env.storageDir, 'brandKit.json');

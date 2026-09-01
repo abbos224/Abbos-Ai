@@ -10,6 +10,7 @@ import type {
   PersonaName,
   Regeneration,
   RegenerateModifier,
+  SoundEffectsStyle,
   Translation,
   YoutubeStatus,
 } from './types';
@@ -108,6 +109,26 @@ export async function setCaptionStyle(captionStyle: CaptionStyleName): Promise<B
   });
   if (!res.ok) {
     throw new Error(`Failed to save caption style: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getSoundEffectsStyles(): Promise<SoundEffectsStyle[]> {
+  const res = await fetch(`${API_BASE_URL}/sound-effects-styles`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sound effects styles: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function setSoundEffectsStyle(soundEffectsStyle: SoundEffectsStyle): Promise<BrandKit> {
+  const res = await fetch(`${API_BASE_URL}/brand-kit`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ soundEffectsStyle }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save sound effects style: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

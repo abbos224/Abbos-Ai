@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { CaptionStyleName, RootStackParamList } from '../types';
+import type { CaptionStyleName, SoundEffectsStyle, RootStackParamList } from '../types';
 import {
   getBrandKit,
   setBrandAccentColor,
@@ -10,6 +10,8 @@ import {
   clipFileUrl,
   getCaptionStyles,
   setCaptionStyle,
+  getSoundEffectsStyles,
+  setSoundEffectsStyle,
 } from '../api';
 import { colors, radius, spacing } from '../theme';
 
@@ -27,6 +29,9 @@ export default function BrandKitScreen({}: Props) {
   const [captionStyles, setCaptionStyles] = useState<CaptionStyleName[]>([]);
   const [activeStyle, setActiveStyle] = useState<CaptionStyleName>('bold');
   const [savingStyle, setSavingStyle] = useState<CaptionStyleName | null>(null);
+  const [effectsStyles, setEffectsStyles] = useState<SoundEffectsStyle[]>([]);
+  const [activeEffectsStyle, setActiveEffectsStyle] = useState<SoundEffectsStyle>('professional');
+  const [savingEffectsStyle, setSavingEffectsStyle] = useState<SoundEffectsStyle | null>(null);
 
   useEffect(() => {
     getBrandKit()
@@ -34,9 +39,11 @@ export default function BrandKitScreen({}: Props) {
         setLogoUrl(kit.logoUrl);
         setAccentColor(kit.accentColor);
         if (kit.captionStyle) setActiveStyle(kit.captionStyle);
+        if (kit.soundEffectsStyle) setActiveEffectsStyle(kit.soundEffectsStyle);
       })
       .catch(() => {});
     getCaptionStyles().then(setCaptionStyles).catch(() => {});
+    getSoundEffectsStyles().then(setEffectsStyles).catch(() => {});
   }, []);
 
   async function pickLogo() {
@@ -82,6 +89,18 @@ export default function BrandKitScreen({}: Props) {
       Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
     } finally {
       setSavingStyle(null);
+    }
+  }
+
+  async function pickEffectsStyle(style: SoundEffectsStyle) {
+    setSavingEffectsStyle(style);
+    try {
+      await setSoundEffectsStyle(style);
+      setActiveEffectsStyle(style);
+    } catch (err) {
+      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingEffectsStyle(null);
     }
   }
 
@@ -135,6 +154,31 @@ export default function BrandKitScreen({}: Props) {
               <ActivityIndicator size="small" color={activeStyle === style ? colors.surface : colors.accent} />
             ) : (
               <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
+                {style[0].toUpperCase() + style.slice(1)}
+              </Text>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>Sound effects</Text>
+      <Text style={styles.sectionHint}>
+        Professional keeps Reels quiet; Minimal adds a subtle whoosh on zoom; Dynamic also dings on
+        numbers/prices and alerts on warning words.
+      </Text>
+
+      <View style={styles.styleGrid}>
+        {effectsStyles.map((style) => (
+          <TouchableOpacity
+            key={style}
+            style={[styles.styleChip, activeEffectsStyle === style && styles.styleChipActive]}
+            onPress={() => pickEffectsStyle(style)}
+            disabled={savingEffectsStyle !== null}
+          >
+            {savingEffectsStyle === style ? (
+              <ActivityIndicator size="small" color={activeEffectsStyle === style ? colors.surface : colors.accent} />
+            ) : (
+              <Text style={[styles.styleChipText, activeEffectsStyle === style && styles.styleChipTextActive]}>
                 {style[0].toUpperCase() + style.slice(1)}
               </Text>
             )}
