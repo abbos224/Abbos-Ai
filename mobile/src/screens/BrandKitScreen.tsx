@@ -134,7 +134,7 @@ export default function BrandKitScreen({}: Props) {
             onPress={() => pickColor(color)}
             disabled={savingColor !== null}
           >
-            {savingColor === color && <ActivityIndicator size="small" color={colors.surface} />}
+            {savingColor === color && <ActivityIndicator size="small" color={colors.onAccent} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -151,7 +151,7 @@ export default function BrandKitScreen({}: Props) {
             disabled={savingStyle !== null}
           >
             {savingStyle === style ? (
-              <ActivityIndicator size="small" color={activeStyle === style ? colors.surface : colors.accent} />
+              <ActivityIndicator size="small" color={activeStyle === style ? colors.onAccent : colors.accent} />
             ) : (
               <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
                 {style[0].toUpperCase() + style.slice(1)}
@@ -176,7 +176,7 @@ export default function BrandKitScreen({}: Props) {
             disabled={savingEffectsStyle !== null}
           >
             {savingEffectsStyle === style ? (
-              <ActivityIndicator size="small" color={activeEffectsStyle === style ? colors.surface : colors.accent} />
+              <ActivityIndicator size="small" color={activeEffectsStyle === style ? colors.onAccent : colors.accent} />
             ) : (
               <Text style={[styles.styleChipText, activeEffectsStyle === style && styles.styleChipTextActive]}>
                 {style[0].toUpperCase() + style.slice(1)}
@@ -227,5 +227,5 @@ const styles = StyleSheet.create({
   },
   styleChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   styleChipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  styleChipTextActive: { color: colors.surface },
+  styleChipTextActive: { color: colors.onAccent },
 });

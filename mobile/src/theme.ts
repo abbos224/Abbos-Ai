@@ -1,20 +1,22 @@
-// Shared design tokens. Deliberately restrained/"business" — muted neutrals and one quiet
-// accent color, not the neon/gradient look of consumer short-form editors. Used across all
-// screens so the palette stays consistent in one place.
+// Shared design tokens. Dark/purple direction, matching the ReelAI mockup set the app is being
+// rebranded to — near-black surfaces with a violet accent, card elevation via subtle borders
+// rather than shadows (shadows barely read on a dark background). Used across all screens so the
+// palette stays consistent in one place.
 export const colors = {
-  background: '#F6F6F4',
-  surface: '#FFFFFF',
-  border: '#E3E2DD',
-  textPrimary: '#1B1B18',
-  textSecondary: '#6B6A64',
-  textMuted: '#9B9A93',
-  accent: '#1F3A5F',
-  accentSurface: '#EAEFF4',
+  background: '#0B0B12',
+  surface: '#171721',
+  border: '#26263A',
+  textPrimary: '#F5F5F7',
+  textSecondary: '#A8A8B8',
+  textMuted: '#6E6E80',
+  accent: '#8B5CF6',
+  accentSurface: '#241B3D',
   // Text/icon color for content sitting directly on a solid `accent` background (buttons, active
-  // chips). Same token PR #18 (dark rebrand) introduces for the same reason — merges cleanly.
+  // chips) — kept as its own token because `surface` no longer means "white" now that cards are
+  // dark, but content on the accent color still needs to read clearly against it.
   onAccent: '#FFFFFF',
-  danger: '#A6362C',
-  success: '#3D6B57',
+  danger: '#F87171',
+  success: '#34D399',
 };
 
 export const radius = { sm: 8, md: 10, lg: 14 };
