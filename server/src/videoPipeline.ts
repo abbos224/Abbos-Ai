@@ -262,6 +262,32 @@ async function cropToSpeakerFraming(
   ]);
 }
 
+export type ZoomKeyframe = { start: number; end: number; scale: number };
+
+const ZOOM_SEGMENT_DURATION = 5; // seconds per alternating step
+const ZOOM_SCALE = 1.08; // subtle punch-in — enough to feel dynamic, not jarring or nauseating
+
+/**
+ * Alternates between a normal (1.0) and slightly punched-in (ZOOM_SCALE) crop every
+ * ZOOM_SEGMENT_DURATION seconds, giving otherwise-static talking-head footage a sense of motion
+ * (the "Automatic Zoom" spec item). Pure and unit-tested — the actual crop/scale lives in
+ * `applyAutoZoom`.
+ */
+export function buildZoomKeyframes(durationSec: number): ZoomKeyframe[] {
+  if (durationSec <= 0) return [];
+
+  const keyframes: ZoomKeyframe[] = [];
+  let t = 0;
+  let i = 0;
+  while (t < durationSec) {
+    const end = Math.min(t + ZOOM_SEGMENT_DURATION, durationSec);
+    keyframes.push({ start: t, end, scale: i % 2 === 0 ? 1.0 : ZOOM_SCALE });
+    t = end;
+    i++;
+  }
+  return keyframes;
+}
+
 export type BrollSegment = { start: number; end: number; brollPath: string };
 export type TimelineSegment = { type: 'main' | 'broll'; start: number; end: number; brollPath?: string };
 
@@ -401,6 +427,48 @@ async function cropWithSpeakerFramingOrFallback(
 }
 
 /**
+ * Applies `buildZoomKeyframes`'s alternating zoom schedule by center-cropping a smaller region for
+ * "punched-in" segments and scaling every segment back up to the source's own resolution, so
+ * output dimensions never change. A no-op copy when there's only one segment (nothing to zoom).
+ */
+async function applyAutoZoom(input: string, keyframes: ZoomKeyframe[], outPath: string): Promise<void> {
+  if (keyframes.length <= 1) {
+    fs.copyFileSync(input, outPath);
+    return;
+  }
+
+  const { width, height } = await probe(input);
+  const filterParts: string[] = [];
+  const labels: string[] = [];
+
+  keyframes.forEach((kf, i) => {
+    const cropWidth = Math.round(width / kf.scale / 2) * 2;
+    const cropHeight = Math.round(height / kf.scale / 2) * 2;
+    const x = Math.round((width - cropWidth) / 2 / 2) * 2;
+    const y = Math.round((height - cropHeight) / 2 / 2) * 2;
+
+    filterParts.push(
+      `[0:v]trim=start=${kf.start}:end=${kf.end},setpts=PTS-STARTPTS,` +
+        `crop=${cropWidth}:${cropHeight}:${x}:${y},scale=${width}:${height},setsar=1[v${i}]`,
+      `[0:a]atrim=start=${kf.start}:end=${kf.end},asetpts=PTS-STARTPTS[a${i}]`,
+    );
+    labels.push(`[v${i}][a${i}]`);
+  });
+
+  const filterComplex =
+    filterParts.join(';') + `;${labels.join('')}concat=n=${keyframes.length}:v=1:a=1[outv][outa]`;
+
+  await runFfmpeg([
+    '-i', input,
+    '-filter_complex', filterComplex,
+    '-map', '[outv]', '-map', '[outa]',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'aac',
+    outPath,
+  ]);
+}
+
+/**
  * Mixes a background music track under the clip's existing audio, ducked automatically whenever
  * speech is present (via sidechaincompress, using the speech track itself as the trigger) and
  * faded in/out at the clip's edges. No-ops (plain copy) when `musicPath` is null.
@@ -482,10 +550,10 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 }
 
 /**
- * Full per-clip render: cut -> remove silence -> crop to 9:16 -> insert B-roll cutaways -> burn
- * captions + hook + CTA -> overlay brand logo -> add mood-matched background music, plus a still
- * cover image per cover-title option. Returns the public URL path (served via express.static) of
- * the finished mp4, and the cover URLs.
+ * Full per-clip render: cut -> remove silence -> crop to 9:16 -> auto zoom -> insert B-roll
+ * cutaways -> burn captions + hook + CTA -> overlay brand logo -> add mood-matched background
+ * music, plus a still cover image per cover-title option. Returns the public URL path (served via
+ * express.static) of the finished mp4, and the cover URLs.
  */
 export async function renderClip(
   sourceFile: string,
@@ -498,9 +566,10 @@ export async function renderClip(
   const cutPath = path.join(workDir, '1_cut.mp4');
   const silenceRemovedPath = path.join(workDir, '2_nosilence.mp4');
   const croppedPath = path.join(workDir, '3_cropped.mp4');
-  const brollPath = path.join(workDir, '4_broll.mp4');
-  const captionedPath = path.join(workDir, '5_captioned.mp4');
-  const brandedPath = path.join(workDir, '6_branded.mp4');
+  const zoomedPath = path.join(workDir, '4_zoomed.mp4');
+  const brollPath = path.join(workDir, '5_broll.mp4');
+  const captionedPath = path.join(workDir, '6_captioned.mp4');
+  const brandedPath = path.join(workDir, '7_branded.mp4');
   const finalPath = path.join(workDir, 'final.mp4');
   const assPath = path.join(workDir, 'captions.ass');
 
@@ -521,8 +590,11 @@ export async function renderClip(
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
   const { durationSec: finalDuration } = await probe(croppedPath);
+  const zoomKeyframes = buildZoomKeyframes(finalDuration);
+  await applyAutoZoom(croppedPath, zoomKeyframes, zoomedPath);
+
   const brollSegments = await prepareBrollSegments(clipWords, finalDuration, workDir);
-  await insertBroll(croppedPath, brollSegments, brollPath);
+  await insertBroll(zoomedPath, brollSegments, brollPath);
 
   const captionCues = buildCaptionCues(clipWords);
   const brandForCaptions = getBrandKit();
@@ -562,9 +634,10 @@ export async function renderTranslation(
   targetLanguage: string,
 ): Promise<{ outputFile: string; hook: string }> {
   const workDir = path.join(env.storageDir, 'clips', clip.id);
-  // Prefer the post-B-roll video so translated versions keep the same cutaways; fall back to the
-  // plain crop for clips rendered before B-roll insertion existed.
-  const brollPath = path.join(workDir, '4_broll.mp4');
+  // Prefer the post-B-roll video (which also has the auto-zoom already baked in) so translated
+  // versions keep the same look; fall back to the plain crop for clips rendered before B-roll
+  // and auto-zoom existed.
+  const brollPath = path.join(workDir, '5_broll.mp4');
   const croppedPath = fs.existsSync(brollPath) ? brollPath : path.join(workDir, '3_cropped.mp4');
   const cuesPath = path.join(workDir, 'captionCues.json');
 
