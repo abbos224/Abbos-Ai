@@ -17,6 +17,9 @@ import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
 import { getPublishedClips } from './analytics.js';
+import { runMigrations } from './db.js';
+import { registerUser, loginUser, signToken, getUserById, AuthError } from './auth.js';
+import { requireAuth } from './authMiddleware.js';
 
 const app = express();
 app.use(cors());
@@ -443,6 +446,79 @@ app.get('/analytics/youtube', async (_req, res) => {
 
 app.use('/files', express.static(path.join(env.storageDir, 'clips')));
 
-app.listen(env.port, () => {
-  console.log(`Server listening on http://localhost:${env.port}`);
+// --- Auth (foundation only — not yet required by any route above; see project plan) ---
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+app.post('/auth/register', async (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !isValidEmail(email)) {
+    res.status(400).json({ error: 'A valid email is required' });
+    return;
+  }
+  if (!password || password.length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters' });
+    return;
+  }
+
+  try {
+    const user = await registerUser(email, password);
+    res.json({ token: signToken(user.id), user });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) {
+    res.status(400).json({ error: 'Email and password are required' });
+    return;
+  }
+
+  try {
+    const user = await loginUser(email, password);
+    res.json({ token: signToken(user.id), user });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      res.status(401).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get('/auth/me', requireAuth, async (req, res) => {
+  const user = await getUserById(req.userId!);
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  res.json({ user });
+});
+
+// Auth is additive — the rest of the app (all 18 previously-shipped features) works with zero
+// Postgres setup, so a missing/unreachable database must never stop the server from starting.
+async function start() {
+  if (env.databaseUrl) {
+    try {
+      await runMigrations();
+    } catch (err) {
+      console.error('[auth] Postgres migration failed — /auth/* routes will not work:', err);
+    }
+  } else {
+    console.log('[auth] DATABASE_URL not set — /auth/* routes will not work until it is configured.');
+  }
+
+  app.listen(env.port, () => {
+    console.log(`Server listening on http://localhost:${env.port}`);
+  });
+}
+
+start();

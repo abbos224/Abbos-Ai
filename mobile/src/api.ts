@@ -1,6 +1,7 @@
 import { API_BASE_URL } from './config';
 import type {
   AnalyticsEntry,
+  AuthUser,
   BrandKit,
   CalendarEntry,
   CaptionStyleName,
@@ -273,4 +274,38 @@ export async function regenerateClip(
     throw new Error(`Regenerate failed: ${res.status} ${await res.text()}`);
   }
   return res.json();
+}
+
+export async function registerUser(email: string, password: string): Promise<{ token: string; user: AuthUser }> {
+  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Sign up failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function loginUser(email: string, password: string): Promise<{ token: string; user: AuthUser }> {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Login failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getCurrentUser(token: string): Promise<AuthUser> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch current user: ${res.status}`);
+  }
+  return (await res.json()).user;
 }

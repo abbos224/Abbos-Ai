@@ -121,6 +121,8 @@ export type PersonaName = 'trustedAdvisor' | 'boldContrarian' | 'friendlyNeighbo
 
 export type Persona = { name: PersonaName; label: string; description: string };
 
+export type AuthUser = { id: string; email: string };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
@@ -130,4 +132,6 @@ export type RootStackParamList = {
   Calendar: undefined;
   Personas: undefined;
   Analytics: undefined;
+  Login: undefined;
+  SignUp: undefined;
 };

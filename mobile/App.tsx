@@ -11,6 +11,8 @@ import BrandKitScreen from './src/screens/BrandKitScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import PersonasScreen from './src/screens/PersonasScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SignUpScreen from './src/screens/SignUpScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -36,6 +38,8 @@ export default function App() {
         <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
         <Stack.Screen name="Personas" component={PersonasScreen} options={{ title: 'Voice' }} />
         <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: 'Analytics' }} />
+        <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Log In' }} />
+        <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign Up' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
