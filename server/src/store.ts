@@ -31,6 +31,23 @@ export type SocialCaption = {
   keywords: string[];
 };
 
+export type RegenerateModifier = 'moreViral' | 'moreProfessional' | 'moreEmotional' | 'moreLuxury';
+
+export type Regeneration = {
+  id: string;
+  modifier: RegenerateModifier;
+  modifierLabel: string; // human-readable, e.g. 'More Viral'
+  hookOptions: string[];
+  chosenHook: string;
+  cta: string;
+  coverOptions: string[];
+  coverImages?: string[];
+  socialCaption?: SocialCaption;
+  status: 'rendering' | 'done' | 'failed';
+  outputFile?: string;
+  error?: string;
+};
+
 export type Clip = {
   id: string;
   jobId: string;
@@ -49,6 +66,7 @@ export type Clip = {
   outputFile?: string;
   error?: string;
   translations?: Translation[];
+  regenerations?: Regeneration[];
   scheduledFor?: string; // ISO date (yyyy-mm-dd), when the user plans to post this clip
   publishedYoutubeUrl?: string; // set once this clip has been uploaded to YouTube
 };

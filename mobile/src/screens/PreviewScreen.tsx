@@ -6,13 +6,15 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, Language, Translation, YoutubeStatus } from '../types';
+import type { RootStackParamList, Language, RegenerateModifier, Regeneration, Translation, YoutubeStatus } from '../types';
 import {
   clipFileUrl,
   disconnectYoutube,
   getLanguages,
+  getRegenerateModifiers,
   getYoutubeStatus,
   publishToYoutube,
+  regenerateClip,
   scheduleClip,
   translateClip,
   youtubeConnectUrl,
@@ -50,9 +52,14 @@ export default function PreviewScreen({ route }: Props) {
   const [youtubeStatus, setYoutubeStatus] = useState<YoutubeStatus | null>(null);
   const [publishedUrl, setPublishedUrl] = useState<string | undefined>(clip.publishedYoutubeUrl);
   const [publishing, setPublishing] = useState(false);
+  const [modifiers, setModifiers] = useState<Array<{ modifier: RegenerateModifier; label: string }>>([]);
+  const [regenerations, setRegenerations] = useState<Regeneration[]>(clip.regenerations ?? []);
+  const [regeneratingModifier, setRegeneratingModifier] = useState<RegenerateModifier | null>(null);
+  const [activeVariant, setActiveVariant] = useState<'original' | RegenerateModifier>('original');
 
   useEffect(() => {
     getLanguages().then(setLanguages).catch(() => {});
+    getRegenerateModifiers().then(setModifiers).catch(() => {});
   }, []);
 
   // Re-check connection status whenever this screen regains focus — the user connects YouTube in
@@ -63,9 +70,23 @@ export default function PreviewScreen({ route }: Props) {
     }, [])
   );
 
+  const activeRegeneration =
+    activeVariant !== 'original' ? regenerations.find((r) => r.modifier === activeVariant) : undefined;
   const activeTranslation = translations.find((t) => t.language === activeKey);
-  const activeFile = activeKey === ORIGINAL_KEY ? clip.outputFile : activeTranslation?.outputFile;
-  const activeHook = activeKey === ORIGINAL_KEY ? clip.chosenHook : activeTranslation?.hook || clip.chosenHook;
+  const activeFile = activeRegeneration
+    ? activeRegeneration.outputFile
+    : activeKey === ORIGINAL_KEY
+      ? clip.outputFile
+      : activeTranslation?.outputFile;
+  const activeHook = activeRegeneration
+    ? activeRegeneration.chosenHook
+    : activeKey === ORIGINAL_KEY
+      ? clip.chosenHook
+      : activeTranslation?.hook || clip.chosenHook;
+  const activeCta = activeRegeneration ? activeRegeneration.cta : clip.cta;
+  const activeCoverOptions = activeRegeneration?.coverOptions ?? clip.coverOptions;
+  const activeCoverImages = activeRegeneration?.coverImages ?? clip.coverImages;
+  const activeSocialCaption = activeRegeneration?.socialCaption ?? clip.socialCaption;
 
   const videoUrl = activeFile ? clipFileUrl(activeFile) : undefined;
   const player = useVideoPlayer(videoUrl ?? null, (p) => {
@@ -82,11 +103,31 @@ export default function PreviewScreen({ route }: Props) {
     try {
       const translation = await translateClip(clip.jobId, clip.id, language);
       setTranslations((prev) => [...prev.filter((t) => t.language !== language), translation]);
+      setActiveVariant('original');
       setActiveKey(language);
     } catch (err) {
       Alert.alert('Translation failed', err instanceof Error ? err.message : String(err));
     } finally {
       setTranslatingLang(null);
+    }
+  }
+
+  function selectLanguage(key: string) {
+    setActiveVariant('original');
+    setActiveKey(key);
+  }
+
+  async function handleRegenerate(modifier: RegenerateModifier) {
+    setRegeneratingModifier(modifier);
+    try {
+      const regeneration = await regenerateClip(clip.jobId, clip.id, modifier);
+      setRegenerations((prev) => [...prev.filter((r) => r.modifier !== modifier), regeneration]);
+      setActiveKey(ORIGINAL_KEY);
+      setActiveVariant(modifier);
+    } catch (err) {
+      Alert.alert('Regenerate failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setRegeneratingModifier(null);
     }
   }
 
@@ -169,8 +210,8 @@ export default function PreviewScreen({ route }: Props) {
   }
 
   async function handleCopyCaption() {
-    if (!clip.socialCaption) return;
-    const text = `${clip.socialCaption[captionLength]}\n\n${clip.socialCaption.hashtags.map((h) => `#${h}`).join(' ')}`;
+    if (!activeSocialCaption) return;
+    const text = `${activeSocialCaption[captionLength]}\n\n${activeSocialCaption.hashtags.map((h) => `#${h}`).join(' ')}`;
     await Clipboard.setStringAsync(text);
     Alert.alert('Copied', 'Caption + hashtags copied — paste it when posting to Instagram or TikTok.');
   }
@@ -198,22 +239,22 @@ export default function PreviewScreen({ route }: Props) {
 
       <Text style={styles.topic}>{clip.topic}</Text>
       <Text style={styles.hook}>&ldquo;{activeHook}&rdquo;</Text>
-      {clip.cta && (
+      {activeCta && (
         <View style={styles.ctaRow}>
           <Text style={styles.ctaLabel}>CTA</Text>
-          <Text style={styles.ctaText}>{clip.cta}</Text>
+          <Text style={styles.ctaText}>{activeCta}</Text>
         </View>
       )}
 
-      {clip.coverImages && clip.coverImages.length > 0 && (
+      {activeCoverImages && activeCoverImages.length > 0 && (
         <>
           <Text style={styles.sectionLabel}>Cover</Text>
           <View style={styles.coverRow}>
-            {clip.coverImages.map((cover, i) => (
+            {activeCoverImages.map((cover, i) => (
               <TouchableOpacity key={cover} onPress={() => handleExportCover(cover)}>
                 <Image source={{ uri: clipFileUrl(cover) }} style={styles.coverThumb} />
                 <Text style={styles.coverCaption} numberOfLines={1}>
-                  {clip.coverOptions[i]}
+                  {activeCoverOptions[i]}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -221,7 +262,7 @@ export default function PreviewScreen({ route }: Props) {
         </>
       )}
 
-      {clip.socialCaption && (
+      {activeSocialCaption && (
         <View style={styles.captionCard}>
           <View style={styles.scoreHeader}>
             <Text style={styles.scoreLabel}>Post caption</Text>
@@ -241,10 +282,10 @@ export default function PreviewScreen({ route }: Props) {
             ))}
           </View>
 
-          <Text style={styles.captionText}>{clip.socialCaption[captionLength]}</Text>
+          <Text style={styles.captionText}>{activeSocialCaption[captionLength]}</Text>
 
           <View style={styles.hashtagRow}>
-            {clip.socialCaption.hashtags.map((tag) => (
+            {activeSocialCaption.hashtags.map((tag) => (
               <Text key={tag} style={styles.hashtag}>
                 #{tag}
               </Text>
@@ -259,10 +300,15 @@ export default function PreviewScreen({ route }: Props) {
 
       <View style={styles.languageRow}>
         <TouchableOpacity
-          style={[styles.languageChip, activeKey === ORIGINAL_KEY && styles.languageChipActive]}
-          onPress={() => setActiveKey(ORIGINAL_KEY)}
+          style={[styles.languageChip, activeKey === ORIGINAL_KEY && activeVariant === 'original' && styles.languageChipActive]}
+          onPress={() => selectLanguage(ORIGINAL_KEY)}
         >
-          <Text style={[styles.languageChipText, activeKey === ORIGINAL_KEY && styles.languageChipTextActive]}>
+          <Text
+            style={[
+              styles.languageChipText,
+              activeKey === ORIGINAL_KEY && activeVariant === 'original' && styles.languageChipTextActive,
+            ]}
+          >
             Original
           </Text>
         </TouchableOpacity>
@@ -270,14 +316,14 @@ export default function PreviewScreen({ route }: Props) {
           .filter((l) => l.code !== 'en')
           .map((lang) => {
             const existing = translations.find((t) => t.language === lang.code);
-            const isActive = activeKey === lang.code;
+            const isActive = activeKey === lang.code && activeVariant === 'original';
             const isLoading = translatingLang === lang.code;
             return (
               <TouchableOpacity
                 key={lang.code}
                 style={[styles.languageChip, isActive && styles.languageChipActive]}
                 disabled={isLoading}
-                onPress={() => (existing ? setActiveKey(lang.code) : handleTranslate(lang.code))}
+                onPress={() => (existing ? selectLanguage(lang.code) : handleTranslate(lang.code))}
               >
                 {isLoading ? (
                   <ActivityIndicator size="small" color={colors.accent} />
@@ -289,6 +335,60 @@ export default function PreviewScreen({ route }: Props) {
               </TouchableOpacity>
             );
           })}
+      </View>
+
+      {regenerations.length > 0 && (
+        <View style={styles.languageRow}>
+          <TouchableOpacity
+            style={[styles.languageChip, activeVariant === 'original' && styles.languageChipActive]}
+            onPress={() => setActiveVariant('original')}
+          >
+            <Text style={[styles.languageChipText, activeVariant === 'original' && styles.languageChipTextActive]}>
+              Original
+            </Text>
+          </TouchableOpacity>
+          {regenerations
+            .filter((r) => r.status === 'done')
+            .map((r) => {
+              const isActive = activeVariant === r.modifier;
+              return (
+                <TouchableOpacity
+                  key={r.modifier}
+                  style={[styles.languageChip, isActive && styles.languageChipActive]}
+                  onPress={() => setActiveVariant(r.modifier)}
+                >
+                  <Text style={[styles.languageChipText, isActive && styles.languageChipTextActive]}>
+                    {r.modifierLabel}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+        </View>
+      )}
+
+      <View style={styles.scheduleCard}>
+        <View style={styles.scoreHeader}>
+          <Text style={styles.scoreLabel}>Regenerate</Text>
+        </View>
+        <Text style={styles.regenerateHint}>
+          Rewrite the hook, CTA, cover, and caption in a new voice — re-renders this clip as a new variant.
+        </Text>
+        <View style={styles.scheduleRow}>
+          {modifiers.map((m) => (
+            <TouchableOpacity
+              key={m.modifier}
+              style={styles.scheduleChip}
+              disabled={regeneratingModifier !== null}
+              onPress={() => handleRegenerate(m.modifier)}
+            >
+              {regeneratingModifier === m.modifier ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Text style={styles.scheduleChipText}>{m.label}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <View style={styles.scoreCard}>
@@ -495,6 +595,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   scheduleCurrent: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  regenerateHint: { color: colors.textSecondary, fontSize: 12, marginBottom: spacing.sm, lineHeight: 17 },
   scheduleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   scheduleChip: {
     backgroundColor: colors.accentSurface,

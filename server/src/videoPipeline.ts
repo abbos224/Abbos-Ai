@@ -8,8 +8,9 @@ import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from 
 import { getBrandKit } from './brandKit.js';
 import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
 import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
+import { regenerateCreative } from './regenerate.js';
 import type { Word } from './transcription.js';
-import type { Clip } from './store.js';
+import type { Clip, RegenerateModifier, SocialCaption } from './store.js';
 import { env } from './env.js';
 
 type SilenceInterval = { start: number; end: number };
@@ -151,14 +152,17 @@ function escapeDrawtext(text: string): string {
 }
 
 /**
- * Renders one still-frame cover image per title option: a mid-clip frame with the title
- * drawn over it in bold caps on a translucent bar, matching the "AI cover" step of the spec.
+ * Renders one still-frame cover image per title option: a mid-clip frame with the title drawn
+ * over it in bold caps on a translucent bar, matching the "AI cover" step of the spec. `outDir` is
+ * where the jpgs are written and `urlPrefix` is the `/files/`-relative path they're served under —
+ * callers give each variant of a clip (original, a regeneration, ...) its own of both so they
+ * never clobber each other's cover files.
  */
 async function renderCovers(
   croppedPath: string,
   coverOptions: string[],
-  clipId: string,
-  workDir: string,
+  outDir: string,
+  urlPrefix: string,
 ): Promise<string[]> {
   if (coverOptions.length === 0) return [];
 
@@ -167,7 +171,7 @@ async function renderCovers(
   const urls: string[] = [];
 
   for (let i = 0; i < coverOptions.length; i++) {
-    const framePath = path.join(workDir, `cover_${i}.jpg`);
+    const framePath = path.join(outDir, `cover_${i}.jpg`);
     const text = escapeDrawtext(coverOptions[i].toUpperCase());
 
     await runFfmpeg([
@@ -182,7 +186,7 @@ async function renderCovers(
       framePath,
     ]);
 
-    urls.push(`/files/${clipId}/cover_${i}.jpg`);
+    urls.push(`/files/${urlPrefix}/cover_${i}.jpg`);
   }
 
   return urls;
@@ -616,7 +620,7 @@ export async function renderClip(
 
   await burnSubtitles(brollPath, assPath, captionedPath);
   await applyBrandOverlay(captionedPath, brandedPath);
-  const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], clip.id, workDir);
+  const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], workDir, clip.id);
 
   const musicPath = await prepareMusic(clip, finalDuration, workDir);
   await addBackgroundMusic(brandedPath, musicPath, finalDuration, finalPath);
@@ -688,5 +692,81 @@ export async function renderTranslation(
   return {
     outputFile: `/files/${clip.id}/translations/${targetLanguage}/final.mp4`,
     hook: translated.hook,
+  };
+}
+
+/**
+ * Re-writes a clip's hook/CTA/cover/social-caption with a tone modifier applied (the spec's
+ * "Regenerate: More viral / More professional / ..." feature), reusing the already-cropped,
+ * zoomed, and B-roll'd video and its original captions — only the hook/CTA overlay text and cover
+ * images change, not the actual spoken-word captions or the underlying edit.
+ */
+export async function renderRegeneration(
+  clip: Clip,
+  modifier: RegenerateModifier,
+): Promise<{
+  outputFile: string;
+  coverImages: string[];
+  hookOptions: string[];
+  chosenHook: string;
+  cta: string;
+  socialCaption: SocialCaption;
+}> {
+  const workDir = path.join(env.storageDir, 'clips', clip.id);
+  // Same post-B-roll-or-plain-crop fallback as renderTranslation — see its comment.
+  const brollPath = path.join(workDir, '5_broll.mp4');
+  const croppedPath = fs.existsSync(brollPath) ? brollPath : path.join(workDir, '3_cropped.mp4');
+  const cuesPath = path.join(workDir, 'captionCues.json');
+
+  if (!fs.existsSync(croppedPath) || !fs.existsSync(cuesPath)) {
+    throw new Error('Original clip render is missing required intermediate files; re-render the clip first.');
+  }
+
+  const originalCues: CaptionCue[] = JSON.parse(fs.readFileSync(cuesPath, 'utf-8'));
+  const spokenText = originalCues.map((c) => c.text).join(' ');
+  const regenerated = await regenerateCreative(clip.topic, spokenText, clip.chosenHook, clip.cta, modifier);
+  const chosenHook = regenerated.hookOptions[0] ?? clip.chosenHook;
+
+  const regenDir = path.join(workDir, 'regenerations', modifier);
+  fs.mkdirSync(regenDir, { recursive: true });
+  const assPath = path.join(regenDir, 'captions.ass');
+  const captionedPath = path.join(regenDir, 'captioned.mp4');
+  const brandedPath = path.join(regenDir, 'branded.mp4');
+  const outPath = path.join(regenDir, 'final.mp4');
+
+  const { durationSec: finalDuration } = await probe(croppedPath);
+  const brandForCaptions = getBrandKit();
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(
+      chosenHook,
+      originalCues,
+      finalDuration,
+      regenerated.cta,
+      brandForCaptions.accentColor,
+      brandForCaptions.captionStyle,
+    ),
+    'utf-8',
+  );
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(captionedPath, brandedPath);
+
+  const musicPath = loadPersistedMusic(workDir);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, outPath);
+
+  const coverImages = await renderCovers(
+    croppedPath,
+    regenerated.coverOptions,
+    regenDir,
+    `${clip.id}/regenerations/${modifier}`,
+  );
+
+  return {
+    outputFile: `/files/${clip.id}/regenerations/${modifier}/final.mp4`,
+    coverImages,
+    hookOptions: regenerated.hookOptions,
+    chosenHook,
+    cta: regenerated.cta,
+    socialCaption: regenerated.socialCaption,
   };
 }

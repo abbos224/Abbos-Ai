@@ -5,10 +5,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { v4 as uuid } from 'uuid';
 import { env } from './env.js';
-import { createJob, getJob, listAllJobs, updateClip, type Job, type Translation } from './store.js';
+import { createJob, getJob, listAllJobs, updateClip, type Job, type Regeneration, type Translation } from './store.js';
 import { processJob } from './pipeline.js';
-import { renderTranslation } from './videoPipeline.js';
+import { renderTranslation, renderRegeneration } from './videoPipeline.js';
 import { SUPPORTED_LANGUAGES } from './translate.js';
+import { getModifierLabel, isRegenerateModifier, REGENERATE_MODIFIERS } from './regenerate.js';
 import { getBrandKit, updateBrandKit } from './brandKit.js';
 import { CAPTION_STYLES } from './ass.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
@@ -170,6 +171,64 @@ app.post('/jobs/:jobId/clips/:clipId/translate', async (req, res) => {
     const { outputFile, hook } = await renderTranslation(clip, language);
     settle({ status: 'done', outputFile, hook });
     res.json({ translationId, status: 'done', outputFile, hook });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    settle({ status: 'failed', error: message });
+    res.status(500).json({ error: message });
+  }
+});
+
+app.get('/regenerate-modifiers', (_req, res) => {
+  res.json(REGENERATE_MODIFIERS.map((m) => ({ modifier: m, label: getModifierLabel(m) })));
+});
+
+app.post('/jobs/:jobId/clips/:clipId/regenerate', async (req, res) => {
+  const { jobId, clipId } = req.params;
+  const { modifier } = req.body as { modifier?: string };
+  if (!modifier || !isRegenerateModifier(modifier)) {
+    res.status(400).json({ error: `modifier must be one of: ${REGENERATE_MODIFIERS.join(', ')}` });
+    return;
+  }
+
+  const job = getJob(jobId);
+  const clip = job?.clips.find((c) => c.id === clipId);
+  if (!job || !clip) {
+    res.status(404).json({ error: 'Job or clip not found' });
+    return;
+  }
+  if (clip.status !== 'done') {
+    res.status(400).json({ error: 'Clip has not finished rendering yet' });
+    return;
+  }
+
+  const regenerationId = uuid();
+  const pending: Regeneration = {
+    id: regenerationId,
+    modifier,
+    modifierLabel: getModifierLabel(modifier),
+    hookOptions: [],
+    chosenHook: '',
+    cta: '',
+    coverOptions: [],
+    status: 'rendering',
+  };
+  updateClip(jobId, clipId, { regenerations: [...(clip.regenerations ?? []), pending] });
+
+  const settle = (patch: Partial<Regeneration>) => {
+    const current = getJob(jobId)?.clips.find((c) => c.id === clipId);
+    if (!current) return;
+    updateClip(jobId, clipId, {
+      regenerations: (current.regenerations ?? []).map((r) => (r.id === regenerationId ? { ...r, ...patch } : r)),
+    });
+  };
+
+  try {
+    const { outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption } = await renderRegeneration(
+      clip,
+      modifier,
+    );
+    settle({ status: 'done', outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption });
+    res.json({ regenerationId, status: 'done', outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     settle({ status: 'failed', error: message });

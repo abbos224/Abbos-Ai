@@ -21,6 +21,23 @@ export type Translation = {
 
 export type Language = { code: string; label: string };
 
+export type RegenerateModifier = 'moreViral' | 'moreProfessional' | 'moreEmotional' | 'moreLuxury';
+
+export type Regeneration = {
+  id: string;
+  modifier: RegenerateModifier;
+  modifierLabel: string;
+  hookOptions: string[];
+  chosenHook: string;
+  cta: string;
+  coverOptions: string[];
+  coverImages?: string[];
+  socialCaption?: SocialCaption;
+  status: 'rendering' | 'done' | 'failed';
+  outputFile?: string;
+  error?: string;
+};
+
 export type SocialCaption = {
   short: string;
   medium: string;
@@ -47,6 +64,7 @@ export type Clip = {
   outputFile?: string;
   error?: string;
   translations?: Translation[];
+  regenerations?: Regeneration[];
   scheduledFor?: string;
   publishedYoutubeUrl?: string;
 };
