@@ -23,6 +23,14 @@ export type Translation = {
   error?: string;
 };
 
+export type SocialCaption = {
+  short: string;
+  medium: string;
+  long: string;
+  hashtags: string[];
+  keywords: string[];
+};
+
 export type Clip = {
   id: string;
   jobId: string;
@@ -36,6 +44,7 @@ export type Clip = {
   cta: string;
   coverOptions: string[];
   coverImages?: string[]; // rendered cover image URLs, same order as coverOptions
+  socialCaption?: SocialCaption; // post caption/hashtags/keywords for manual posting to IG/TikTok
   status: ClipStatus;
   outputFile?: string;
   error?: string;

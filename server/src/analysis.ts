@@ -5,6 +5,14 @@ import { getPersonaVoiceGuidance, type PersonaName } from './personas.js';
 
 export type Sentence = { start: number; end: number; text: string };
 
+export type SocialCaption = {
+  short: string;
+  medium: string;
+  long: string;
+  hashtags: string[];
+  keywords: string[];
+};
+
 export type ClipCandidate = {
   start_sec: number;
   end_sec: number;
@@ -13,6 +21,7 @@ export type ClipCandidate = {
   hook_options: string[];
   cta: string;
   cover_options: string[];
+  social_caption: SocialCaption;
 };
 
 /** Groups words into sentence-like chunks on punctuation boundaries, for a compact transcript. */
@@ -73,7 +82,14 @@ Respond with ONLY valid JSON (no markdown fences, no commentary), matching this 
       },
       "hook_options": [string, string, string],
       "cta": string,
-      "cover_options": [string, string, string]
+      "cover_options": [string, string, string],
+      "social_caption": {
+        "short": string,
+        "medium": string,
+        "long": string,
+        "hashtags": [string, ...],
+        "keywords": [string, ...]
+      }
     }
   ]
 }
@@ -83,6 +99,13 @@ Each score is 0-100, representing your estimate of that clip's potential, not a 
 "cta" is a single call-to-action line (under 8 words) for the very end of the clip, matched to the content type — e.g. "Save this video" for an educational tip, "Follow for more" for a personal/blog moment, "DM us to learn more" for a business/service pitch, "Book a consultation" for a professional service, "Comment your thoughts" for something opinion-driven. Pick whichever fits, don't default to the same one every time.
 
 "cover_options" are three short, punchy cover/thumbnail titles (under 6 words, title-case, no ending punctuation) that would work as bold on-screen text over a paused frame of the clip — think "3 Buyer Mistakes" or "Don't Sign Yet", not a full sentence.
+
+"social_caption" is the post caption to paste on Instagram/TikTok/YouTube alongside the video (separate from the on-screen hook/CTA burned into the clip itself):
+- "short": one punchy line (under 12 words), no hashtags.
+- "medium": 2-3 sentences that set up the clip's payoff without giving it all away, encouraging a watch-through.
+- "long": a fuller caption (4-6 sentences) that can stand alone as a mini value-add post, ending with a soft call to action.
+- "hashtags": 8-15 relevant hashtags (no "#" prefix, lowercase, no spaces), mixing broad reach tags with niche/topic-specific ones.
+- "keywords": 5-10 plain-language search keywords/phrases (for video SEO / alt text), not hashtags.
 
 Return between 3 and 10 clips, ordered by overall potential descending.`;
 
@@ -99,7 +122,9 @@ export async function findBestClips(
 
   const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
-    max_tokens: 4096,
+    // Bumped from 4096: social_caption (short/medium/long + hashtags + keywords) adds real
+    // output size per clip, and up to 10 clips can come back in one response.
+    max_tokens: 8192,
     system,
     messages: [
       {

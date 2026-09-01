@@ -36,6 +36,7 @@ export async function processJob(jobId: string): Promise<void> {
       chosenHook: c.hook_options[0] ?? c.topic,
       cta: c.cta,
       coverOptions: c.cover_options,
+      socialCaption: c.social_caption,
       status: 'pending',
     }));
     setClips(jobId, clips);
