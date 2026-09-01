@@ -3,12 +3,13 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { registerUser } from '../api';
-import { saveToken } from '../authStorage';
+import { useAuth } from '../AuthContext';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
 
 export default function SignUpScreen({ navigation }: Props) {
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -21,8 +22,9 @@ export default function SignUpScreen({ navigation }: Props) {
     setSubmitting(true);
     try {
       const { token } = await registerUser(email.trim(), password);
-      await saveToken(token);
-      navigation.replace('Upload');
+      // No further navigation needed — App.tsx's auth gate swaps to the tab navigator as soon as
+      // signIn() flips the shared status to 'loggedIn'.
+      await signIn(token);
     } catch (err) {
       Alert.alert('Sign up failed', err instanceof Error ? err.message : String(err));
     } finally {

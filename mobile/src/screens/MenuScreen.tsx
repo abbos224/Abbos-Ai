@@ -1,54 +1,27 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { AuthUser, RootStackParamList } from '../types';
-import { getCurrentUser } from '../api';
-import { getToken, clearToken } from '../authStorage';
+import type { RootStackParamList } from '../types';
+import { useAuth } from '../AuthContext';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
 
 export default function MenuScreen({ navigation }: Props) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      setCheckingAuth(true);
-      getToken()
-        .then((token) => (token ? getCurrentUser(token) : null))
-        .then((current) => {
-          if (!cancelled) setUser(current);
-        })
-        .catch(() => {
-          if (!cancelled) setUser(null);
-        })
-        .finally(() => {
-          if (!cancelled) setCheckingAuth(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [])
-  );
-
-  async function handleLogOut() {
-    await clearToken();
-    setUser(null);
-  }
+  // Login is mandatory app-wide (see App.tsx's auth gate), so by the time Menu is reachable
+  // `user` is always populated — this section is really just account info + log out, but the
+  // Login/SignUp links are kept as a defensive fallback for the instant between signOut() and the
+  // gate swapping the screen away.
+  const { user, signOut } = useAuth();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.card}>
-        {checkingAuth ? (
-          <ActivityIndicator color={colors.accent} />
-        ) : user ? (
+        {user ? (
           <>
             <Text style={styles.accountEmail}>{user.email}</Text>
-            <TouchableOpacity onPress={handleLogOut} style={styles.rowLink}>
+            <TouchableOpacity onPress={signOut} style={styles.rowLink}>
               <Text style={styles.rowLinkTextDanger}>Log out</Text>
             </TouchableOpacity>
           </>

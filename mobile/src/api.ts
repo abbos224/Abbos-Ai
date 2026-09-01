@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { getToken } from './authStorage';
 import type {
   AnalyticsEntry,
   AuthUser,
@@ -17,6 +18,17 @@ import type {
   YoutubeStatus,
 } from './types';
 
+// Jobs/clips (and the routes derived from them — translate, regenerate, schedule, calendar,
+// YouTube publish/analytics) require a logged-in user server-side; every other function below
+// still hits an anonymous route and is untouched.
+async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = await getToken();
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { ...options.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+}
+
 export async function uploadVideo(uri: string, fileName: string): Promise<{ jobId: string }> {
   const form = new FormData();
   // React Native's FormData accepts this {uri, name, type} shape for file fields.
@@ -26,7 +38,7 @@ export async function uploadVideo(uri: string, fileName: string): Promise<{ jobI
     type: 'video/mp4',
   } as unknown as Blob);
 
-  const res = await fetch(`${API_BASE_URL}/upload`, {
+  const res = await authFetch('/upload', {
     method: 'POST',
     body: form,
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -39,7 +51,7 @@ export async function uploadVideo(uri: string, fileName: string): Promise<{ jobI
 }
 
 export async function getAllJobs(): Promise<JobSummary[]> {
-  const res = await fetch(`${API_BASE_URL}/jobs`);
+  const res = await authFetch('/jobs');
   if (!res.ok) {
     throw new Error(`Failed to fetch jobs: ${res.status}`);
   }
@@ -47,7 +59,7 @@ export async function getAllJobs(): Promise<JobSummary[]> {
 }
 
 export async function getJob(jobId: string): Promise<Job> {
-  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}`);
+  const res = await authFetch(`/jobs/${jobId}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch job: ${res.status}`);
   }
@@ -71,7 +83,7 @@ export async function translateClip(
   clipId: string,
   language: string,
 ): Promise<Translation> {
-  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/translate`, {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/translate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ language }),
@@ -167,7 +179,7 @@ export async function scheduleClip(
   clipId: string,
   scheduledFor: string | null,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/schedule`, {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/schedule`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ scheduledFor }),
@@ -178,7 +190,7 @@ export async function scheduleClip(
 }
 
 export async function getCalendar(): Promise<CalendarEntry[]> {
-  const res = await fetch(`${API_BASE_URL}/calendar`);
+  const res = await authFetch('/calendar');
   if (!res.ok) {
     throw new Error(`Failed to fetch calendar: ${res.status}`);
   }
@@ -186,7 +198,7 @@ export async function getCalendar(): Promise<CalendarEntry[]> {
 }
 
 export async function autoScheduleCalendar(intervalDays?: number): Promise<CalendarEntry[]> {
-  const res = await fetch(`${API_BASE_URL}/calendar/auto-schedule`, {
+  const res = await authFetch('/calendar/auto-schedule', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(intervalDays ? { intervalDays } : {}),
@@ -241,7 +253,7 @@ export async function publishToYoutube(
   clipId: string,
   options: { title?: string; description?: string; privacyStatus?: 'private' | 'unlisted' | 'public' },
 ): Promise<{ videoId: string; url: string }> {
-  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/publish/youtube`, {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/publish/youtube`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options),
@@ -253,7 +265,7 @@ export async function publishToYoutube(
 }
 
 export async function getYoutubeAnalytics(): Promise<AnalyticsEntry[]> {
-  const res = await fetch(`${API_BASE_URL}/analytics/youtube`);
+  const res = await authFetch('/analytics/youtube');
   if (!res.ok) {
     throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
   }
@@ -273,7 +285,7 @@ export async function regenerateClip(
   clipId: string,
   modifier: RegenerateModifier,
 ): Promise<Regeneration> {
-  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/regenerate`, {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/regenerate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ modifier }),

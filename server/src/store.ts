@@ -1,6 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { env } from './env.js';
+import { getPool } from './db.js';
 
 export type ClipScore = {
   hook: number;
@@ -92,51 +90,88 @@ export type Job = {
   clips: Clip[];
 };
 
-type DB = { jobs: Record<string, Job> };
+// Jobs live in Postgres, one row per job, scoped by user_id — see db.ts's runMigrations for the
+// table. Every function here takes userId and filters by it, so a wrong/other-user job id
+// resolves to "not found" rather than a permissions error (avoids confirming another account's
+// job id exists).
 
-const dbPath = path.join(env.storageDir, 'db.json');
-
-function readDb(): DB {
-  if (!fs.existsSync(dbPath)) return { jobs: {} };
-  return JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+export async function createJob(userId: string, job: Job): Promise<void> {
+  await getPool().query('INSERT INTO jobs (id, user_id, created_at, data) VALUES ($1, $2, $3, $4)', [
+    job.id,
+    userId,
+    job.createdAt,
+    JSON.stringify(job),
+  ]);
 }
 
-function writeDb(db: DB) {
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+export async function getJob(userId: string, id: string): Promise<Job | undefined> {
+  const result = await getPool().query<{ data: Job }>('SELECT data FROM jobs WHERE id = $1 AND user_id = $2', [
+    id,
+    userId,
+  ]);
+  return result.rows[0]?.data;
 }
 
-export function createJob(job: Job) {
-  const db = readDb();
-  db.jobs[job.id] = job;
-  writeDb(db);
+export async function listAllJobs(userId: string): Promise<Job[]> {
+  const result = await getPool().query<{ data: Job }>(
+    'SELECT data FROM jobs WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId],
+  );
+  return result.rows.map((row) => row.data);
 }
 
-export function getJob(id: string): Job | undefined {
-  return readDb().jobs[id];
+// Clips within the same job can now be rendered concurrently (see pipeline.ts), so multiple
+// updateClip calls for the *same* job row can genuinely overlap in time. A plain read-then-write
+// would race: two concurrent calls could both read the row before either writes, and the second
+// write would silently drop the first clip's update. withJobTransaction takes a real row lock
+// (`SELECT ... FOR UPDATE` inside a transaction) so concurrent writers to the same job serialize
+// at the database level, while writers to *different* jobs (different clips' jobs, or different
+// users) are untouched by the lock and proceed fully in parallel.
+async function withJobTransaction(
+  userId: string,
+  jobId: string,
+  apply: (job: Job) => Job,
+): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<{ data: Job }>(
+      'SELECT data FROM jobs WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [jobId, userId],
+    );
+    const job = result.rows[0]?.data;
+    if (!job) throw new Error(`Job not found: ${jobId}`);
+    const updated = apply(job);
+    await client.query('UPDATE jobs SET data = $1 WHERE id = $2 AND user_id = $3', [
+      JSON.stringify(updated),
+      jobId,
+      userId,
+    ]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
-export function listAllJobs(): Job[] {
-  return Object.values(readDb().jobs);
+export async function updateJob(userId: string, id: string, patch: Partial<Job>): Promise<void> {
+  await withJobTransaction(userId, id, (job) => ({ ...job, ...patch }));
 }
 
-export function updateJob(id: string, patch: Partial<Job>) {
-  const db = readDb();
-  const job = db.jobs[id];
-  if (!job) throw new Error(`Job not found: ${id}`);
-  db.jobs[id] = { ...job, ...patch };
-  writeDb(db);
+export async function setClips(userId: string, jobId: string, clips: Clip[]): Promise<void> {
+  await updateJob(userId, jobId, { clips });
 }
 
-export function setClips(jobId: string, clips: Clip[]) {
-  updateJob(jobId, { clips });
-}
-
-export function updateClip(jobId: string, clipId: string, patch: Partial<Clip>) {
-  const db = readDb();
-  const job = db.jobs[jobId];
-  if (!job) throw new Error(`Job not found: ${jobId}`);
-  job.clips = job.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c));
-  db.jobs[jobId] = job;
-  writeDb(db);
+export async function updateClip(
+  userId: string,
+  jobId: string,
+  clipId: string,
+  patch: Partial<Clip>,
+): Promise<void> {
+  await withJobTransaction(userId, jobId, (job) => ({
+    ...job,
+    clips: job.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)),
+  }));
 }

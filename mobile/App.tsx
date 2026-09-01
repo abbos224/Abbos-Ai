@@ -1,10 +1,12 @@
 import React from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from './src/types';
+import { AuthProvider, useAuth } from './src/AuthContext';
 import UploadScreen from './src/screens/UploadScreen';
 import ProcessingScreen from './src/screens/ProcessingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
@@ -79,8 +81,22 @@ function MenuStack() {
       <Stack.Screen name="Menu" component={MenuScreen} options={{ title: 'Menu' }} />
       <Stack.Screen name="BrandKit" component={BrandKitScreen} options={{ title: 'Brand Kit' }} />
       <Stack.Screen name="Personas" component={PersonasScreen} options={{ title: 'Voice' }} />
+      {/* Login/SignUp stay registered here too as a defensive fallback for MenuScreen's
+          post-signOut instant, though the AuthStack below is what's actually shown while logged
+          out — see AppShell. */}
       <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Log In' }} />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign Up' }} />
+    </Stack.Navigator>
+  );
+}
+
+// Shown while logged out — Create/Projects/Calendar/Analytics/Menu all require a real account
+// server-side now, so there is nothing useful to show behind them until sign-in succeeds.
+function AuthStack() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -93,25 +109,50 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Menu: 'menu',
 };
 
+function AppTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
+      })}
+    >
+      <Tab.Screen name="Create" component={CreateStack} />
+      <Tab.Screen name="Projects" component={ProjectsStack} />
+      <Tab.Screen name="Calendar" component={CalendarStack} />
+      <Tab.Screen name="Analytics" component={AnalyticsStack} />
+      <Tab.Screen name="Menu" component={MenuStack} />
+    </Tab.Navigator>
+  );
+}
+
+// The mandatory-login gate: reads the shared auth status and renders exactly one of a loading
+// spinner, the sign-in flow, or the real app — nothing behind AppTabs is reachable while logged
+// out.
+function AppShell() {
+  const { status } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
+  return status === 'loggedIn' ? <AppTabs /> : <AuthStack />;
+}
+
 export default function App() {
   return (
-    <NavigationContainer>
-      <StatusBar style="light" />
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarActiveTintColor: colors.accent,
-          tabBarInactiveTintColor: colors.textMuted,
-          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-          tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
-        })}
-      >
-        <Tab.Screen name="Create" component={CreateStack} />
-        <Tab.Screen name="Projects" component={ProjectsStack} />
-        <Tab.Screen name="Calendar" component={CalendarStack} />
-        <Tab.Screen name="Analytics" component={AnalyticsStack} />
-        <Tab.Screen name="Menu" component={MenuStack} />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        <AppShell />
+      </NavigationContainer>
+    </AuthProvider>
   );
 }
