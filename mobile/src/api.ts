@@ -8,6 +8,8 @@ import type {
   Language,
   Persona,
   PersonaName,
+  Regeneration,
+  RegenerateModifier,
   Translation,
   YoutubeStatus,
 } from './types';
@@ -223,6 +225,31 @@ export async function getYoutubeAnalytics(): Promise<AnalyticsEntry[]> {
   const res = await fetch(`${API_BASE_URL}/analytics/youtube`);
   if (!res.ok) {
     throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getRegenerateModifiers(): Promise<Array<{ modifier: RegenerateModifier; label: string }>> {
+  const res = await fetch(`${API_BASE_URL}/regenerate-modifiers`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch regenerate modifiers: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function regenerateClip(
+  jobId: string,
+  clipId: string,
+  modifier: RegenerateModifier,
+): Promise<Regeneration> {
+  const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/clips/${clipId}/regenerate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modifier }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Regenerate failed: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }
