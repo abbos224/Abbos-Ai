@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Scr
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, Language, Translation, YoutubeStatus } from '../types';
@@ -45,6 +46,7 @@ export default function PreviewScreen({ route }: Props) {
   const [activeKey, setActiveKey] = useState<string>(ORIGINAL_KEY);
   const [scheduledFor, setScheduledFor] = useState<string | undefined>(clip.scheduledFor);
   const [scheduling, setScheduling] = useState(false);
+  const [captionLength, setCaptionLength] = useState<'short' | 'medium' | 'long'>('medium');
   const [youtubeStatus, setYoutubeStatus] = useState<YoutubeStatus | null>(null);
   const [publishedUrl, setPublishedUrl] = useState<string | undefined>(clip.publishedYoutubeUrl);
   const [publishing, setPublishing] = useState(false);
@@ -166,6 +168,13 @@ export default function PreviewScreen({ route }: Props) {
     }
   }
 
+  async function handleCopyCaption() {
+    if (!clip.socialCaption) return;
+    const text = `${clip.socialCaption[captionLength]}\n\n${clip.socialCaption.hashtags.map((h) => `#${h}`).join(' ')}`;
+    await Clipboard.setStringAsync(text);
+    Alert.alert('Copied', 'Caption + hashtags copied — paste it when posting to Instagram or TikTok.');
+  }
+
   async function handleExportCover(coverUrl: string) {
     try {
       await shareRemoteFile(clipFileUrl(coverUrl));
@@ -210,6 +219,42 @@ export default function PreviewScreen({ route }: Props) {
             ))}
           </View>
         </>
+      )}
+
+      {clip.socialCaption && (
+        <View style={styles.captionCard}>
+          <View style={styles.scoreHeader}>
+            <Text style={styles.scoreLabel}>Post caption</Text>
+          </View>
+
+          <View style={styles.lengthRow}>
+            {(['short', 'medium', 'long'] as const).map((len) => (
+              <TouchableOpacity
+                key={len}
+                style={[styles.lengthChip, captionLength === len && styles.lengthChipActive]}
+                onPress={() => setCaptionLength(len)}
+              >
+                <Text style={[styles.lengthChipText, captionLength === len && styles.lengthChipTextActive]}>
+                  {len[0].toUpperCase() + len.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.captionText}>{clip.socialCaption[captionLength]}</Text>
+
+          <View style={styles.hashtagRow}>
+            {clip.socialCaption.hashtags.map((tag) => (
+              <Text key={tag} style={styles.hashtag}>
+                #{tag}
+              </Text>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.copyButton} onPress={handleCopyCaption}>
+            <Text style={styles.copyButtonText}>Copy caption + hashtags</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <View style={styles.languageRow}>
@@ -375,6 +420,37 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   coverCaption: { color: colors.textSecondary, fontSize: 10, marginTop: 4, width: 84 },
+  captionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  lengthRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.sm },
+  lengthChip: {
+    backgroundColor: colors.accentSurface,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  lengthChipActive: { backgroundColor: colors.accent },
+  lengthChipText: { color: colors.accent, fontSize: 12, fontWeight: '600' },
+  lengthChipTextActive: { color: colors.surface },
+  captionText: { color: colors.textPrimary, fontSize: 14, lineHeight: 20 },
+  hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.sm },
+  hashtag: { color: colors.accent, fontSize: 13 },
+  copyButton: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  copyButtonText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   languageChip: {
     backgroundColor: colors.surface,
