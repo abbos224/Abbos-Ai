@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { getPool } from './db.js';
 import { env } from './env.js';
 
 // readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything back.
@@ -7,37 +7,47 @@ const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.google
 
 type YoutubeAuth = { refreshToken: string; channelTitle?: string };
 
-const authPath = path.join(env.storageDir, 'youtubeAuth.json');
-
-function readAuth(): YoutubeAuth | null {
-  if (!fs.existsSync(authPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(authPath, 'utf-8'));
-  } catch {
-    return null;
-  }
+async function readAuth(userId: string): Promise<YoutubeAuth | null> {
+  const result = await getPool().query<{ refresh_token: string; channel_title: string | null }>(
+    'SELECT refresh_token, channel_title FROM youtube_auth WHERE user_id = $1',
+    [userId],
+  );
+  const row = result.rows[0];
+  return row ? { refreshToken: row.refresh_token, channelTitle: row.channel_title ?? undefined } : null;
 }
 
-function writeAuth(auth: YoutubeAuth) {
-  fs.mkdirSync(path.dirname(authPath), { recursive: true });
-  fs.writeFileSync(authPath, JSON.stringify(auth, null, 2));
+async function writeAuth(userId: string, auth: YoutubeAuth): Promise<void> {
+  await getPool().query(
+    `INSERT INTO youtube_auth (user_id, refresh_token, channel_title)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id) DO UPDATE SET
+       refresh_token = EXCLUDED.refresh_token,
+       channel_title = EXCLUDED.channel_title`,
+    [userId, auth.refreshToken, auth.channelTitle ?? null],
+  );
 }
 
 export function isConfigured(): boolean {
   return Boolean(env.youtubeClientId && env.youtubeClientSecret && env.youtubeRedirectUri);
 }
 
-export function getConnectionStatus(): { connected: boolean; channelTitle?: string } {
-  const auth = readAuth();
+export async function getConnectionStatus(userId: string): Promise<{ connected: boolean; channelTitle?: string }> {
+  const auth = await readAuth(userId);
   return auth ? { connected: true, channelTitle: auth.channelTitle } : { connected: false };
 }
 
-export function disconnect(): void {
-  if (fs.existsSync(authPath)) fs.rmSync(authPath);
+export async function disconnect(userId: string): Promise<void> {
+  await getPool().query('DELETE FROM youtube_auth WHERE user_id = $1', [userId]);
 }
 
-/** Builds the URL the user visits in a browser to grant upload access to their YouTube channel. */
-export function getAuthUrl(): string {
+/**
+ * Builds the URL the user visits in a browser to grant upload access to their YouTube channel.
+ * `state` is opaque to Google — it's echoed back verbatim on the redirect to
+ * /oauth/youtube/callback, which is how that route recovers which account started this flow (see
+ * auth.ts's signOAuthState/verifyOAuthState — there's no Authorization header available here since
+ * this is a real browser navigation, not a fetch from our own app).
+ */
+export function getAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: env.youtubeClientId,
     redirect_uri: env.youtubeRedirectUri,
@@ -47,6 +57,7 @@ export function getAuthUrl(): string {
     // Forces Google to re-issue a refresh_token even if this account already granted consent once
     // before — without this, a second connect attempt can silently come back with no refresh_token.
     prompt: 'consent',
+    state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
@@ -64,8 +75,8 @@ async function fetchChannelTitle(accessToken: string): Promise<string | undefine
   }
 }
 
-/** Exchanges the OAuth redirect's `code` for tokens and persists the refresh token. */
-export async function completeAuth(code: string): Promise<void> {
+/** Exchanges the OAuth redirect's `code` for tokens and persists the refresh token for `userId`. */
+export async function completeAuth(userId: string, code: string): Promise<void> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -90,11 +101,11 @@ export async function completeAuth(code: string): Promise<void> {
   }
 
   const channelTitle = await fetchChannelTitle(data.access_token);
-  writeAuth({ refreshToken: data.refresh_token, channelTitle });
+  await writeAuth(userId, { refreshToken: data.refresh_token, channelTitle });
 }
 
-async function getAccessToken(): Promise<string> {
-  const auth = readAuth();
+async function getAccessToken(userId: string): Promise<string> {
+  const auth = await readAuth(userId);
   if (!auth) throw new Error('YouTube is not connected yet.');
 
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -120,12 +131,13 @@ export type PrivacyStatus = 'private' | 'unlisted' | 'public';
 
 /** Uploads a local mp4 to the connected channel via YouTube's resumable upload protocol. */
 export async function uploadVideo(
+  userId: string,
   filePath: string,
   title: string,
   description: string,
   privacyStatus: PrivacyStatus = 'private',
 ): Promise<{ videoId: string; url: string }> {
-  const accessToken = await getAccessToken();
+  const accessToken = await getAccessToken(userId);
   const fileSize = fs.statSync(filePath).size;
 
   const initRes = await fetch(
@@ -179,9 +191,9 @@ export type VideoStats = { videoId: string; viewCount: number; likeCount: number
  * limit) via a single `videos.list` request. Skips IDs the API doesn't return anything for
  * (e.g. a video deleted from YouTube Studio after being published from here) rather than failing.
  */
-export async function getVideoStats(videoIds: string[]): Promise<VideoStats[]> {
+export async function getVideoStats(userId: string, videoIds: string[]): Promise<VideoStats[]> {
   if (videoIds.length === 0) return [];
-  const accessToken = await getAccessToken();
+  const accessToken = await getAccessToken(userId);
 
   const results: VideoStats[] = [];
   for (let i = 0; i < videoIds.length; i += 50) {

@@ -59,4 +59,15 @@ export async function runMigrations(): Promise<void> {
       active_persona TEXT
     );
   `);
+
+  // refresh_token is a live third-party credential stored in plaintext — acceptable for this
+  // single-developer local Postgres instance, but real encryption-at-rest (pgcrypto or an
+  // app-level key) is a documented gap before this ever runs anywhere multi-tenant.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS youtube_auth (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      refresh_token TEXT NOT NULL,
+      channel_title TEXT
+    );
+  `);
 }

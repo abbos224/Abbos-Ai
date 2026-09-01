@@ -157,7 +157,12 @@ export default function PreviewScreen({ route }: Props) {
   }
 
   async function handleConnectYoutube() {
-    await Linking.openURL(youtubeConnectUrl());
+    try {
+      const url = await youtubeConnectUrl();
+      await Linking.openURL(url);
+    } catch (err) {
+      Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function handleDisconnectYoutube() {

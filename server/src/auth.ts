@@ -53,6 +53,30 @@ export function verifyToken(token: string): string {
   return decoded.sub;
 }
 
+// A separate, short-lived, purpose-scoped token for the YouTube OAuth handshake — deliberately
+// NOT the normal 30-day session token. The "Connect YouTube" flow has to open a real browser
+// (Google disallows in-app WebView OAuth), so there's no Authorization header available to
+// identify the user on /oauth/youtube/start or the Google redirect back to
+// /oauth/youtube/callback; this token travels in the URL/query string instead (as Google's own
+// opaque `state` param), so it gets a 10-minute expiry and a `purpose` claim that keeps it from
+// being usable as a session credential even if it leaked via browser history or a referrer header.
+const OAUTH_STATE_TTL = '10m';
+const OAUTH_STATE_PURPOSE = 'youtube-oauth';
+
+export function signOAuthState(userId: string): string {
+  if (!env.jwtSecret) throw new Error('JWT_SECRET is not set. Add it to server/.env');
+  return jwt.sign({ sub: userId, purpose: OAUTH_STATE_PURPOSE }, env.jwtSecret, { expiresIn: OAUTH_STATE_TTL });
+}
+
+export function verifyOAuthState(token: string): string {
+  if (!env.jwtSecret) throw new Error('JWT_SECRET is not set. Add it to server/.env');
+  const decoded = jwt.verify(token, env.jwtSecret) as jwt.JwtPayload;
+  if (typeof decoded.sub !== 'string' || decoded.purpose !== OAUTH_STATE_PURPOSE) {
+    throw new AuthError('Invalid or expired OAuth state.');
+  }
+  return decoded.sub;
+}
+
 export async function getUserById(id: string): Promise<AuthUser | null> {
   const result = await getPool().query<{ id: string; email: string }>(
     'SELECT id, email FROM users WHERE id = $1',
