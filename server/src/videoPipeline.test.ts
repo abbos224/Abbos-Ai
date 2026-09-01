@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTimelineSegments } from './videoPipeline.js';
+import { buildTimelineSegments, buildZoomKeyframes } from './videoPipeline.js';
 
 test('buildTimelineSegments: interleaves a single B-roll window between two main segments', () => {
   const segments = buildTimelineSegments([{ start: 4, end: 6.5, brollPath: 'a.mp4' }], 12);
@@ -55,4 +55,32 @@ test('buildTimelineSegments: sorts out-of-order moments before interleaving', ()
 
 test('buildTimelineSegments: returns one full-length main segment when there are no B-roll moments', () => {
   assert.deepEqual(buildTimelineSegments([], 10), [{ type: 'main', start: 0, end: 10 }]);
+});
+
+test('buildZoomKeyframes: alternates 1.0 / 1.08 in 5s steps, clipping the last step to duration', () => {
+  const keyframes = buildZoomKeyframes(12);
+
+  assert.deepEqual(keyframes, [
+    { start: 0, end: 5, scale: 1.0 },
+    { start: 5, end: 10, scale: 1.08 },
+    { start: 10, end: 12, scale: 1.0 },
+  ]);
+});
+
+test('buildZoomKeyframes: a clip shorter than one step returns a single un-zoomed segment', () => {
+  assert.deepEqual(buildZoomKeyframes(3), [{ start: 0, end: 3, scale: 1.0 }]);
+});
+
+test('buildZoomKeyframes: an exact multiple of the step duration ends cleanly with no zero-length step', () => {
+  const keyframes = buildZoomKeyframes(10);
+
+  assert.deepEqual(keyframes, [
+    { start: 0, end: 5, scale: 1.0 },
+    { start: 5, end: 10, scale: 1.08 },
+  ]);
+});
+
+test('buildZoomKeyframes: returns an empty array for a zero or negative duration', () => {
+  assert.deepEqual(buildZoomKeyframes(0), []);
+  assert.deepEqual(buildZoomKeyframes(-5), []);
 });
