@@ -475,7 +475,7 @@ export default function PreviewScreen({ route }: Props) {
 
       <TouchableOpacity style={styles.exportButton} onPress={handleExport} disabled={exporting}>
         {exporting ? (
-          <ActivityIndicator color={colors.surface} />
+          <ActivityIndicator color={colors.onAccent} />
         ) : (
           <Text style={styles.exportButtonText}>Export / Share</Text>
         )}
@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
   },
   lengthChipActive: { backgroundColor: colors.accent },
   lengthChipText: { color: colors.accent, fontSize: 12, fontWeight: '600' },
-  lengthChipTextActive: { color: colors.surface },
+  lengthChipTextActive: { color: colors.onAccent },
   captionText: { color: colors.textPrimary, fontSize: 14, lineHeight: 20 },
   hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.sm },
   hashtag: { color: colors.accent, fontSize: 13 },
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   languageChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   languageChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
-  languageChipTextActive: { color: colors.surface },
+  languageChipTextActive: { color: colors.onAccent },
   scoreCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -613,5 +613,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.lg,
   },
-  exportButtonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
+  exportButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
 });

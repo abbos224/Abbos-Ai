@@ -102,7 +102,7 @@ export default function UploadScreen({ navigation }: Props) {
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color={colors.surface} />
+              <ActivityIndicator color={colors.onAccent} />
             ) : (
               <Text style={styles.primaryButtonText}>Start processing</Text>
             )}
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: { backgroundColor: colors.accent, borderColor: colors.accent },
   uploadButtonText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  primaryButtonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
+  primaryButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
