@@ -50,4 +50,13 @@ export async function runMigrations(): Promise<void> {
       sound_effects_style TEXT
     );
   `);
+
+  // The 5 persona presets themselves stay hardcoded in personas.ts (not user data) — only which
+  // one is active per account is persisted here.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS persona_settings (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      active_persona TEXT
+    );
+  `);
 }
