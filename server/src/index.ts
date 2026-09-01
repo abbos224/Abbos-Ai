@@ -57,12 +57,13 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/upload', upload.single('video'), (req, res) => {
+app.post('/upload', requireAuth, upload.single('video'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'No video file uploaded (field name: "video")' });
     return;
   }
 
+  const userId = req.userId!;
   const jobId = uuid();
   const job: Job = {
     id: jobId,
@@ -72,17 +73,17 @@ app.post('/upload', upload.single('video'), (req, res) => {
     createdAt: new Date().toISOString(),
     clips: [],
   };
-  createJob(job);
+  await createJob(userId, job);
 
-  processJob(jobId).catch((err) => {
+  processJob(userId, jobId).catch((err) => {
     console.error(`Job ${jobId} crashed:`, err);
   });
 
   res.json({ jobId });
 });
 
-app.get('/jobs', (_req, res) => {
-  const jobs = [...listAllJobs()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+app.get('/jobs', requireAuth, async (req, res) => {
+  const jobs = await listAllJobs(req.userId!);
   res.json(
     jobs.map((job) => ({
       id: job.id,
@@ -94,8 +95,8 @@ app.get('/jobs', (_req, res) => {
   );
 });
 
-app.get('/jobs/:id', (req, res) => {
-  const job = getJob(req.params.id);
+app.get('/jobs/:id', requireAuth, async (req, res) => {
+  const job = await getJob(req.userId!, req.params.id as string);
   if (!job) {
     res.status(404).json({ error: 'Job not found' });
     return;
@@ -170,15 +171,16 @@ app.post('/brand-kit/logo', uploadLogo.single('logo'), (req, res) => {
 
 app.use('/brand-assets', express.static(brandDir));
 
-app.post('/jobs/:jobId/clips/:clipId/translate', async (req, res) => {
-  const { jobId, clipId } = req.params;
+app.post('/jobs/:jobId/clips/:clipId/translate', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
   const { language } = req.body as { language?: string };
   if (!language) {
     res.status(400).json({ error: 'Missing "language" in request body' });
     return;
   }
 
-  const job = getJob(jobId);
+  const job = await getJob(userId, jobId);
   const clip = job?.clips.find((c) => c.id === clipId);
   if (!job || !clip) {
     res.status(404).json({ error: 'Job or clip not found' });
@@ -192,23 +194,23 @@ app.post('/jobs/:jobId/clips/:clipId/translate', async (req, res) => {
   const languageLabel = SUPPORTED_LANGUAGES.find((l) => l.code === language)?.label ?? language;
   const translationId = uuid();
   const pending: Translation = { id: translationId, language, languageLabel, hook: '', status: 'rendering' };
-  updateClip(jobId, clipId, { translations: [...(clip.translations ?? []), pending] });
+  await updateClip(userId, jobId, clipId, { translations: [...(clip.translations ?? []), pending] });
 
-  const settle = (patch: Partial<Translation>) => {
-    const current = getJob(jobId)?.clips.find((c) => c.id === clipId);
+  const settle = async (patch: Partial<Translation>) => {
+    const current = (await getJob(userId, jobId))?.clips.find((c) => c.id === clipId);
     if (!current) return;
-    updateClip(jobId, clipId, {
+    await updateClip(userId, jobId, clipId, {
       translations: (current.translations ?? []).map((t) => (t.id === translationId ? { ...t, ...patch } : t)),
     });
   };
 
   try {
     const { outputFile, hook } = await renderTranslation(clip, language);
-    settle({ status: 'done', outputFile, hook });
+    await settle({ status: 'done', outputFile, hook });
     res.json({ translationId, status: 'done', outputFile, hook });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    settle({ status: 'failed', error: message });
+    await settle({ status: 'failed', error: message });
     res.status(500).json({ error: message });
   }
 });
@@ -217,15 +219,16 @@ app.get('/regenerate-modifiers', (_req, res) => {
   res.json(REGENERATE_MODIFIERS.map((m) => ({ modifier: m, label: getModifierLabel(m) })));
 });
 
-app.post('/jobs/:jobId/clips/:clipId/regenerate', async (req, res) => {
-  const { jobId, clipId } = req.params;
+app.post('/jobs/:jobId/clips/:clipId/regenerate', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
   const { modifier } = req.body as { modifier?: string };
   if (!modifier || !isRegenerateModifier(modifier)) {
     res.status(400).json({ error: `modifier must be one of: ${REGENERATE_MODIFIERS.join(', ')}` });
     return;
   }
 
-  const job = getJob(jobId);
+  const job = await getJob(userId, jobId);
   const clip = job?.clips.find((c) => c.id === clipId);
   if (!job || !clip) {
     res.status(404).json({ error: 'Job or clip not found' });
@@ -247,12 +250,12 @@ app.post('/jobs/:jobId/clips/:clipId/regenerate', async (req, res) => {
     coverOptions: [],
     status: 'rendering',
   };
-  updateClip(jobId, clipId, { regenerations: [...(clip.regenerations ?? []), pending] });
+  await updateClip(userId, jobId, clipId, { regenerations: [...(clip.regenerations ?? []), pending] });
 
-  const settle = (patch: Partial<Regeneration>) => {
-    const current = getJob(jobId)?.clips.find((c) => c.id === clipId);
+  const settle = async (patch: Partial<Regeneration>) => {
+    const current = (await getJob(userId, jobId))?.clips.find((c) => c.id === clipId);
     if (!current) return;
-    updateClip(jobId, clipId, {
+    await updateClip(userId, jobId, clipId, {
       regenerations: (current.regenerations ?? []).map((r) => (r.id === regenerationId ? { ...r, ...patch } : r)),
     });
   };
@@ -262,20 +265,21 @@ app.post('/jobs/:jobId/clips/:clipId/regenerate', async (req, res) => {
       clip,
       modifier,
     );
-    settle({ status: 'done', outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption });
+    await settle({ status: 'done', outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption });
     res.json({ regenerationId, status: 'done', outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    settle({ status: 'failed', error: message });
+    await settle({ status: 'failed', error: message });
     res.status(500).json({ error: message });
   }
 });
 
-app.put('/jobs/:jobId/clips/:clipId/schedule', (req, res) => {
-  const { jobId, clipId } = req.params;
+app.put('/jobs/:jobId/clips/:clipId/schedule', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
   const { scheduledFor } = req.body as { scheduledFor?: string | null };
 
-  const job = getJob(jobId);
+  const job = await getJob(userId, jobId);
   const clip = job?.clips.find((c) => c.id === clipId);
   if (!job || !clip) {
     res.status(404).json({ error: 'Job or clip not found' });
@@ -287,12 +291,12 @@ app.put('/jobs/:jobId/clips/:clipId/schedule', (req, res) => {
     return;
   }
 
-  updateClip(jobId, clipId, { scheduledFor: scheduledFor ?? undefined });
+  await updateClip(userId, jobId, clipId, { scheduledFor: scheduledFor ?? undefined });
   res.json({ ok: true, scheduledFor: scheduledFor ?? null });
 });
 
-app.get('/calendar', (_req, res) => {
-  const entries = getScheduledClips(listAllJobs());
+app.get('/calendar', requireAuth, async (req, res) => {
+  const entries = getScheduledClips(await listAllJobs(req.userId!));
   res.json(
     entries.map(({ jobId, clip }) => ({
       jobId,
@@ -305,16 +309,20 @@ app.get('/calendar', (_req, res) => {
   );
 });
 
-app.post('/calendar/auto-schedule', (req, res) => {
+app.post('/calendar/auto-schedule', requireAuth, async (req, res) => {
+  const userId = req.userId!;
   const { intervalDays } = (req.body ?? {}) as { intervalDays?: number };
   const interval = intervalDays && intervalDays > 0 ? intervalDays : 2;
 
-  const candidates = getUnscheduledDoneClips(listAllJobs());
+  const candidates = getUnscheduledDoneClips(await listAllJobs(userId));
   const dates = suggestScheduleDates(candidates.length, interval, new Date());
 
-  candidates.forEach((entry, i) => {
-    updateClip(entry.jobId, entry.clip.id, { scheduledFor: dates[i] });
-  });
+  // Sequential, not Promise.all: several candidates can share the same job, and updateClip does a
+  // read-modify-write of the whole job row — concurrent writes to the same row would race and
+  // silently drop one clip's schedule.
+  for (let i = 0; i < candidates.length; i++) {
+    await updateClip(userId, candidates[i].jobId, candidates[i].clip.id, { scheduledFor: dates[i] });
+  }
 
   res.json(
     candidates.map((entry, i) => ({
@@ -378,15 +386,16 @@ app.post('/youtube/disconnect', (_req, res) => {
   res.json({ connected: false });
 });
 
-app.post('/jobs/:jobId/clips/:clipId/publish/youtube', async (req, res) => {
-  const { jobId, clipId } = req.params;
+app.post('/jobs/:jobId/clips/:clipId/publish/youtube', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
   const { title, description, privacyStatus } = req.body as {
     title?: string;
     description?: string;
     privacyStatus?: youtube.PrivacyStatus;
   };
 
-  const job = getJob(jobId);
+  const job = await getJob(userId, jobId);
   const clip = job?.clips.find((c) => c.id === clipId);
   if (!job || !clip) {
     res.status(404).json({ error: 'Job or clip not found' });
@@ -414,20 +423,20 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', async (req, res) => {
       description || clip.cta || '',
       privacyStatus ?? 'private',
     );
-    updateClip(jobId, clipId, { publishedYoutubeUrl: url });
+    await updateClip(userId, jobId, clipId, { publishedYoutubeUrl: url });
     res.json({ videoId, url });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
-app.get('/analytics/youtube', async (_req, res) => {
+app.get('/analytics/youtube', requireAuth, async (req, res) => {
   if (!youtube.getConnectionStatus().connected) {
     res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
     return;
   }
 
-  const entries = getPublishedClips(listAllJobs());
+  const entries = getPublishedClips(await listAllJobs(req.userId!));
   if (entries.length === 0) {
     res.json([]);
     return;
@@ -516,17 +525,19 @@ app.get('/auth/me', requireAuth, async (req, res) => {
   res.json({ user });
 });
 
-// Auth is additive — the rest of the app (all 18 previously-shipped features) works with zero
-// Postgres setup, so a missing/unreachable database must never stop the server from starting.
+// Postgres is no longer auth-only: jobs/clips now live there too, so a missing/unreachable
+// database breaks the core upload/job flow, not just /auth/*. Still not a startup crash — a
+// missing DATABASE_URL is a broken deployment, not a reason to take the whole process down before
+// it can even report a clear error per-request.
 async function start() {
   if (env.databaseUrl) {
     try {
       await runMigrations();
     } catch (err) {
-      console.error('[auth] Postgres migration failed — /auth/* routes will not work:', err);
+      console.error('[db] Postgres migration failed — auth and job storage will not work:', err);
     }
   } else {
-    console.log('[auth] DATABASE_URL not set — /auth/* routes will not work until it is configured.');
+    console.log('[db] DATABASE_URL not set — auth and job storage will not work until it is configured.');
   }
 
   app.listen(env.port, () => {

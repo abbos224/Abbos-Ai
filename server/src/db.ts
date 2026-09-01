@@ -17,7 +17,8 @@ export function getPool(): pg.Pool {
  * — a stand-in for a real migration tool, fine while there's a single table and no schema
  * changes to track yet. */
 export async function runMigrations(): Promise<void> {
-  await getPool().query(`
+  const pool = getPool();
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       email TEXT UNIQUE NOT NULL,
@@ -25,4 +26,16 @@ export async function runMigrations(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Jobs/clips are stored as one JSONB blob per job (see store.ts) rather than fully normalized
+  // tables — keeps the existing Job/Clip shape and every caller untouched; id/user_id/created_at
+  // are promoted to real columns purely for the PK, ownership filter, and list ordering.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id UUID PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      data JSONB NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS jobs_user_id_idx ON jobs (user_id);`);
 }

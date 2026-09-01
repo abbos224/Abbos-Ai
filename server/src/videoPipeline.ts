@@ -402,22 +402,26 @@ async function prepareBrollSegments(
   if (!env.pexelsApiKey) return [];
 
   const moments = await suggestBrollMoments(clipWords, clipDurationSec);
-  const segments: BrollSegment[] = [];
 
-  for (let i = 0; i < moments.length; i++) {
-    const moment = moments[i];
-    try {
-      const videoUrl = await searchPexelsVideo(moment.keyword);
-      if (!videoUrl) continue;
-      const brollPath = path.join(workDir, `broll_${i}.mp4`);
-      await downloadBroll(videoUrl, brollPath);
-      segments.push({ start: moment.start, end: moment.end, brollPath });
-    } catch (err) {
-      console.log(`[broll] skipping moment "${moment.keyword}": ${err instanceof Error ? err.message : err}`);
-    }
-  }
+  // At most 2 moments per clip, and each is an independent search+download — run them
+  // concurrently instead of one after another. Order doesn't matter: insertBroll's caller sorts
+  // segments by start time before interleaving them.
+  const results = await Promise.all(
+    moments.map(async (moment, i): Promise<BrollSegment | null> => {
+      try {
+        const videoUrl = await searchPexelsVideo(moment.keyword);
+        if (!videoUrl) return null;
+        const brollPath = path.join(workDir, `broll_${i}.mp4`);
+        await downloadBroll(videoUrl, brollPath);
+        return { start: moment.start, end: moment.end, brollPath };
+      } catch (err) {
+        console.log(`[broll] skipping moment "${moment.keyword}": ${err instanceof Error ? err.message : err}`);
+        return null;
+      }
+    }),
+  );
 
-  return segments;
+  return results.filter((s): s is BrollSegment => s !== null);
 }
 
 /**
