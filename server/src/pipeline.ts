@@ -32,7 +32,7 @@ async function renderClipsConcurrently(
       const clip = clips[next++];
       try {
         await updateClip(userId, jobId, clip.id, { status: 'rendering' });
-        const { outputFile, coverImages } = await renderClip(sourceFile, clip, words);
+        const { outputFile, coverImages } = await renderClip(userId, sourceFile, clip, words);
         await updateClip(userId, jobId, clip.id, { status: 'done', outputFile, coverImages });
       } catch (err) {
         await updateClip(userId, jobId, clip.id, {

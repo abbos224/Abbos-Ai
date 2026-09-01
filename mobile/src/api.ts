@@ -96,7 +96,7 @@ export async function translateClip(
 }
 
 export async function getBrandKit(): Promise<BrandKit> {
-  const res = await fetch(`${API_BASE_URL}/brand-kit`);
+  const res = await authFetch('/brand-kit');
   if (!res.ok) {
     throw new Error(`Failed to fetch brand kit: ${res.status}`);
   }
@@ -104,7 +104,7 @@ export async function getBrandKit(): Promise<BrandKit> {
 }
 
 export async function setBrandAccentColor(accentColor: string): Promise<BrandKit> {
-  const res = await fetch(`${API_BASE_URL}/brand-kit`, {
+  const res = await authFetch('/brand-kit', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ accentColor }),
@@ -124,7 +124,7 @@ export async function getCaptionStyles(): Promise<CaptionStyleName[]> {
 }
 
 export async function setCaptionStyle(captionStyle: CaptionStyleName): Promise<BrandKit> {
-  const res = await fetch(`${API_BASE_URL}/brand-kit`, {
+  const res = await authFetch('/brand-kit', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ captionStyle }),
@@ -144,7 +144,7 @@ export async function getSoundEffectsStyles(): Promise<SoundEffectsStyle[]> {
 }
 
 export async function setSoundEffectsStyle(soundEffectsStyle: SoundEffectsStyle): Promise<BrandKit> {
-  const res = await fetch(`${API_BASE_URL}/brand-kit`, {
+  const res = await authFetch('/brand-kit', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ soundEffectsStyle }),
@@ -163,7 +163,7 @@ export async function uploadBrandLogo(uri: string, fileName: string): Promise<Br
     type: 'image/png',
   } as unknown as Blob);
 
-  const res = await fetch(`${API_BASE_URL}/brand-kit/logo`, {
+  const res = await authFetch('/brand-kit/logo', {
     method: 'POST',
     body: form,
     headers: { 'Content-Type': 'multipart/form-data' },
