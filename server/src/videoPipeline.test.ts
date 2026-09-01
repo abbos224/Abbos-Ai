@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTimelineSegments, buildZoomKeyframes } from './videoPipeline.js';
+import { buildTimelineSegments, buildZoomKeyframes, findFillerWordRanges, isFillerWord } from './videoPipeline.js';
+import type { Word } from './transcription.js';
+
+function word(text: string, start: number, end: number): Word {
+  return { text, start, end };
+}
 
 test('buildTimelineSegments: interleaves a single B-roll window between two main segments', () => {
   const segments = buildTimelineSegments([{ start: 4, end: 6.5, brollPath: 'a.mp4' }], 12);
@@ -83,4 +88,26 @@ test('buildZoomKeyframes: an exact multiple of the step duration ends cleanly wi
 test('buildZoomKeyframes: returns an empty array for a zero or negative duration', () => {
   assert.deepEqual(buildZoomKeyframes(0), []);
   assert.deepEqual(buildZoomKeyframes(-5), []);
+});
+
+test('isFillerWord: matches known disfluency interjections case-insensitively and with punctuation', () => {
+  assert.equal(isFillerWord('um'), true);
+  assert.equal(isFillerWord('Um,'), true);
+  assert.equal(isFillerWord('UH.'), true);
+  assert.equal(isFillerWord('hmm'), true);
+});
+
+test('isFillerWord: does not flag ordinary words, including ones that merely start similarly', () => {
+  assert.equal(isFillerWord('like'), false);
+  assert.equal(isFillerWord('you'), false);
+  assert.equal(isFillerWord('humble'), false);
+});
+
+test('findFillerWordRanges: pulls out only the filler words\' time ranges, in order', () => {
+  const words = [word('So', 0, 0.3), word('um', 0.3, 0.6), word('I', 0.6, 0.8), word('think', 0.8, 1.2)];
+  assert.deepEqual(findFillerWordRanges(words), [{ start: 0.3, end: 0.6 }]);
+});
+
+test('findFillerWordRanges: returns an empty array when there are no filler words', () => {
+  assert.deepEqual(findFillerWordRanges([word('hello', 0, 0.5), word('world', 0.5, 1)]), []);
 });
