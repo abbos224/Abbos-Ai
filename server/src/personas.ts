@@ -1,6 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { env } from './env.js';
+import { getPool } from './db.js';
 
 export type PersonaName =
   | 'trustedAdvisor'
@@ -79,23 +77,22 @@ export function getPersonaVoiceGuidance(name: PersonaName): string {
   return PERSONAS[name].voiceGuidance;
 }
 
-type PersonaSettings = { activePersona?: PersonaName };
-
-const settingsPath = path.join(env.storageDir, 'personaSettings.json');
-
-function readSettings(): PersonaSettings {
-  if (!fs.existsSync(settingsPath)) return {};
-  return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-}
-
 /** The account's currently-selected persona, or undefined for the neutral default voice. */
-export function getActivePersona(): PersonaName | undefined {
-  return readSettings().activePersona;
+export async function getActivePersona(userId: string): Promise<PersonaName | undefined> {
+  const result = await getPool().query<{ active_persona: string | null }>(
+    'SELECT active_persona FROM persona_settings WHERE user_id = $1',
+    [userId],
+  );
+  const value = result.rows[0]?.active_persona;
+  return value && isPersonaName(value) ? value : undefined;
 }
 
-export function setActivePersona(name: PersonaName | null): PersonaName | undefined {
-  const settings: PersonaSettings = name ? { activePersona: name } : {};
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  return settings.activePersona;
+export async function setActivePersona(userId: string, name: PersonaName | null): Promise<PersonaName | undefined> {
+  await getPool().query(
+    `INSERT INTO persona_settings (user_id, active_persona)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET active_persona = EXCLUDED.active_persona`,
+    [userId, name],
+  );
+  return name ?? undefined;
 }

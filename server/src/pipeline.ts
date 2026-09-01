@@ -56,7 +56,7 @@ export async function processJob(userId: string, jobId: string): Promise<void> {
     const words = await transcribeVideo(job.sourceFile);
 
     await updateJob(userId, jobId, { status: 'analyzing' });
-    const candidates = await findBestClips(words, durationSec, getActivePersona());
+    const candidates = await findBestClips(words, durationSec, await getActivePersona(userId));
 
     const clips: Clip[] = candidates.map((c) => ({
       id: uuid(),

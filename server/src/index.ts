@@ -336,11 +336,12 @@ app.post('/calendar/auto-schedule', requireAuth, async (req, res) => {
   );
 });
 
-app.get('/personas', (_req, res) => {
-  res.json({ personas: listPersonas(), activePersona: getActivePersona() ?? null });
+app.get('/personas', requireAuth, async (req, res) => {
+  const activePersona = await getActivePersona(req.userId!);
+  res.json({ personas: listPersonas(), activePersona: activePersona ?? null });
 });
 
-app.put('/personas/active', (req, res) => {
+app.put('/personas/active', requireAuth, async (req, res) => {
   const { persona } = req.body as { persona?: string | null };
 
   if (persona != null && !isPersonaName(persona)) {
@@ -348,7 +349,7 @@ app.put('/personas/active', (req, res) => {
     return;
   }
 
-  const activePersona = setActivePersona(persona ?? null);
+  const activePersona = await setActivePersona(req.userId!, persona ?? null);
   res.json({ activePersona: activePersona ?? null });
 });
 

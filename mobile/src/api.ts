@@ -210,7 +210,7 @@ export async function autoScheduleCalendar(intervalDays?: number): Promise<Calen
 }
 
 export async function getPersonas(): Promise<{ personas: Persona[]; activePersona: PersonaName | null }> {
-  const res = await fetch(`${API_BASE_URL}/personas`);
+  const res = await authFetch('/personas');
   if (!res.ok) {
     throw new Error(`Failed to fetch personas: ${res.status}`);
   }
@@ -218,7 +218,7 @@ export async function getPersonas(): Promise<{ personas: Persona[]; activePerson
 }
 
 export async function setActivePersona(persona: PersonaName | null): Promise<{ activePersona: PersonaName | null }> {
-  const res = await fetch(`${API_BASE_URL}/personas/active`, {
+  const res = await authFetch('/personas/active', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ persona }),
