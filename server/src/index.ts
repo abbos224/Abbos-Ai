@@ -45,9 +45,11 @@ fs.mkdirSync(brandDir, { recursive: true });
 const uploadLogo = multer({
   storage: multer.diskStorage({
     destination: brandDir,
-    filename: (_req, file, cb) => {
+    // One logo per user, named by userId so accounts can't collide or overwrite each other —
+    // requireAuth runs before this middleware, so req.userId is already set.
+    filename: (req, file, cb) => {
       const ext = path.extname(file.originalname) || '.png';
-      cb(null, `logo${ext}`);
+      cb(null, `${req.userId}${ext}`);
     },
   }),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB — a logo, not a video
@@ -116,8 +118,8 @@ app.get('/sound-effects-styles', (_req, res) => {
   res.json(SOUND_EFFECTS_STYLES);
 });
 
-app.get('/brand-kit', (_req, res) => {
-  const kit = getBrandKit();
+app.get('/brand-kit', requireAuth, async (req, res) => {
+  const kit = await getBrandKit(req.userId!);
   res.json({
     logoUrl: kit.logoFile ? `/brand-assets/${path.basename(kit.logoFile)}` : undefined,
     accentColor: kit.accentColor,
@@ -126,7 +128,7 @@ app.get('/brand-kit', (_req, res) => {
   });
 });
 
-app.put('/brand-kit', (req, res) => {
+app.put('/brand-kit', requireAuth, async (req, res) => {
   const { accentColor, captionStyle, soundEffectsStyle } = req.body as {
     accentColor?: string;
     captionStyle?: string;
@@ -156,16 +158,16 @@ app.put('/brand-kit', (req, res) => {
   if (captionStyle !== undefined) patch.captionStyle = captionStyle as (typeof CAPTION_STYLES)[number];
   if (soundEffectsStyle !== undefined) patch.soundEffectsStyle = soundEffectsStyle;
 
-  const kit = updateBrandKit(patch);
+  const kit = await updateBrandKit(req.userId!, patch);
   res.json({ accentColor: kit.accentColor, captionStyle: kit.captionStyle, soundEffectsStyle: kit.soundEffectsStyle });
 });
 
-app.post('/brand-kit/logo', uploadLogo.single('logo'), (req, res) => {
+app.post('/brand-kit/logo', requireAuth, uploadLogo.single('logo'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'No logo file uploaded (field name: "logo")' });
     return;
   }
-  const kit = updateBrandKit({ logoFile: `brand/${req.file.filename}` });
+  const kit = await updateBrandKit(req.userId!, { logoFile: `brand/${req.file.filename}` });
   res.json({ logoUrl: `/brand-assets/${req.file.filename}` });
 });
 
@@ -205,7 +207,7 @@ app.post('/jobs/:jobId/clips/:clipId/translate', requireAuth, async (req, res) =
   };
 
   try {
-    const { outputFile, hook } = await renderTranslation(clip, language);
+    const { outputFile, hook } = await renderTranslation(userId, clip, language);
     await settle({ status: 'done', outputFile, hook });
     res.json({ translationId, status: 'done', outputFile, hook });
   } catch (err) {
@@ -262,6 +264,7 @@ app.post('/jobs/:jobId/clips/:clipId/regenerate', requireAuth, async (req, res) 
 
   try {
     const { outputFile, coverImages, hookOptions, chosenHook, cta, socialCaption } = await renderRegeneration(
+      userId,
       clip,
       modifier,
     );

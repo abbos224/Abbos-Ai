@@ -38,4 +38,16 @@ export async function runMigrations(): Promise<void> {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS jobs_user_id_idx ON jobs (user_id);`);
+
+  // Brand Kit is a small, fixed set of fields (unlike jobs' variable nested shape) — a real
+  // one-row-per-user table fits better here than a JSONB blob.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS brand_kits (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      logo_file TEXT,
+      accent_color TEXT,
+      caption_style TEXT,
+      sound_effects_style TEXT
+    );
+  `);
 }

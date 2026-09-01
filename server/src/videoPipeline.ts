@@ -226,8 +226,8 @@ async function overlayLogo(input: string, logoPath: string, outPath: string): Pr
 }
 
 /** Applies the account's Brand Kit logo (top-right corner) if one is set; otherwise a plain copy. */
-async function applyBrandOverlay(input: string, outPath: string): Promise<void> {
-  const brandKit = getBrandKit();
+async function applyBrandOverlay(userId: string, input: string, outPath: string): Promise<void> {
+  const brandKit = await getBrandKit(userId);
   if (brandKit.logoFile) {
     const logoPath = path.join(env.storageDir, brandKit.logoFile);
     if (fs.existsSync(logoPath)) {
@@ -587,6 +587,7 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
  * mp4, and the cover URLs.
  */
 export async function renderClip(
+  userId: string,
   sourceFile: string,
   clip: Clip,
   allWords: Word[],
@@ -635,7 +636,7 @@ export async function renderClip(
   await insertBroll(zoomedPath, brollSegments, brollPath);
 
   const captionCues = buildCaptionCues(clipWords);
-  const brandForCaptions = getBrandKit();
+  const brandForCaptions = await getBrandKit(userId);
   fs.writeFileSync(
     assPath,
     buildAssFile(
@@ -653,7 +654,7 @@ export async function renderClip(
   fs.writeFileSync(path.join(workDir, 'captionCues.json'), JSON.stringify(captionCues), 'utf-8');
 
   await burnSubtitles(brollPath, assPath, captionedPath);
-  await applyBrandOverlay(captionedPath, brandedPath);
+  await applyBrandOverlay(userId, captionedPath, brandedPath);
   const coverImages = await renderCovers(croppedPath, clip.coverOptions ?? [], workDir, clip.id);
 
   const soundEffectCues = buildSoundEffectCues(captionCues, zoomKeyframes, brandForCaptions.soundEffectsStyle ?? 'professional');
@@ -671,6 +672,7 @@ export async function renderClip(
  * re-transcription, silence removal, cropping, or B-roll search.
  */
 export async function renderTranslation(
+  userId: string,
   clip: Clip,
   targetLanguage: string,
 ): Promise<{ outputFile: string; hook: string }> {
@@ -707,7 +709,7 @@ export async function renderTranslation(
   const outPath = path.join(translationDir, 'final.mp4');
 
   const { durationSec: finalDuration } = await probe(croppedPath);
-  const brandForCaptions = getBrandKit();
+  const brandForCaptions = await getBrandKit(userId);
   fs.writeFileSync(
     assPath,
     buildAssFile(
@@ -721,7 +723,7 @@ export async function renderTranslation(
     'utf-8',
   );
   await burnSubtitles(croppedPath, assPath, captionedPath);
-  await applyBrandOverlay(captionedPath, brandedPath);
+  await applyBrandOverlay(userId, captionedPath, brandedPath);
 
   const musicPath = loadPersistedMusic(workDir);
   await addBackgroundMusic(brandedPath, musicPath, finalDuration, outPath);
@@ -739,6 +741,7 @@ export async function renderTranslation(
  * images change, not the actual spoken-word captions or the underlying edit.
  */
 export async function renderRegeneration(
+  userId: string,
   clip: Clip,
   modifier: RegenerateModifier,
 ): Promise<{
@@ -772,7 +775,7 @@ export async function renderRegeneration(
   const outPath = path.join(regenDir, 'final.mp4');
 
   const { durationSec: finalDuration } = await probe(croppedPath);
-  const brandForCaptions = getBrandKit();
+  const brandForCaptions = await getBrandKit(userId);
   fs.writeFileSync(
     assPath,
     buildAssFile(
@@ -786,7 +789,7 @@ export async function renderRegeneration(
     'utf-8',
   );
   await burnSubtitles(croppedPath, assPath, captionedPath);
-  await applyBrandOverlay(captionedPath, brandedPath);
+  await applyBrandOverlay(userId, captionedPath, brandedPath);
 
   const musicPath = loadPersistedMusic(workDir);
   await addBackgroundMusic(brandedPath, musicPath, finalDuration, outPath);
