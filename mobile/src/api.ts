@@ -6,6 +6,7 @@ import type {
   CalendarEntry,
   CaptionStyleName,
   Job,
+  JobSummary,
   Language,
   Persona,
   PersonaName,
@@ -33,6 +34,14 @@ export async function uploadVideo(uri: string, fileName: string): Promise<{ jobI
 
   if (!res.ok) {
     throw new Error(`Upload failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getAllJobs(): Promise<JobSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/jobs`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch jobs: ${res.status}`);
   }
   return res.json();
 }
