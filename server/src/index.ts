@@ -12,6 +12,7 @@ import { SUPPORTED_LANGUAGES } from './translate.js';
 import { getModifierLabel, isRegenerateModifier, REGENERATE_MODIFIERS } from './regenerate.js';
 import { getBrandKit, updateBrandKit } from './brandKit.js';
 import { CAPTION_STYLES } from './ass.js';
+import { SOUND_EFFECTS_STYLES, isSoundEffectsStyle, type SoundEffectsStyle } from './soundEffects.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
@@ -94,17 +95,26 @@ app.get('/caption-styles', (_req, res) => {
   res.json(CAPTION_STYLES);
 });
 
+app.get('/sound-effects-styles', (_req, res) => {
+  res.json(SOUND_EFFECTS_STYLES);
+});
+
 app.get('/brand-kit', (_req, res) => {
   const kit = getBrandKit();
   res.json({
     logoUrl: kit.logoFile ? `/brand-assets/${path.basename(kit.logoFile)}` : undefined,
     accentColor: kit.accentColor,
     captionStyle: kit.captionStyle,
+    soundEffectsStyle: kit.soundEffectsStyle,
   });
 });
 
 app.put('/brand-kit', (req, res) => {
-  const { accentColor, captionStyle } = req.body as { accentColor?: string; captionStyle?: string };
+  const { accentColor, captionStyle, soundEffectsStyle } = req.body as {
+    accentColor?: string;
+    captionStyle?: string;
+    soundEffectsStyle?: string;
+  };
 
   if (accentColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
     res.status(400).json({ error: 'accentColor must be a hex color like "#1F3A5F"' });
@@ -114,14 +124,23 @@ app.put('/brand-kit', (req, res) => {
     res.status(400).json({ error: `captionStyle must be one of: ${CAPTION_STYLES.join(', ')}` });
     return;
   }
+  if (soundEffectsStyle !== undefined && !isSoundEffectsStyle(soundEffectsStyle)) {
+    res.status(400).json({ error: `soundEffectsStyle must be one of: ${SOUND_EFFECTS_STYLES.join(', ')}` });
+    return;
+  }
 
-  // Only patch the fields actually sent, so setting one doesn't wipe out the other.
-  const patch: { accentColor?: string; captionStyle?: (typeof CAPTION_STYLES)[number] } = {};
+  // Only patch the fields actually sent, so setting one doesn't wipe out the others.
+  const patch: {
+    accentColor?: string;
+    captionStyle?: (typeof CAPTION_STYLES)[number];
+    soundEffectsStyle?: SoundEffectsStyle;
+  } = {};
   if (accentColor !== undefined) patch.accentColor = accentColor;
   if (captionStyle !== undefined) patch.captionStyle = captionStyle as (typeof CAPTION_STYLES)[number];
+  if (soundEffectsStyle !== undefined) patch.soundEffectsStyle = soundEffectsStyle;
 
   const kit = updateBrandKit(patch);
-  res.json({ accentColor: kit.accentColor, captionStyle: kit.captionStyle });
+  res.json({ accentColor: kit.accentColor, captionStyle: kit.captionStyle, soundEffectsStyle: kit.soundEffectsStyle });
 });
 
 app.post('/brand-kit/logo', uploadLogo.single('logo'), (req, res) => {
