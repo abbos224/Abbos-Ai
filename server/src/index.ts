@@ -14,6 +14,7 @@ import { CAPTION_STYLES } from './ass.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
+import { getPublishedClips } from './analytics.js';
 
 const app = express();
 app.use(cors());
@@ -321,6 +322,42 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', async (req, res) => {
     );
     updateClip(jobId, clipId, { publishedYoutubeUrl: url });
     res.json({ videoId, url });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get('/analytics/youtube', async (_req, res) => {
+  if (!youtube.getConnectionStatus().connected) {
+    res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
+    return;
+  }
+
+  const entries = getPublishedClips(listAllJobs());
+  if (entries.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  try {
+    const stats = await youtube.getVideoStats(entries.map((e) => e.videoId));
+    const statsByVideoId = new Map(stats.map((s) => [s.videoId, s]));
+
+    res.json(
+      entries.map((entry) => {
+        const s = statsByVideoId.get(entry.videoId);
+        return {
+          jobId: entry.jobId,
+          clipId: entry.clip.id,
+          topic: entry.clip.topic,
+          chosenHook: entry.clip.chosenHook,
+          url: entry.clip.publishedYoutubeUrl,
+          viewCount: s?.viewCount ?? 0,
+          likeCount: s?.likeCount ?? 0,
+          commentCount: s?.commentCount ?? 0,
+        };
+      })
+    );
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

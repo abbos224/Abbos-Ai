@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config';
 import type {
+  AnalyticsEntry,
   BrandKit,
   CalendarEntry,
   CaptionStyleName,
@@ -214,6 +215,14 @@ export async function publishToYoutube(
   });
   if (!res.ok) {
     throw new Error(`Publish failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getYoutubeAnalytics(): Promise<AnalyticsEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/analytics/youtube`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }
