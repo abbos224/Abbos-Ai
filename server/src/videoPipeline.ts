@@ -63,6 +63,27 @@ function keepSegments(silences: SilenceInterval[], duration: number): SilenceInt
   return segments;
 }
 
+// Deliberately conservative: only unambiguous disfluency interjections, never words like "like"
+// or "you know" that are filler in some sentences but load-bearing in others.
+const FILLER_WORDS = new Set(['um', 'umm', 'uhm', 'uh', 'uhh', 'erm', 'hmm']);
+
+function normalizeWord(text: string): string {
+  return text.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+export function isFillerWord(text: string): boolean {
+  return FILLER_WORDS.has(normalizeWord(text));
+}
+
+/**
+ * Finds the time ranges of filler/disfluency words ("um", "uh", ...) in a clip-relative word
+ * list, in the same [start,end] shape `detectSilences` returns, so both can be cut out together
+ * in one `keepSegments`/`removeSilence` pass. Pure and unit-tested.
+ */
+export function findFillerWordRanges(words: Word[]): SilenceInterval[] {
+  return words.filter((w) => isFillerWord(w.text)).map((w) => ({ start: w.start, end: w.end }));
+}
+
 /** Maps a time in the pre-silence-removal (clip-relative) timeline to the post-removal timeline. */
 function remapTime(t: number, segments: SilenceInterval[]): number {
   let mapped = 0;
@@ -555,10 +576,11 @@ function wordsInRange(words: Word[], start: number, end: number): Word[] {
 }
 
 /**
- * Full per-clip render: cut -> remove silence -> crop to 9:16 -> auto zoom -> insert B-roll
- * cutaways -> burn captions + hook + CTA -> overlay brand logo -> add sound effect accents -> add
- * mood-matched background music, plus a still cover image per cover-title option. Returns the
- * public URL path (served via express.static) of the finished mp4, and the cover URLs.
+ * Full per-clip render: cut -> remove silence and filler words ("um", "uh", ...) -> crop to 9:16
+ * -> auto zoom -> insert B-roll cutaways -> burn captions + hook + CTA -> overlay brand logo ->
+ * add sound effect accents -> add mood-matched background music, plus a still cover image per
+ * cover-title option. Returns the public URL path (served via express.static) of the finished
+ * mp4, and the cover URLs.
  */
 export async function renderClip(
   sourceFile: string,
@@ -582,16 +604,22 @@ export async function renderClip(
   await cutSegment(sourceFile, clip.startTime, clip.endTime, cutPath);
 
   const { durationSec: cutDuration } = await probe(cutPath);
+  const rawClipWords = wordsInRange(allWords, clip.startTime, clip.endTime);
   const silences = await detectSilences(cutPath);
-  const segments = keepSegments(silences, cutDuration);
+  const fillerRanges = findFillerWordRanges(rawClipWords);
+  const segments = keepSegments([...silences, ...fillerRanges], cutDuration);
   await removeSilence(cutPath, segments, silenceRemovedPath);
 
-  const clipWords = wordsInRange(allWords, clip.startTime, clip.endTime).map((w) => ({
-    text: w.text,
-    start: remapTime(w.start, segments),
-    end: remapTime(w.end, segments),
-    speaker: w.speaker,
-  }));
+  // Filler words are cut out of the audio/video above, and dropped here too so a stray "um"
+  // doesn't end up as its own caption cue or waste a B-roll suggestion slot.
+  const clipWords = rawClipWords
+    .filter((w) => !isFillerWord(w.text))
+    .map((w) => ({
+      text: w.text,
+      start: remapTime(w.start, segments),
+      end: remapTime(w.end, segments),
+      speaker: w.speaker,
+    }));
 
   await cropWithSpeakerFramingOrFallback(silenceRemovedPath, clipWords, workDir, croppedPath);
 
