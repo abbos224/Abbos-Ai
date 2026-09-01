@@ -53,6 +53,17 @@ export type CalendarEntry = {
   outputFile?: string;
 };
 
+export type AnalyticsEntry = {
+  jobId: string;
+  clipId: string;
+  topic: string;
+  chosenHook: string;
+  url: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+};
+
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 
 export type Job = {
@@ -84,4 +95,5 @@ export type RootStackParamList = {
   BrandKit: undefined;
   Calendar: undefined;
   Personas: undefined;
+  Analytics: undefined;
 };

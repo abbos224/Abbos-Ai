@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { env } from './env.js';
 
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+// readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything back.
+const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
 
 type YoutubeAuth = { refreshToken: string; channelTitle?: string };
 
@@ -169,4 +170,40 @@ export async function uploadVideo(
 
   const video = (await uploadRes.json()) as { id: string };
   return { videoId: video.id, url: `https://www.youtube.com/watch?v=${video.id}` };
+}
+
+export type VideoStats = { videoId: string; viewCount: number; likeCount: number; commentCount: number };
+
+/**
+ * Batch-fetches view/like/comment counts for up to 50 video IDs per call (the Data API's own
+ * limit) via a single `videos.list` request. Skips IDs the API doesn't return anything for
+ * (e.g. a video deleted from YouTube Studio after being published from here) rather than failing.
+ */
+export async function getVideoStats(videoIds: string[]): Promise<VideoStats[]> {
+  if (videoIds.length === 0) return [];
+  const accessToken = await getAccessToken();
+
+  const results: VideoStats[] = [];
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50);
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${batch.join(',')}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to fetch YouTube video stats: ${res.status} ${await res.text()}`);
+    }
+    const data = (await res.json()) as {
+      items?: Array<{ id: string; statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }>;
+    };
+    for (const item of data.items ?? []) {
+      results.push({
+        videoId: item.id,
+        viewCount: Number(item.statistics?.viewCount ?? 0),
+        likeCount: Number(item.statistics?.likeCount ?? 0),
+        commentCount: Number(item.statistics?.commentCount ?? 0),
+      });
+    }
+  }
+  return results;
 }
