@@ -10,6 +10,9 @@ export const colors = {
   textMuted: '#9B9A93',
   accent: '#1F3A5F',
   accentSurface: '#EAEFF4',
+  // Text/icon color for content sitting directly on a solid `accent` background (buttons, active
+  // chips). Same token PR #18 (dark rebrand) introduces for the same reason — merges cleanly.
+  onAccent: '#FFFFFF',
   danger: '#A6362C',
   success: '#3D6B57',
 };

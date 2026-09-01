@@ -1,0 +1,28 @@
+import pg from 'pg';
+import { env } from './env.js';
+
+const { Pool } = pg;
+
+let pool: pg.Pool | undefined;
+
+export function getPool(): pg.Pool {
+  if (!env.databaseUrl) {
+    throw new Error('DATABASE_URL is not set. Add it to server/.env');
+  }
+  if (!pool) pool = new Pool({ connectionString: env.databaseUrl });
+  return pool;
+}
+
+/** Creates the tables this app needs if they don't already exist. Called once at server startup
+ * — a stand-in for a real migration tool, fine while there's a single table and no schema
+ * changes to track yet. */
+export async function runMigrations(): Promise<void> {
+  await getPool().query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}

@@ -77,6 +77,9 @@ export default function UploadScreen({ navigation }: Props) {
           <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
             <Text style={styles.navLink}>Analytics</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <Text style={styles.navLink}>Log in</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -102,7 +105,7 @@ export default function UploadScreen({ navigation }: Props) {
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color={colors.surface} />
+              <ActivityIndicator color={colors.onAccent} />
             ) : (
               <Text style={styles.primaryButtonText}>Start processing</Text>
             )}
@@ -121,7 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: spacing.xl,
   },
-  navLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, maxWidth: 190 },
+  navLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, maxWidth: 210 },
   navLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
   eyebrow: {
     color: colors.textMuted,
@@ -143,7 +146,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: { backgroundColor: colors.accent, borderColor: colors.accent },
   uploadButtonText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  primaryButtonText: { color: colors.surface, fontSize: 15, fontWeight: '600' },
+  primaryButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
