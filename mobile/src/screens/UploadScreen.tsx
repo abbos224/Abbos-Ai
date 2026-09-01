@@ -60,27 +60,8 @@ export default function UploadScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.eyebrow}>New Reel</Text>
-          <Text style={styles.title}>Create your first Reel</Text>
-        </View>
-        <View style={styles.navLinks}>
-          <TouchableOpacity onPress={() => navigation.navigate('Calendar')}>
-            <Text style={styles.navLink}>Calendar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('BrandKit')}>
-            <Text style={styles.navLink}>Brand Kit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Personas')}>
-            <Text style={styles.navLink}>Voice</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
-            <Text style={styles.navLink}>Analytics</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.navLink}>Log in</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.eyebrow}>New Reel</Text>
+        <Text style={styles.title}>Create your first Reel</Text>
       </View>
 
       <TouchableOpacity style={styles.uploadButton} onPress={pickVideo} disabled={uploading}>
@@ -118,14 +99,7 @@ export default function UploadScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 80 },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.xl,
-  },
-  navLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, maxWidth: 210 },
-  navLink: { color: colors.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
+  headerRow: { marginBottom: spacing.xl },
   eyebrow: {
     color: colors.textMuted,
     fontSize: 12,

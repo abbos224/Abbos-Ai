@@ -81,6 +81,19 @@ app.post('/upload', upload.single('video'), (req, res) => {
   res.json({ jobId });
 });
 
+app.get('/jobs', (_req, res) => {
+  const jobs = [...listAllJobs()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json(
+    jobs.map((job) => ({
+      id: job.id,
+      originalFilename: job.originalFilename,
+      status: job.status,
+      createdAt: job.createdAt,
+      clipCount: job.clips.length,
+    }))
+  );
+});
+
 app.get('/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) {

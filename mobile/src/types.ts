@@ -123,6 +123,8 @@ export type Persona = { name: PersonaName; label: string; description: string };
 
 export type AuthUser = { id: string; email: string };
 
+export type JobSummary = { id: string; originalFilename: string; status: JobStatus; createdAt: string; clipCount: number };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
@@ -134,4 +136,6 @@ export type RootStackParamList = {
   Analytics: undefined;
   Login: undefined;
   SignUp: undefined;
+  Projects: undefined;
+  Menu: undefined;
 };
