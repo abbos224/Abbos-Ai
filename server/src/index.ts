@@ -18,7 +18,7 @@ import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from 
 import * as youtube from './youtube.js';
 import { getPublishedClips } from './analytics.js';
 import { runMigrations } from './db.js';
-import { registerUser, loginUser, signToken, getUserById, AuthError } from './auth.js';
+import { registerUser, loginUser, signToken, getUserById, AuthError, signOAuthState, verifyOAuthState } from './auth.js';
 import { requireAuth } from './authMiddleware.js';
 
 const app = express();
@@ -353,31 +353,61 @@ app.put('/personas/active', requireAuth, async (req, res) => {
   res.json({ activePersona: activePersona ?? null });
 });
 
-app.get('/youtube/status', (_req, res) => {
-  res.json({ configured: youtube.isConfigured(), ...youtube.getConnectionStatus() });
+app.get('/youtube/status', requireAuth, async (req, res) => {
+  res.json({ configured: youtube.isConfigured(), ...(await youtube.getConnectionStatus(req.userId!)) });
 });
 
-app.get('/oauth/youtube/start', (_req, res) => {
+// "Connect YouTube" opens a real external browser (Google disallows in-app WebView OAuth), so
+// /oauth/youtube/start and the Google redirect back to /oauth/youtube/callback can't carry our
+// normal Authorization header. The mobile app first calls this authenticated endpoint to get a
+// short-lived, purpose-scoped state token (see auth.ts's signOAuthState), then opens
+// /oauth/youtube/start?state=<token> in the browser — Google echoes that same state back
+// unchanged on the callback, which is how the callback recovers which account to attach the
+// connection to without any server-side session storage for the handshake.
+app.get('/oauth/youtube/connect-state', requireAuth, (req, res) => {
+  res.json({ state: signOAuthState(req.userId!) });
+});
+
+app.get('/oauth/youtube/start', (req, res) => {
   if (!youtube.isConfigured()) {
     res.status(400).send('YouTube is not configured on the server (missing YOUTUBE_CLIENT_ID/SECRET).');
     return;
   }
-  res.redirect(youtube.getAuthUrl());
+  const { state } = req.query as { state?: string };
+  if (!state) {
+    res.status(400).send('Missing or expired connection request — go back to the app and try connecting again.');
+    return;
+  }
+  try {
+    verifyOAuthState(state); // fails fast on a missing/expired/garbage state before ever hitting Google
+  } catch {
+    res.status(400).send('Missing or expired connection request — go back to the app and try connecting again.');
+    return;
+  }
+  res.redirect(youtube.getAuthUrl(state));
 });
 
 app.get('/oauth/youtube/callback', async (req, res) => {
-  const { code, error } = req.query as { code?: string; error?: string };
+  const { code, error, state } = req.query as { code?: string; error?: string; state?: string };
   if (error) {
     res.status(400).send(`YouTube connection was not granted: ${error}`);
     return;
   }
-  if (!code) {
-    res.status(400).send('Missing "code" from Google redirect.');
+  if (!code || !state) {
+    res.status(400).send('Missing "code" or "state" from Google redirect.');
+    return;
+  }
+
+  let userId: string;
+  try {
+    userId = verifyOAuthState(state);
+  } catch {
+    res.status(400).send('This connection request has expired — go back to the app and try connecting again.');
     return;
   }
 
   try {
-    await youtube.completeAuth(code);
+    await youtube.completeAuth(userId, code);
     res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -385,8 +415,8 @@ app.get('/oauth/youtube/callback', async (req, res) => {
   }
 });
 
-app.post('/youtube/disconnect', (_req, res) => {
-  youtube.disconnect();
+app.post('/youtube/disconnect', requireAuth, async (req, res) => {
+  await youtube.disconnect(req.userId!);
   res.json({ connected: false });
 });
 
@@ -409,7 +439,7 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', requireAuth, async (req, 
     res.status(400).json({ error: 'Clip has not finished rendering yet' });
     return;
   }
-  if (!youtube.getConnectionStatus().connected) {
+  if (!(await youtube.getConnectionStatus(userId)).connected) {
     res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
     return;
   }
@@ -422,6 +452,7 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', requireAuth, async (req, 
 
   try {
     const { videoId, url } = await youtube.uploadVideo(
+      userId,
       localPath,
       title || clip.chosenHook || clip.topic,
       description || clip.cta || '',
@@ -435,19 +466,20 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', requireAuth, async (req, 
 });
 
 app.get('/analytics/youtube', requireAuth, async (req, res) => {
-  if (!youtube.getConnectionStatus().connected) {
+  const userId = req.userId!;
+  if (!(await youtube.getConnectionStatus(userId)).connected) {
     res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
     return;
   }
 
-  const entries = getPublishedClips(await listAllJobs(req.userId!));
+  const entries = getPublishedClips(await listAllJobs(userId));
   if (entries.length === 0) {
     res.json([]);
     return;
   }
 
   try {
-    const stats = await youtube.getVideoStats(entries.map((e) => e.videoId));
+    const stats = await youtube.getVideoStats(userId, entries.map((e) => e.videoId));
     const statsByVideoId = new Map(stats.map((s) => [s.videoId, s]));
 
     res.json(

@@ -230,19 +230,28 @@ export async function setActivePersona(persona: PersonaName | null): Promise<{ a
 }
 
 export async function getYoutubeStatus(): Promise<YoutubeStatus> {
-  const res = await fetch(`${API_BASE_URL}/youtube/status`);
+  const res = await authFetch('/youtube/status');
   if (!res.ok) {
     throw new Error(`Failed to fetch YouTube status: ${res.status}`);
   }
   return res.json();
 }
 
-export function youtubeConnectUrl(): string {
-  return `${API_BASE_URL}/oauth/youtube/start`;
+// "Connect YouTube" opens a real external browser (Google disallows in-app WebView OAuth), so this
+// URL can't carry our normal Authorization header. It first fetches a short-lived, purpose-scoped
+// state token via an authenticated call, then embeds it in the /oauth/youtube/start URL the app
+// opens — see index.ts's /oauth/youtube/connect-state for the other half of this.
+export async function youtubeConnectUrl(): Promise<string> {
+  const res = await authFetch('/oauth/youtube/connect-state');
+  if (!res.ok) {
+    throw new Error(`Failed to start YouTube connection: ${res.status}`);
+  }
+  const { state } = (await res.json()) as { state: string };
+  return `${API_BASE_URL}/oauth/youtube/start?state=${encodeURIComponent(state)}`;
 }
 
 export async function disconnectYoutube(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/youtube/disconnect`, { method: 'POST' });
+  const res = await authFetch('/youtube/disconnect', { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Failed to disconnect YouTube: ${res.status}`);
   }
