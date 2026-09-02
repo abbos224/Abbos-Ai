@@ -5,6 +5,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, Language, RegenerateModifier, Regeneration, Translation, YoutubeStatus } from '../types';
 import {
@@ -19,7 +20,18 @@ import {
   translateClip,
   youtubeConnectUrl,
 } from '../api';
-import { colors, getScoreColor, radius, spacing } from '../theme';
+import Card from '../components/Card';
+import GradientButton from '../components/GradientButton';
+import { colors, getScoreColor, gradients, radius, spacing } from '../theme';
+
+function SectionLabel({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+  return (
+    <View style={styles.scoreHeaderLeft}>
+      <Ionicons name={icon} size={14} color={colors.textSecondary} />
+      <Text style={styles.scoreLabel}>{label}</Text>
+    </View>
+  );
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 
@@ -268,9 +280,9 @@ export default function PreviewScreen({ route }: Props) {
       )}
 
       {activeSocialCaption && (
-        <View style={styles.captionCard}>
+        <Card style={styles.captionCard}>
           <View style={styles.scoreHeader}>
-            <Text style={styles.scoreLabel}>Post caption</Text>
+            <SectionLabel icon="chatbox-ellipses" label="Post caption" />
           </View>
 
           <View style={styles.lengthRow}>
@@ -297,10 +309,11 @@ export default function PreviewScreen({ route }: Props) {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.copyButton} onPress={handleCopyCaption}>
+          <TouchableOpacity style={styles.copyButton} onPress={handleCopyCaption} activeOpacity={0.85}>
+            <Ionicons name="copy-outline" size={14} color={colors.textPrimary} style={styles.copyIcon} />
             <Text style={styles.copyButtonText}>Copy caption + hashtags</Text>
           </TouchableOpacity>
-        </View>
+        </Card>
       )}
 
       <View style={styles.languageRow}>
@@ -371,9 +384,9 @@ export default function PreviewScreen({ route }: Props) {
         </View>
       )}
 
-      <View style={styles.scheduleCard}>
+      <Card style={styles.scheduleCard}>
         <View style={styles.scoreHeader}>
-          <Text style={styles.scoreLabel}>Regenerate</Text>
+          <SectionLabel icon="color-wand" label="Regenerate" />
         </View>
         <Text style={styles.regenerateHint}>
           Rewrite the hook, CTA, cover, and caption in a new voice — re-renders this clip as a new variant.
@@ -394,11 +407,11 @@ export default function PreviewScreen({ route }: Props) {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.scoreCard}>
+      <Card style={styles.scoreCard}>
         <View style={styles.scoreHeader}>
-          <Text style={styles.scoreLabel}>Viral score</Text>
+          <SectionLabel icon="flash" label="Viral score" />
           <Text style={[styles.scoreTotal, { color: getScoreColor(clip.score) }]}>{clip.score}/100</Text>
         </View>
         {scores.map(([label, value]) => (
@@ -411,11 +424,11 @@ export default function PreviewScreen({ route }: Props) {
           </View>
         ))}
         {clip.scoreRationale && <Text style={styles.scoreRationale}>{clip.scoreRationale}</Text>}
-      </View>
+      </Card>
 
-      <View style={styles.scheduleCard}>
+      <Card style={styles.scheduleCard}>
         <View style={styles.scoreHeader}>
-          <Text style={styles.scoreLabel}>Schedule</Text>
+          <SectionLabel icon="calendar" label="Schedule" />
           <Text style={styles.scheduleCurrent}>
             {scheduledFor ? formatScheduledDate(scheduledFor) : 'Not scheduled'}
           </Text>
@@ -442,12 +455,12 @@ export default function PreviewScreen({ route }: Props) {
           )}
           {scheduling && <ActivityIndicator size="small" color={colors.accent} />}
         </View>
-      </View>
+      </Card>
 
       {youtubeStatus?.configured && (
-        <View style={styles.scheduleCard}>
+        <Card style={styles.scheduleCard}>
           <View style={styles.scoreHeader}>
-            <Text style={styles.scoreLabel}>YouTube</Text>
+            <SectionLabel icon="logo-youtube" label="YouTube" />
             {youtubeStatus.connected && (
               <Text style={styles.scheduleCurrent} numberOfLines={1}>
                 {youtubeStatus.channelTitle ?? 'Connected'}
@@ -479,16 +492,17 @@ export default function PreviewScreen({ route }: Props) {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </Card>
       )}
 
-      <TouchableOpacity style={styles.exportButton} onPress={handleExport} disabled={exporting}>
-        {exporting ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.exportButtonText}>Export / Share</Text>
-        )}
-      </TouchableOpacity>
+      <GradientButton
+        label="Export / Share"
+        icon="share-outline"
+        gradient={gradients.brand}
+        onPress={handleExport}
+        loading={exporting}
+        style={styles.exportButton}
+      />
     </ScrollView>
   );
 }
@@ -529,14 +543,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   coverCaption: { color: colors.textSecondary, fontSize: 10, marginTop: 4, width: 84 },
-  captionCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
+  captionCard: { marginBottom: spacing.md },
   lengthRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.sm },
   lengthChip: {
     backgroundColor: colors.accentSurface,
@@ -551,14 +558,17 @@ const styles = StyleSheet.create({
   hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.sm },
   hashtag: { color: colors.accent, fontSize: 13 },
   copyButton: {
+    flexDirection: 'row',
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: spacing.md,
   },
+  copyIcon: { marginRight: 6 },
   copyButtonText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
   languageChip: {
@@ -574,13 +584,7 @@ const styles = StyleSheet.create({
   languageChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   languageChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   languageChipTextActive: { color: colors.onAccent },
-  scoreCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
+  scoreCard: {},
   scoreHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -590,6 +594,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  scoreHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   scoreLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
   scoreTotal: { color: colors.accent, fontSize: 20, fontWeight: '700' },
   scoreRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, gap: spacing.sm },
@@ -607,14 +612,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     lineHeight: 17,
   },
-  scheduleCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginTop: spacing.md,
-  },
+  scheduleCard: { marginTop: spacing.md },
   scheduleCurrent: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   regenerateHint: { color: colors.textSecondary, fontSize: 12, marginBottom: spacing.sm, lineHeight: 17 },
   scheduleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
@@ -627,12 +625,5 @@ const styles = StyleSheet.create({
   scheduleChipText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   publishedLink: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   disconnectLink: { color: colors.textMuted, fontSize: 12, marginLeft: spacing.sm, alignSelf: 'center' },
-  exportButton: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  exportButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
+  exportButton: { marginTop: spacing.lg },
 });

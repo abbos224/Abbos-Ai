@@ -1,11 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { useAuth } from '../AuthContext';
-import { colors, radius, spacing } from '../theme';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
+
+const SETTINGS_ROWS: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; target: 'BrandKit' | 'Personas' }> = [
+  { icon: 'color-palette', label: 'Brand Kit', target: 'BrandKit' },
+  { icon: 'mic', label: 'Voice', target: 'Personas' },
+];
 
 export default function MenuScreen({ navigation }: Props) {
   // Login is mandatory app-wide (see App.tsx's auth gate), so by the time Menu is reachable
@@ -17,38 +25,44 @@ export default function MenuScreen({ navigation }: Props) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.sectionTitle}>Account</Text>
-      <View style={styles.card}>
-        {user ? (
-          <>
-            <Text style={styles.accountEmail}>{user.email}</Text>
-            <TouchableOpacity onPress={signOut} style={styles.rowLink}>
-              <Text style={styles.rowLinkTextDanger}>Log out</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <View style={styles.authLinksRow}>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.rowLinkTextAccent}>Log in</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-              <Text style={styles.rowLinkTextAccent}>Sign up</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      <Card style={styles.accountCard}>
+        <IconBadge icon="person" color={colors.accent} size={40} />
+        <View style={styles.accountInfo}>
+          {user ? (
+            <>
+              <Text style={styles.accountEmail} numberOfLines={1}>
+                {user.email}
+              </Text>
+              <TouchableOpacity onPress={signOut} style={styles.rowLink}>
+                <Text style={styles.rowLinkTextDanger}>Log out</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.authLinksRow}>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.rowLinkTextAccent}>Log in</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+                <Text style={styles.rowLinkTextAccent}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Card>
 
       <Text style={styles.sectionTitle}>Content settings</Text>
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BrandKit')}>
-          <Text style={styles.rowText}>Brand Kit</Text>
-          <Text style={styles.rowChevron}>›</Text>
-        </TouchableOpacity>
-        <View style={styles.rowDivider} />
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('Personas')}>
-          <Text style={styles.rowText}>Voice</Text>
-          <Text style={styles.rowChevron}>›</Text>
-        </TouchableOpacity>
-      </View>
+      <Card style={styles.settingsCard}>
+        {SETTINGS_ROWS.map((item, i) => (
+          <View key={item.target}>
+            <TouchableOpacity style={styles.row} onPress={() => navigation.navigate(item.target)} activeOpacity={0.7}>
+              <Ionicons name={item.icon} size={18} color={colors.accent} style={styles.rowIcon} />
+              <Text style={styles.rowText}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+            {i < SETTINGS_ROWS.length - 1 && <View style={styles.rowDivider} />}
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }
@@ -65,20 +79,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
+  accountCard: { flexDirection: 'row', alignItems: 'center' },
+  accountInfo: { flex: 1, marginLeft: spacing.md },
+  settingsCard: { padding: 0 },
   accountEmail: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   authLinksRow: { flexDirection: 'row', gap: spacing.lg },
-  rowLink: { marginTop: spacing.sm },
+  rowLink: { marginTop: spacing.xs },
   rowLinkTextAccent: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   rowLinkTextDanger: { color: colors.danger, fontSize: 14, fontWeight: '600' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  rowText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  rowChevron: { color: colors.textMuted, fontSize: 18 },
-  rowDivider: { height: 1, backgroundColor: colors.border },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: spacing.md, gap: spacing.sm },
+  rowIcon: { marginRight: 2 },
+  rowText: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  rowDivider: { height: 1, backgroundColor: colors.border, marginLeft: spacing.md + 18 + spacing.sm },
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CaptionStyleName, SoundEffectsStyle, RootStackParamList } from '../types';
 import {
@@ -13,6 +14,8 @@ import {
   getSoundEffectsStyles,
   setSoundEffectsStyle,
 } from '../api';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BrandKit'>;
@@ -20,6 +23,31 @@ type Props = NativeStackScreenProps<RootStackParamList, 'BrandKit'>;
 // A restrained palette, not a full picker — fits the "modest, business" positioning better than
 // letting people pick neon colors for their captions.
 const PRESET_COLORS = ['#1F3A5F', '#3D6B57', '#7A5C3E', '#5C3D5C', '#4A4A48', '#A6362C'];
+
+function SectionCard({
+  icon,
+  title,
+  hint,
+  children,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  hint: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card style={styles.sectionCard}>
+      <View style={styles.sectionHeader}>
+        <IconBadge icon={icon} color={colors.accent} size={32} />
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionHint}>{hint}</Text>
+        </View>
+      </View>
+      {children}
+    </Card>
+  );
+}
 
 export default function BrandKitScreen({}: Props) {
   const [logoUrl, setLogoUrl] = useState<string | undefined>();
@@ -106,85 +134,82 @@ export default function BrandKitScreen({}: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>Logo</Text>
-      <Text style={styles.sectionHint}>Appears in the top-right corner of every Reel you export.</Text>
+      <SectionCard icon="image" title="Logo" hint="Appears in the top-right corner of every Reel you export.">
+        <TouchableOpacity style={styles.logoBox} onPress={pickLogo} disabled={uploadingLogo}>
+          {uploadingLogo ? (
+            <ActivityIndicator color={colors.accent} />
+          ) : logoUrl ? (
+            <Image source={{ uri: clipFileUrl(logoUrl) }} style={styles.logoPreview} resizeMode="contain" />
+          ) : (
+            <Text style={styles.logoBoxText}>Upload logo</Text>
+          )}
+        </TouchableOpacity>
+      </SectionCard>
 
-      <TouchableOpacity style={styles.logoBox} onPress={pickLogo} disabled={uploadingLogo}>
-        {uploadingLogo ? (
-          <ActivityIndicator color={colors.accent} />
-        ) : logoUrl ? (
-          <Image source={{ uri: clipFileUrl(logoUrl) }} style={styles.logoPreview} resizeMode="contain" />
-        ) : (
-          <Text style={styles.logoBoxText}>Upload logo</Text>
-        )}
-      </TouchableOpacity>
+      <SectionCard icon="color-palette" title="Brand color" hint="Used as the caption outline color across your Reels.">
+        <View style={styles.colorRow}>
+          {PRESET_COLORS.map((color) => (
+            <TouchableOpacity
+              key={color}
+              style={[styles.swatch, { backgroundColor: color }, accentColor === color && styles.swatchActive]}
+              onPress={() => pickColor(color)}
+              disabled={savingColor !== null}
+            >
+              {savingColor === color && <ActivityIndicator size="small" color={colors.onAccent} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SectionCard>
 
-      <Text style={styles.sectionTitle}>Brand color</Text>
-      <Text style={styles.sectionHint}>Used as the caption outline color across your Reels.</Text>
+      <SectionCard
+        icon="text"
+        title="Caption style"
+        hint="How every hook and caption is set — from a quiet minimal look to a full kinetic pop."
+      >
+        <View style={styles.styleGrid}>
+          {captionStyles.map((style) => (
+            <TouchableOpacity
+              key={style}
+              style={[styles.styleChip, activeStyle === style && styles.styleChipActive]}
+              onPress={() => pickStyle(style)}
+              disabled={savingStyle !== null}
+            >
+              {savingStyle === style ? (
+                <ActivityIndicator size="small" color={activeStyle === style ? colors.onAccent : colors.accent} />
+              ) : (
+                <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
+                  {style[0].toUpperCase() + style.slice(1)}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SectionCard>
 
-      <View style={styles.colorRow}>
-        {PRESET_COLORS.map((color) => (
-          <TouchableOpacity
-            key={color}
-            style={[
-              styles.swatch,
-              { backgroundColor: color },
-              accentColor === color && styles.swatchActive,
-            ]}
-            onPress={() => pickColor(color)}
-            disabled={savingColor !== null}
-          >
-            {savingColor === color && <ActivityIndicator size="small" color={colors.onAccent} />}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>Caption style</Text>
-      <Text style={styles.sectionHint}>How every hook and caption is set — from a quiet minimal look to a full kinetic pop.</Text>
-
-      <View style={styles.styleGrid}>
-        {captionStyles.map((style) => (
-          <TouchableOpacity
-            key={style}
-            style={[styles.styleChip, activeStyle === style && styles.styleChipActive]}
-            onPress={() => pickStyle(style)}
-            disabled={savingStyle !== null}
-          >
-            {savingStyle === style ? (
-              <ActivityIndicator size="small" color={activeStyle === style ? colors.onAccent : colors.accent} />
-            ) : (
-              <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
-                {style[0].toUpperCase() + style.slice(1)}
-              </Text>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>Sound effects</Text>
-      <Text style={styles.sectionHint}>
-        Professional keeps Reels quiet; Minimal adds a subtle whoosh on zoom; Dynamic also dings on
-        numbers/prices and alerts on warning words.
-      </Text>
-
-      <View style={styles.styleGrid}>
-        {effectsStyles.map((style) => (
-          <TouchableOpacity
-            key={style}
-            style={[styles.styleChip, activeEffectsStyle === style && styles.styleChipActive]}
-            onPress={() => pickEffectsStyle(style)}
-            disabled={savingEffectsStyle !== null}
-          >
-            {savingEffectsStyle === style ? (
-              <ActivityIndicator size="small" color={activeEffectsStyle === style ? colors.onAccent : colors.accent} />
-            ) : (
-              <Text style={[styles.styleChipText, activeEffectsStyle === style && styles.styleChipTextActive]}>
-                {style[0].toUpperCase() + style.slice(1)}
-              </Text>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
+      <SectionCard
+        icon="musical-notes"
+        title="Sound effects"
+        hint="Professional keeps Reels quiet; Minimal adds a subtle whoosh on zoom; Dynamic also dings on numbers/prices and alerts on warning words."
+      >
+        <View style={styles.styleGrid}>
+          {effectsStyles.map((style) => (
+            <TouchableOpacity
+              key={style}
+              style={[styles.styleChip, activeEffectsStyle === style && styles.styleChipActive]}
+              onPress={() => pickEffectsStyle(style)}
+              disabled={savingEffectsStyle !== null}
+            >
+              {savingEffectsStyle === style ? (
+                <ActivityIndicator size="small" color={activeEffectsStyle === style ? colors.onAccent : colors.accent} />
+              ) : (
+                <Text style={[styles.styleChipText, activeEffectsStyle === style && styles.styleChipTextActive]}>
+                  {style[0].toUpperCase() + style.slice(1)}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SectionCard>
     </ScrollView>
   );
 }
@@ -192,11 +217,14 @@ export default function BrandKitScreen({}: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
-  sectionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginTop: spacing.md },
-  sectionHint: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: spacing.md },
+  sectionCard: { marginBottom: spacing.md },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
+  sectionHeaderText: { flex: 1, marginLeft: spacing.md },
+  sectionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  sectionHint: { color: colors.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
   logoBox: {
     height: 100,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.lg,
@@ -218,7 +246,7 @@ const styles = StyleSheet.create({
   styleChip: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderRadius: radius.md,
     paddingVertical: 10,
     paddingHorizontal: 14,

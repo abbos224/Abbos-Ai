@@ -57,7 +57,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <IconBadge icon="folder-outline" color={colors.accent} size={40} />
+        <IconBadge icon="folder" color={colors.accent} size={40} />
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>Projects</Text>
           <Text style={styles.headerSubtitle}>All your AI-generated Reels in one place.</Text>
@@ -70,7 +70,7 @@ export default function ProjectsScreen({ navigation }: Props) {
       {jobs.length === 0 ? (
         <Card variant="highlight" style={styles.emptyCard}>
           <EmptyState
-            icon="folder-outline"
+            icon="folder"
             title="No projects yet"
             body="Create your first AI-powered Reel and it will appear here."
             ctaLabel="Create your first Reel"

@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Persona, PersonaName, RootStackParamList } from '../types';
 import { getPersonas, setActivePersona } from '../api';
-import { colors, radius, spacing } from '../theme';
+import Card from '../components/Card';
+import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Personas'>;
+
+const PERSONA_ICONS: Record<PersonaName, keyof typeof Ionicons.glyphMap> = {
+  trustedAdvisor: 'shield-checkmark',
+  boldContrarian: 'flash',
+  friendlyNeighbor: 'happy',
+  luxuryConcierge: 'diamond',
+  energeticCoach: 'flame',
+};
 
 export default function PersonasScreen({}: Props) {
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -51,36 +61,35 @@ export default function PersonasScreen({}: Props) {
         change clips you've already generated.
       </Text>
 
-      <TouchableOpacity
-        style={[styles.card, activePersona === null && styles.cardActive]}
-        onPress={() => pick(null)}
-        disabled={saving !== null}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardLabel, activePersona === null && styles.cardLabelActive]}>Default</Text>
-          {saving === 'none' && <ActivityIndicator size="small" color={colors.accent} />}
-        </View>
-        <Text style={[styles.cardDescription, activePersona === null && styles.cardDescriptionActive]}>
-          No persona override — Claude's neutral, general-purpose voice.
-        </Text>
+      <TouchableOpacity onPress={() => pick(null)} disabled={saving !== null} activeOpacity={0.85}>
+        <Card variant={activePersona === null ? 'highlight' : 'default'} style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconCircle, activePersona === null && styles.iconCircleActive]}>
+              <Ionicons name="radio-button-off" size={16} color={activePersona === null ? colors.onAccent : colors.textMuted} />
+            </View>
+            <Text style={[styles.cardLabel, activePersona === null && styles.cardLabelActive]}>Default</Text>
+            {saving === 'none' && <ActivityIndicator size="small" color={colors.accent} />}
+          </View>
+          <Text style={[styles.cardDescription, activePersona === null && styles.cardDescriptionActive]}>
+            No persona override — Claude's neutral, general-purpose voice.
+          </Text>
+        </Card>
       </TouchableOpacity>
 
       {personas.map((persona) => {
         const isActive = activePersona === persona.name;
         return (
-          <TouchableOpacity
-            key={persona.name}
-            style={[styles.card, isActive && styles.cardActive]}
-            onPress={() => pick(persona.name)}
-            disabled={saving !== null}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardLabel, isActive && styles.cardLabelActive]}>{persona.label}</Text>
-              {saving === persona.name && <ActivityIndicator size="small" color={colors.accent} />}
-            </View>
-            <Text style={[styles.cardDescription, isActive && styles.cardDescriptionActive]}>
-              {persona.description}
-            </Text>
+          <TouchableOpacity key={persona.name} onPress={() => pick(persona.name)} disabled={saving !== null} activeOpacity={0.85}>
+            <Card variant={isActive ? 'highlight' : 'default'} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, isActive && styles.iconCircleActive]}>
+                  <Ionicons name={PERSONA_ICONS[persona.name]} size={16} color={isActive ? colors.onAccent : colors.textMuted} />
+                </View>
+                <Text style={[styles.cardLabel, isActive && styles.cardLabelActive]}>{persona.label}</Text>
+                {saving === persona.name && <ActivityIndicator size="small" color={colors.accent} />}
+              </View>
+              <Text style={[styles.cardDescription, isActive && styles.cardDescriptionActive]}>{persona.description}</Text>
+            </Card>
           </TouchableOpacity>
         );
       })}
@@ -94,18 +103,21 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   sectionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
   sectionHint: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: spacing.md, lineHeight: 18 },
-  card: {
-    backgroundColor: colors.surface,
+  card: { marginBottom: spacing.sm },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  iconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardActive: { backgroundColor: colors.accentSurface, borderColor: colors.accent },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardLabel: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  iconCircleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  cardLabel: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   cardLabelActive: { color: colors.accent },
-  cardDescription: { color: colors.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  cardDescription: { color: colors.textSecondary, fontSize: 13, marginTop: spacing.sm, lineHeight: 18 },
   cardDescriptionActive: { color: colors.textPrimary },
 });
