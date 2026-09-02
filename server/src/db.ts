@@ -70,4 +70,18 @@ export async function runMigrations(): Promise<void> {
       channel_title TEXT
     );
   `);
+
+  // Idea generations (topic -> AI-generated hooks/scripts, no source video) get their own table
+  // rather than reusing jobs — Job/Clip are deeply video-pipeline-specific (sourceFile,
+  // startTime/endTime, a rendering-focused JobStatus) with no sensible value for a text-only
+  // result. Same JSONB-per-row shape as jobs, though, for the same reasons (see ideaStore.ts).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS idea_jobs (
+      id UUID PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      data JSONB NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idea_jobs_user_id_idx ON idea_jobs (user_id);`);
 }

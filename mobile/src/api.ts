@@ -6,6 +6,8 @@ import type {
   BrandKit,
   CalendarEntry,
   CaptionStyleName,
+  IdeaJob,
+  IdeaJobSummary,
   Job,
   JobSummary,
   Language,
@@ -62,6 +64,34 @@ export async function getJob(jobId: string): Promise<Job> {
   const res = await authFetch(`/jobs/${jobId}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch job: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function generateIdeas(topic: string): Promise<{ ideaJobId: string }> {
+  const res = await authFetch('/ideas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to start idea generation: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getAllIdeaJobs(): Promise<IdeaJobSummary[]> {
+  const res = await authFetch('/ideas');
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ideas: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getIdeaJob(ideaJobId: string): Promise<IdeaJob> {
+  const res = await authFetch(`/ideas/${ideaJobId}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch idea job: ${res.status}`);
   }
   return res.json();
 }

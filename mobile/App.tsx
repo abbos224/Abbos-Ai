@@ -19,6 +19,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import ProjectsScreen from './src/screens/ProjectsScreen';
 import MenuScreen from './src/screens/MenuScreen';
+import IdeaGeneratorScreen from './src/screens/IdeaGeneratorScreen';
+import IdeaResultsScreen from './src/screens/IdeaResultsScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -44,6 +46,8 @@ function CreateStack() {
       <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: 'Processing' }} />
       <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
       <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
+      <Stack.Screen name="IdeaGenerator" component={IdeaGeneratorScreen} options={{ title: 'Idea Generator' }} />
+      <Stack.Screen name="IdeaResults" component={IdeaResultsScreen} options={{ title: 'Ideas' }} />
     </Stack.Navigator>
   );
 }

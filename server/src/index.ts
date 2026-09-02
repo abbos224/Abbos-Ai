@@ -20,6 +20,8 @@ import { getPublishedClips } from './analytics.js';
 import { runMigrations } from './db.js';
 import { registerUser, loginUser, signToken, getUserById, AuthError, signOAuthState, verifyOAuthState } from './auth.js';
 import { requireAuth } from './authMiddleware.js';
+import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
+import { processIdeaJob } from './ideaPipeline.js';
 
 const app = express();
 app.use(cors());
@@ -104,6 +106,60 @@ app.get('/jobs/:id', requireAuth, async (req, res) => {
     return;
   }
   res.json(job);
+});
+
+const MAX_TOPIC_LENGTH = 200;
+
+app.post('/ideas', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { topic } = req.body as { topic?: string };
+  const trimmed = topic?.trim();
+  if (!trimmed) {
+    res.status(400).json({ error: 'Missing "topic" in request body' });
+    return;
+  }
+  if (trimmed.length > MAX_TOPIC_LENGTH) {
+    res.status(400).json({ error: `"topic" must be ${MAX_TOPIC_LENGTH} characters or fewer` });
+    return;
+  }
+
+  const ideaJobId = uuid();
+  const ideaJob: IdeaJob = {
+    id: ideaJobId,
+    topic: trimmed,
+    status: 'generating',
+    createdAt: new Date().toISOString(),
+    ideas: [],
+  };
+  await createIdeaJob(userId, ideaJob);
+
+  processIdeaJob(userId, ideaJobId, trimmed).catch((err) => {
+    console.error(`Idea job ${ideaJobId} crashed:`, err);
+  });
+
+  res.json({ ideaJobId });
+});
+
+app.get('/ideas', requireAuth, async (req, res) => {
+  const ideaJobs = await listIdeaJobs(req.userId!);
+  res.json(
+    ideaJobs.map((job) => ({
+      id: job.id,
+      topic: job.topic,
+      status: job.status,
+      createdAt: job.createdAt,
+      ideaCount: job.ideas.length,
+    }))
+  );
+});
+
+app.get('/ideas/:id', requireAuth, async (req, res) => {
+  const ideaJob = await getIdeaJob(req.userId!, req.params.id as string);
+  if (!ideaJob) {
+    res.status(404).json({ error: 'Idea job not found' });
+    return;
+  }
+  res.json(ideaJob);
 });
 
 app.get('/languages', (_req, res) => {
