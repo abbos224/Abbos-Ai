@@ -54,6 +54,7 @@ export type Clip = {
   topic: string;
   score: number;
   scoreBreakdown: ClipScore;
+  scoreRationale?: string; // one-sentence "why this score" — strongest + weakest dimension
   hookOptions: string[];
   chosenHook: string;
   cta: string;

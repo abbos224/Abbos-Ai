@@ -19,7 +19,7 @@ import {
   translateClip,
   youtubeConnectUrl,
 } from '../api';
-import { colors, radius, spacing } from '../theme';
+import { colors, getScoreColor, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 
@@ -399,14 +399,18 @@ export default function PreviewScreen({ route }: Props) {
       <View style={styles.scoreCard}>
         <View style={styles.scoreHeader}>
           <Text style={styles.scoreLabel}>Viral score</Text>
-          <Text style={styles.scoreTotal}>{clip.score}/100</Text>
+          <Text style={[styles.scoreTotal, { color: getScoreColor(clip.score) }]}>{clip.score}/100</Text>
         </View>
         {scores.map(([label, value]) => (
           <View key={label} style={styles.scoreRow}>
             <Text style={styles.scoreRowLabel}>{label}</Text>
+            <View style={styles.scoreBarTrack}>
+              <View style={[styles.scoreBarFill, { width: `${value}%`, backgroundColor: getScoreColor(value) }]} />
+            </View>
             <Text style={styles.scoreRowValue}>{value}</Text>
           </View>
         ))}
+        {clip.scoreRationale && <Text style={styles.scoreRationale}>{clip.scoreRationale}</Text>}
       </View>
 
       <View style={styles.scheduleCard}>
@@ -588,9 +592,21 @@ const styles = StyleSheet.create({
   },
   scoreLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
   scoreTotal: { color: colors.accent, fontSize: 20, fontWeight: '700' },
-  scoreRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  scoreRowLabel: { color: colors.textSecondary, fontSize: 14 },
-  scoreRowValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, gap: spacing.sm },
+  scoreRowLabel: { color: colors.textSecondary, fontSize: 13, width: 92 },
+  scoreBarTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
+  scoreBarFill: { height: 6, borderRadius: 3 },
+  scoreRowValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', width: 26, textAlign: 'right' },
+  scoreRationale: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    lineHeight: 17,
+  },
   scheduleCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,

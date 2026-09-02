@@ -27,3 +27,12 @@ export const type = {
   title: { fontSize: 22, fontWeight: '600' as const, color: colors.textPrimary },
   body: { fontSize: 14, color: colors.textSecondary },
 };
+
+/** Bands a 0-100 content score (overall or a single breakdown dimension) into a color, so a
+ * number reads as good/mid/weak at a glance instead of always looking the same regardless of
+ * value. Used by ResultsScreen's score pill and PreviewScreen's score card. */
+export function getScoreColor(score: number): string {
+  if (score >= 75) return colors.success;
+  if (score >= 50) return colors.accent;
+  return colors.danger;
+}
