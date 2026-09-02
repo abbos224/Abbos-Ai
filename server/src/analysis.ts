@@ -2,6 +2,7 @@ import { getAnthropicClient } from './anthropicClient.js';
 import type { Word } from './transcription.js';
 import type { ClipScore } from './store.js';
 import { getPersonaVoiceGuidance, type PersonaName } from './personas.js';
+import { ANTI_CLICHE_GUARDRAIL } from './promptGuardrails.js';
 
 export type Sentence = { start: number; end: number; text: string };
 
@@ -119,7 +120,9 @@ hook_options are three alternative punchy opening lines (under 12 words) that co
 - "hashtags": 8-15 relevant hashtags (no "#" prefix, lowercase, no spaces), mixing broad reach tags with niche/topic-specific ones.
 - "keywords": 5-10 plain-language search keywords/phrases (for video SEO / alt text), not hashtags.
 
-Return between 3 and 10 clips, ordered by overall potential descending.`;
+Return between 3 and 10 clips, ordered by overall potential descending.
+
+${ANTI_CLICHE_GUARDRAIL}`;
 
 export async function findBestClips(
   words: Word[],
