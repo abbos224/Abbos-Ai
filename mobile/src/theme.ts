@@ -11,6 +11,11 @@ export const colors = {
   textMuted: '#6E6E80',
   accent: '#8B5CF6',
   accentSurface: '#241B3D',
+  // A second accent reserved for AI-generation surfaces (Idea Generator, "Generate"-type
+  // actions) — `accent` (violet) stays the primary brand color for navigation/general chrome.
+  // Matches the two-accent split in the reference mockups (purple Projects screen, cyan Idea
+  // Generator screens).
+  accentAI: '#22D3EE',
   // Text/icon color for content sitting directly on a solid `accent` background (buttons, active
   // chips) — kept as its own token because `surface` no longer means "white" now that cards are
   // dark, but content on the accent color still needs to read clearly against it.
@@ -27,6 +32,26 @@ export const type = {
   title: { fontSize: 22, fontWeight: '600' as const, color: colors.textPrimary },
   body: { fontSize: 14, color: colors.textSecondary },
 };
+
+// Gradient stops for GradientButton / gradient-bordered cards. `ai` for AI-generation actions
+// (cyan -> blue), `brand` for general brand chrome (violet -> deep purple).
+export const gradients = {
+  ai: [colors.accentAI, '#3B82F6'] as const,
+  brand: [colors.accent, '#6D28D9'] as const,
+};
+
+/** A soft neon-glow shadow behind an icon badge or button, colored to match its content. RN
+ * shadows only render on iOS by default; `elevation` gives Android a comparable (though flatter)
+ * lift — there's no true glow on Android without extra native work, which isn't worth it here. */
+export function glowShadow(color: string) {
+  return {
+    shadowColor: color,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  } as const;
+}
 
 /** Bands a 0-100 content score (overall or a single breakdown dimension) into a color, so a
  * number reads as good/mid/weak at a glance instead of always looking the same regardless of
