@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Clip, RootStackParamList } from '../types';
 import { getJob } from '../api';
-import { colors, radius, spacing } from '../theme';
+import { colors, getScoreColor, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
@@ -39,8 +39,8 @@ export default function ResultsScreen({ route, navigation }: Props) {
               <Text style={styles.cardTopic} numberOfLines={1}>
                 {item.topic}
               </Text>
-              <View style={styles.scorePill}>
-                <Text style={styles.scorePillText}>{item.score}</Text>
+              <View style={[styles.scorePill, { borderColor: getScoreColor(item.score) }]}>
+                <Text style={[styles.scorePillText, { color: getScoreColor(item.score) }]}>{item.score}</Text>
               </View>
             </View>
             <Text style={styles.cardHook} numberOfLines={2}>
@@ -81,12 +81,13 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTopic: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', flex: 1, marginRight: spacing.sm },
   scorePill: {
-    backgroundColor: colors.accentSurface,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  scorePillText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  scorePillText: { fontSize: 13, fontWeight: '700' },
   cardHook: { color: colors.textSecondary, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
   cardCta: { color: colors.accent, fontSize: 11, fontWeight: '600', marginTop: 6 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },

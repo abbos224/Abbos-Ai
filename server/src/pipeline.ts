@@ -6,9 +6,41 @@ import { findBestClips } from './analysis.js';
 import { renderClip } from './videoPipeline.js';
 import { getActivePersona } from './personas.js';
 
-function average(scores: Clip['scoreBreakdown']): number {
-  const values = Object.values(scores);
-  return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+// Weighted rather than a plain average — hook and retention most directly drive whether a viewer
+// (or the algorithm) keeps watching past the first few seconds, so they count for more than the
+// other four dimensions. Not a scientifically-derived weighting, just a defensible product call;
+// weights sum to 1.
+const SCORE_WEIGHTS: Record<keyof Clip['scoreBreakdown'], number> = {
+  hook: 0.25,
+  retention: 0.25,
+  emotion: 0.15,
+  clarity: 0.15,
+  shareability: 0.1,
+  cta: 0.1,
+};
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/** Clamps every raw sub-score to 0-100 in case the model ever returns something out of range. */
+function clampBreakdown(scores: Clip['scoreBreakdown']): Clip['scoreBreakdown'] {
+  return {
+    hook: clampScore(scores.hook),
+    retention: clampScore(scores.retention),
+    emotion: clampScore(scores.emotion),
+    clarity: clampScore(scores.clarity),
+    shareability: clampScore(scores.shareability),
+    cta: clampScore(scores.cta),
+  };
+}
+
+function weightedScore(scores: Clip['scoreBreakdown']): number {
+  const total = (Object.keys(SCORE_WEIGHTS) as Array<keyof Clip['scoreBreakdown']>).reduce(
+    (sum, key) => sum + scores[key] * SCORE_WEIGHTS[key],
+    0,
+  );
+  return clampScore(total);
 }
 
 // Clips are independent (each only reads the shared source file + words, and writes its own
@@ -58,21 +90,25 @@ export async function processJob(userId: string, jobId: string): Promise<void> {
     await updateJob(userId, jobId, { status: 'analyzing' });
     const candidates = await findBestClips(words, durationSec, await getActivePersona(userId));
 
-    const clips: Clip[] = candidates.map((c) => ({
-      id: uuid(),
-      jobId,
-      startTime: c.start_sec,
-      endTime: c.end_sec,
-      topic: c.topic,
-      score: average(c.score_breakdown),
-      scoreBreakdown: c.score_breakdown,
-      hookOptions: c.hook_options,
-      chosenHook: c.hook_options[0] ?? c.topic,
-      cta: c.cta,
-      coverOptions: c.cover_options,
-      socialCaption: c.social_caption,
-      status: 'pending',
-    }));
+    const clips: Clip[] = candidates.map((c) => {
+      const scoreBreakdown = clampBreakdown(c.score_breakdown);
+      return {
+        id: uuid(),
+        jobId,
+        startTime: c.start_sec,
+        endTime: c.end_sec,
+        topic: c.topic,
+        score: weightedScore(scoreBreakdown),
+        scoreBreakdown,
+        scoreRationale: c.score_rationale,
+        hookOptions: c.hook_options,
+        chosenHook: c.hook_options[0] ?? c.topic,
+        cta: c.cta,
+        coverOptions: c.cover_options,
+        socialCaption: c.social_caption,
+        status: 'pending',
+      };
+    });
     await setClips(userId, jobId, clips);
 
     await updateJob(userId, jobId, { status: 'rendering' });

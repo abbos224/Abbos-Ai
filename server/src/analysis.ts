@@ -18,6 +18,7 @@ export type ClipCandidate = {
   end_sec: number;
   topic: string;
   score_breakdown: ClipScore;
+  score_rationale: string;
   hook_options: string[];
   cta: string;
   cover_options: string[];
@@ -80,6 +81,7 @@ Respond with ONLY valid JSON (no markdown fences, no commentary), matching this 
         "shareability": number,
         "cta": number
       },
+      "score_rationale": string,
       "hook_options": [string, string, string],
       "cta": string,
       "cover_options": [string, string, string],
@@ -94,7 +96,17 @@ Respond with ONLY valid JSON (no markdown fences, no commentary), matching this 
   ]
 }
 
-Each score is 0-100, representing your estimate of that clip's potential, not a promise of real views. hook_options are three alternative punchy opening lines (under 12 words) that could replace the clip's actual opening line to make it more attention-grabbing.
+Each score is 0-100, representing your estimate of that clip's potential, not a promise of real views. Score honestly across the full range — most clips do NOT deserve 90+ on every dimension; reserve 90+ for genuinely exceptional moments, and use the low end (under 40) when a dimension is a real weakness, not just "fine." Use this rubric per dimension:
+- "hook": how hard the opening 1-2 seconds stops a scroll. A surprising claim, direct question, or pattern interrupt scores high; a generic or slow-to-start opening scores low.
+- "retention": how well the clip holds attention start-to-finish. Tight pacing with no dead air or rambling scores high; a slow, meandering, or front-loaded clip that trails off scores low.
+- "emotion": how strong a genuine emotional reaction the clip evokes (surprise, humor, empathy, indignation, inspiration). Flat, purely informational delivery scores low.
+- "clarity": how easy the core idea is to grasp on one watch, captions-only, sound off. One clear takeaway scores high; multiple competing ideas or jargon scores low.
+- "shareability": how likely someone is to send this to a friend or duet/stitch it. A bold claim, relatable frustration, or genuinely useful tip scores high; a niche, low-stakes observation scores low.
+- "cta": how naturally the ending call-to-action fits what was just said. A CTA that flows from the content scores high; a generic, bolted-on "follow me" that doesn't match scores low.
+
+"score_rationale" is one concrete sentence naming this clip's strongest and weakest scoring dimension (e.g. "Strong hook and shareability, but retention suffers from a rambling middle section") — not generic praise, and not a restatement of the scores as numbers.
+
+hook_options are three alternative punchy opening lines (under 12 words) that could replace the clip's actual opening line to make it more attention-grabbing.
 
 "cta" is a single call-to-action line (under 8 words) for the very end of the clip, matched to the content type — e.g. "Save this video" for an educational tip, "Follow for more" for a personal/blog moment, "DM us to learn more" for a business/service pitch, "Book a consultation" for a professional service, "Comment your thoughts" for something opinion-driven. Pick whichever fits, don't default to the same one every time.
 
