@@ -125,6 +125,27 @@ export type AuthUser = { id: string; email: string };
 
 export type JobSummary = { id: string; originalFilename: string; status: JobStatus; createdAt: string; clipCount: number };
 
+export type Idea = {
+  id: string;
+  hook: string;
+  script: string;
+  cta: string;
+  socialCaption?: SocialCaption;
+};
+
+export type IdeaJobStatus = 'generating' | 'done' | 'failed';
+
+export type IdeaJob = {
+  id: string;
+  topic: string;
+  status: IdeaJobStatus;
+  error?: string;
+  createdAt: string;
+  ideas: Idea[];
+};
+
+export type IdeaJobSummary = { id: string; topic: string; status: IdeaJobStatus; createdAt: string; ideaCount: number };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
@@ -138,4 +159,6 @@ export type RootStackParamList = {
   SignUp: undefined;
   Projects: undefined;
   Menu: undefined;
+  IdeaGenerator: undefined;
+  IdeaResults: { ideaJobId: string };
 };

@@ -68,6 +68,10 @@ export default function UploadScreen({ navigation }: Props) {
         <Text style={styles.uploadButtonText}>Upload video</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity onPress={() => navigation.navigate('IdeaGenerator')} style={styles.ideaLink}>
+        <Text style={styles.ideaLinkText}>Or generate ideas from a topic →</Text>
+      </TouchableOpacity>
+
       {picked && (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>{picked.fileName}</Text>
@@ -121,6 +125,8 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: colors.accent, borderColor: colors.accent },
   uploadButtonText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   primaryButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
+  ideaLink: { alignItems: 'center', marginBottom: spacing.md },
+  ideaLinkText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
