@@ -4,11 +4,18 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { IdeaJobSummary, RootStackParamList } from '../types';
 import { generateIdeas, getAllIdeaJobs, getIdeaJob } from '../api';
-import { colors, radius, spacing } from '../theme';
+import Card from '../components/Card';
+import GradientButton from '../components/GradientButton';
+import SectionHeader from '../components/SectionHeader';
+import EmptyState from '../components/EmptyState';
+import { colors, gradients, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'IdeaGenerator'>;
 
 const POLL_INTERVAL_MS = 2000;
+// Must match server/src/index.ts's MAX_TOPIC_LENGTH — the two aren't shared from one source since
+// mobile and server don't share a package in this repo, so keep them in sync by hand.
+const MAX_TOPIC_LENGTH = 200;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -83,33 +90,47 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.eyebrow}>Idea Generator</Text>
-        <Text style={styles.title}>Turn a topic into content ideas</Text>
-      </View>
-
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. first-time homebuyer mistakes"
-        placeholderTextColor={colors.textMuted}
-        value={topic}
-        onChangeText={setTopic}
-        editable={!generating}
+      <SectionHeader
+        eyebrow="Idea Generator"
+        title="Turn a topic into content ideas"
+        highlight="content ideas"
+        highlightColor={colors.accentAI}
+        subtitle="Describe your topic and get unique, engaging ideas that stand out."
       />
 
-      <TouchableOpacity style={styles.primaryButton} onPress={handleGenerate} disabled={generating}>
-        {generating ? (
-          <ActivityIndicator color={colors.onAccent} />
-        ) : (
-          <Text style={styles.primaryButtonText}>Generate ideas</Text>
-        )}
-      </TouchableOpacity>
+      <Card style={styles.inputCard}>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. first-time homebuyer mistakes"
+          placeholderTextColor={colors.textMuted}
+          value={topic}
+          onChangeText={(text) => setTopic(text.slice(0, MAX_TOPIC_LENGTH))}
+          editable={!generating}
+          multiline
+        />
+        <Text style={styles.charCount}>
+          {topic.length}/{MAX_TOPIC_LENGTH}
+        </Text>
+      </Card>
+
+      <GradientButton
+        label="Generate ideas"
+        icon="sparkles"
+        gradient={gradients.ai}
+        onPress={handleGenerate}
+        loading={generating}
+        style={styles.generateButton}
+      />
 
       <Text style={styles.sectionTitle}>Past ideas</Text>
       {pastIdeas === null ? (
-        <ActivityIndicator color={colors.accent} style={styles.pastLoading} />
+        <ActivityIndicator color={colors.accentAI} style={styles.pastLoading} />
       ) : pastIdeas.length === 0 ? (
-        <Text style={styles.emptyBody}>Generated ideas will show up here.</Text>
+        <EmptyState
+          icon="bookmark-outline"
+          title="No ideas yet"
+          body="Your generated ideas will appear here. Start by describing a topic above."
+        />
       ) : (
         <FlatList
           style={styles.list}
@@ -119,22 +140,24 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
           onRefresh={loadPastIdeas}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.card}
               disabled={item.status !== 'done'}
               onPress={() => navigation.navigate('IdeaResults', { ideaJobId: item.id })}
+              activeOpacity={0.85}
             >
-              <Text style={styles.cardTopic} numberOfLines={1}>
-                {item.topic}
-              </Text>
-              <View style={styles.cardFooter}>
-                <Text style={styles.cardMeta}>{formatDate(item.createdAt)}</Text>
-                <Text style={styles.cardMeta}>
-                  {item.ideaCount} idea{item.ideaCount === 1 ? '' : 's'}
+              <Card style={styles.pastCard}>
+                <Text style={styles.cardTopic} numberOfLines={1}>
+                  {item.topic}
                 </Text>
-                <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
-                  {STATUS_LABELS[item.status]}
-                </Text>
-              </View>
+                <View style={styles.cardFooter}>
+                  <Text style={styles.cardMeta}>{formatDate(item.createdAt)}</Text>
+                  <Text style={styles.cardMeta}>
+                    {item.ideaCount} idea{item.ideaCount === 1 ? '' : 's'}
+                  </Text>
+                  <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
+                    {STATUS_LABELS[item.status]}
+                  </Text>
+                </View>
+              </Card>
             </TouchableOpacity>
           )}
         />
@@ -145,35 +168,10 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
-  headerRow: { marginBottom: spacing.xl },
-  eyebrow: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  title: { color: colors.textPrimary, fontSize: 24, fontWeight: '600' },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    color: colors.textPrimary,
-    fontSize: 15,
-    marginBottom: spacing.sm,
-  },
-  primaryButton: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  primaryButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: '600' },
+  inputCard: { marginBottom: spacing.md },
+  input: { color: colors.textPrimary, fontSize: 15, minHeight: 44 },
+  charCount: { color: colors.textMuted, fontSize: 11, textAlign: 'right', marginTop: spacing.xs },
+  generateButton: { marginBottom: spacing.lg },
   sectionTitle: {
     color: colors.textSecondary,
     fontSize: 12,
@@ -183,16 +181,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   pastLoading: { marginTop: spacing.md },
-  emptyBody: { color: colors.textSecondary, fontSize: 13 },
   list: { flex: 1 },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
+  pastCard: { marginBottom: spacing.sm },
   cardTopic: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   cardFooter: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
   cardMeta: { color: colors.textMuted, fontSize: 12 },
