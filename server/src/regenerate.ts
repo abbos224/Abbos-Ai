@@ -1,4 +1,6 @@
 import { getAnthropicClient } from './anthropicClient.js';
+import { getPersonaVoiceGuidance, type PersonaName } from './personas.js';
+import { ANTI_CLICHE_GUARDRAIL } from './promptGuardrails.js';
 import type { RegenerateModifier, SocialCaption } from './store.js';
 
 type ModifierPreset = { label: string; instruction: string };
@@ -52,6 +54,9 @@ export type RegeneratedCreative = {
  * given the clip's actual spoken content (its caption cues) as grounding — the spirit of the
  * spec's "Regenerate: More viral / More professional / More emotional / More luxury" feature.
  * Reuses the clip's existing edit (crop, B-roll, timing) rather than re-analyzing the source video.
+ * `persona`, when the account has one active, layers the account's own Voice on top of the
+ * modifier's tone shift — previously this function ignored the active persona entirely, so
+ * regenerating a clip silently reverted to Claude's neutral voice even with a persona selected.
  */
 export async function regenerateCreative(
   topic: string,
@@ -59,21 +64,27 @@ export async function regenerateCreative(
   currentHook: string,
   currentCta: string,
   modifier: RegenerateModifier,
+  persona?: PersonaName,
 ): Promise<RegeneratedCreative> {
+  const personaClause = persona ? ` Overall voice/persona: ${getPersonaVoiceGuidance(persona)}` : '';
+
   const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 2048,
     system:
       'You rewrite the hook, CTA, cover titles, and social caption for an already-edited short-form ' +
       'video clip, given its topic and actual spoken content. You are NOT re-editing the video — only ' +
-      `rewriting the on-screen/post text in a new voice. Voice to apply: ${MODIFIERS[modifier].instruction} ` +
+      `rewriting the on-screen/post text in a new voice. Tone shift to apply: ${MODIFIERS[modifier].instruction}` +
+      `${personaClause} ${ANTI_CLICHE_GUARDRAIL} ` +
       'Respond with ONLY valid JSON (no markdown fences, no commentary), matching this shape exactly: ' +
       '{ "hook_options": [string, string, string], "cta": string, "cover_options": [string, string, string], ' +
       '"social_caption": { "short": string, "medium": string, "long": string, "hashtags": [string, ...], ' +
       '"keywords": [string, ...] } }. hook_options are three alternative opening lines (under 12 words). ' +
-      'cta is under 8 words. cover_options are three short title-case cover titles (under 6 words, no ' +
-      'ending punctuation). social_caption follows the same short/medium/long/hashtags/keywords shape ' +
-      'used elsewhere in this app.',
+      'cta is under 8 words and matched to the content — e.g. "Save this for later", "Follow for more", ' +
+      '"DM us to learn more", "Book a consultation", "Comment your thoughts" — pick whichever fits this ' +
+      "tone and topic, don't default to the same one every time. cover_options are three short " +
+      'title-case cover titles (under 6 words, no ending punctuation). social_caption follows the same ' +
+      'short/medium/long/hashtags/keywords shape used elsewhere in this app.',
     messages: [
       {
         role: 'user',

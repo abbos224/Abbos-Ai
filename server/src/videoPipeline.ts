@@ -6,6 +6,7 @@ import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
 import { getBrandKit } from './brandKit.js';
+import { getActivePersona } from './personas.js';
 import { suggestBrollMoments, searchPexelsVideo, downloadBroll } from './broll.js';
 import { classifyMood, searchMoodTrack, downloadTrack } from './music.js';
 import { regenerateCreative } from './regenerate.js';
@@ -764,7 +765,8 @@ export async function renderRegeneration(
 
   const originalCues: CaptionCue[] = JSON.parse(fs.readFileSync(cuesPath, 'utf-8'));
   const spokenText = originalCues.map((c) => c.text).join(' ');
-  const regenerated = await regenerateCreative(clip.topic, spokenText, clip.chosenHook, clip.cta, modifier);
+  const persona = await getActivePersona(userId);
+  const regenerated = await regenerateCreative(clip.topic, spokenText, clip.chosenHook, clip.cta, modifier, persona);
   const chosenHook = regenerated.hookOptions[0] ?? clip.chosenHook;
 
   const regenDir = path.join(workDir, 'regenerations', modifier);
