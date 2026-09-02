@@ -80,7 +80,7 @@ export default function UploadScreen({ navigation }: Props) {
 
       <TouchableOpacity onPress={pickVideo} disabled={uploading} activeOpacity={0.85}>
         <Card style={styles.actionCard}>
-          <IconBadge icon="cloud-upload-outline" color={colors.accent} />
+          <IconBadge icon="cloud-upload" color={colors.accent} />
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Upload video</Text>
             <Text style={styles.actionSubtitle}>Select a video from your device</Text>
@@ -95,7 +95,7 @@ export default function UploadScreen({ navigation }: Props) {
         activeOpacity={0.85}
       >
         <Card style={styles.actionCard}>
-          <IconBadge icon="sparkles-outline" color={colors.accentAI} />
+          <IconBadge icon="sparkles" color={colors.accentAI} />
           <View style={styles.actionText}>
             <Text style={styles.actionTitle}>Or generate ideas from a topic</Text>
             <Text style={styles.actionSubtitle}>Tell AI your topic and get unique content ideas</Text>

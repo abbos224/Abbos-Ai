@@ -1,9 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, SectionList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CalendarEntry, RootStackParamList } from '../types';
 import { autoScheduleCalendar, getCalendar, getJob } from '../api';
+import Card from '../components/Card';
+import IconBadge from '../components/IconBadge';
+import EmptyState from '../components/EmptyState';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Calendar'>;
@@ -80,38 +84,46 @@ export default function CalendarScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
+        <IconBadge icon="calendar" color={colors.accent} size={40} />
         <Text style={styles.title}>Content Calendar</Text>
-        <TouchableOpacity onPress={handleAutoSchedule} disabled={autoScheduling}>
+        <TouchableOpacity onPress={handleAutoSchedule} disabled={autoScheduling} style={styles.autoScheduleButton}>
           {autoScheduling ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
-            <Text style={styles.autoScheduleLink}>Auto-schedule</Text>
+            <>
+              <Ionicons name="sparkles" size={14} color={colors.accent} />
+              <Text style={styles.autoScheduleLink}>Auto-schedule</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
 
       {entries.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
-          <Text style={styles.emptyBody}>
-            Schedule a rendered clip from its preview screen, or tap Auto-schedule to space out
-            everything you have ready.
-          </Text>
-        </View>
+        <Card variant="highlight" style={styles.emptyCard}>
+          <EmptyState
+            icon="calendar-outline"
+            title="Nothing scheduled yet"
+            body="Schedule a rendered clip from its preview screen, or tap Auto-schedule to space out everything you have ready."
+          />
+        </Card>
       ) : (
         <SectionList
           sections={groupByDate(entries)}
           keyExtractor={(item) => item.clipId}
           renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => openClip(item)} disabled={openingClip === item.clipId}>
-              <Text style={styles.cardTopic} numberOfLines={1}>
-                {item.topic}
-              </Text>
-              <Text style={styles.cardHook} numberOfLines={2}>
-                &ldquo;{item.chosenHook}&rdquo;
-              </Text>
-              {openingClip === item.clipId && <ActivityIndicator size="small" color={colors.accent} style={{ marginTop: 6 }} />}
+            <TouchableOpacity onPress={() => openClip(item)} disabled={openingClip === item.clipId} activeOpacity={0.85}>
+              <Card style={styles.card}>
+                <Text style={styles.cardTopic} numberOfLines={1}>
+                  {item.topic}
+                </Text>
+                <Text style={styles.cardHook} numberOfLines={2}>
+                  &ldquo;{item.chosenHook}&rdquo;
+                </Text>
+                {openingClip === item.clipId && (
+                  <ActivityIndicator size="small" color={colors.accent} style={styles.cardSpinner} />
+                )}
+              </Card>
             </TouchableOpacity>
           )}
         />
@@ -123,12 +135,11 @@ export default function CalendarScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600' },
-  autoScheduleLink: { color: colors.accent, fontSize: 14, fontWeight: '600' },
-  emptyState: { marginTop: spacing.xl, alignItems: 'center' },
-  emptyTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '600', marginBottom: spacing.xs },
-  emptyBody: { color: colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, gap: spacing.md },
+  title: { flex: 1, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  autoScheduleButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  autoScheduleLink: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  emptyCard: { borderStyle: 'dashed', marginTop: spacing.md },
   sectionHeader: {
     color: colors.textMuted,
     fontSize: 12,
@@ -138,14 +149,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
+  card: { marginBottom: spacing.sm },
   cardTopic: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   cardHook: { color: colors.textSecondary, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
+  cardSpinner: { marginTop: 6 },
 });

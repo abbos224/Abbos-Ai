@@ -127,7 +127,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
         <ActivityIndicator color={colors.accentAI} style={styles.pastLoading} />
       ) : pastIdeas.length === 0 ? (
         <EmptyState
-          icon="bookmark-outline"
+          icon="bookmark"
           title="No ideas yet"
           body="Your generated ideas will appear here. Start by describing a topic above."
         />
