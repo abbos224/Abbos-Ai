@@ -103,12 +103,29 @@ export function clipFileUrl(outputFile: string): string {
   return `${API_BASE_URL}${outputFile}`;
 }
 
+// Throws an Error using the server's own {error: "..."} JSON body when present, falling back to
+// the raw response text — shared so every image-related call surfaces the same, actually-useful
+// message (e.g. "sourceImageJobId does not refer to a completed image of yours") instead of a
+// bare status code.
+async function throwApiError(res: Response): Promise<never> {
+  const body = await res.text();
+  let message = body;
+  try {
+    message = JSON.parse(body).error ?? body;
+  } catch {
+    // body wasn't JSON — fall through with the raw text
+  }
+  throw new Error(message);
+}
+
 // Either a freshly-picked photo to edit, or a previous finished image job's id to chain another
-// edit onto its output without re-uploading it. Omit `source` entirely for pure generation.
+// edit onto its output without re-uploading it. Omit `source` entirely for pure generation. The
+// response's `quota` reflects the just-created job, so callers don't need a separate
+// getImageQuota() round-trip right after generating.
 export async function generateOrEditImage(
   prompt: string,
   source?: { uri: string; fileName: string; mimeType: string } | { sourceImageJobId: string },
-): Promise<{ imageJobId: string }> {
+): Promise<{ imageJobId: string; quota: ImageQuota }> {
   const form = new FormData();
   form.append('prompt', prompt);
   if (source && 'uri' in source) {
@@ -122,40 +139,25 @@ export async function generateOrEditImage(
     body: form,
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-  if (!res.ok) {
-    const body = await res.text();
-    let message = body;
-    try {
-      message = JSON.parse(body).error ?? body;
-    } catch {
-      // body wasn't JSON — fall through with the raw text
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) return throwApiError(res);
   return res.json();
 }
 
 export async function getAllImageJobs(): Promise<ImageJobSummary[]> {
   const res = await authFetch('/images');
-  if (!res.ok) {
-    throw new Error(`Failed to fetch images: ${res.status}`);
-  }
+  if (!res.ok) return throwApiError(res);
   return res.json();
 }
 
 export async function getImageJob(imageJobId: string): Promise<ImageJob> {
   const res = await authFetch(`/images/${imageJobId}`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch image job: ${res.status}`);
-  }
+  if (!res.ok) return throwApiError(res);
   return res.json();
 }
 
 export async function getImageQuota(): Promise<ImageQuota> {
   const res = await authFetch('/images/quota');
-  if (!res.ok) {
-    throw new Error(`Failed to fetch image quota: ${res.status}`);
-  }
+  if (!res.ok) return throwApiError(res);
   return res.json();
 }
 

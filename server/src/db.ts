@@ -13,6 +13,16 @@ export function getPool(): pg.Pool {
   return pool;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Every jobs/idea_jobs/image_jobs `id` column is `UUID` — a syntactically invalid id (e.g. from
+ * a garbage :id route param) makes Postgres throw `invalid input syntax for type uuid` rather
+ * than just finding no row. store.ts/ideaStore.ts/imageStore.ts's getX(userId, id) functions use
+ * this to treat that the same as "not found" — cheaper too, since it skips a doomed query. */
+export function isValidUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
 /** Creates the tables this app needs if they don't already exist. Called once at server startup
  * — a stand-in for a real migration tool, fine while there's a single table and no schema
  * changes to track yet. */

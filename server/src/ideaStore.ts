@@ -1,4 +1,4 @@
-import { getPool } from './db.js';
+import { getPool, isValidUuid } from './db.js';
 import type { SocialCaption } from './store.js';
 
 export type Idea = {
@@ -33,6 +33,7 @@ export async function createIdeaJob(userId: string, ideaJob: IdeaJob): Promise<v
 }
 
 export async function getIdeaJob(userId: string, id: string): Promise<IdeaJob | undefined> {
+  if (!isValidUuid(id)) return undefined;
   const result = await getPool().query<{ data: IdeaJob }>(
     'SELECT data FROM idea_jobs WHERE id = $1 AND user_id = $2',
     [id, userId],

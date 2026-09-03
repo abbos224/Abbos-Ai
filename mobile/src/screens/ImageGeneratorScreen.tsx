@@ -30,10 +30,33 @@ const STATUS_LABELS: Record<ImageJobSummary['status'], string> = {
   failed: 'Failed',
 };
 
+// expo-image-picker's `mimeType` is frequently missing (notably for HEIC photos, the default
+// format on iPhone) — falling back to a hardcoded 'image/jpeg' would mislabel the actual bytes
+// sent to Gemini. Guess from the file extension instead, which is far more often right.
+function guessMimeType(asset: ImagePicker.ImagePickerAsset): string {
+  if (asset.mimeType) return asset.mimeType;
+  const ext = asset.uri.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'heic':
+    case 'heif':
+      return 'image/heic';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return 'image/jpeg';
+  }
+}
+
+// A fresh photo upload and "continue editing a past result" are mutually exclusive — one nullable
+// union instead of two separately-nulled booleans/strings, so there's no way to leave both set at
+// once (the two used to require every setter to remember to clear the other by hand).
+type EditSource = { type: 'upload'; uri: string; fileName: string; mimeType: string } | { type: 'continue'; jobId: string };
+
 export default function ImageGeneratorScreen({ navigation, route }: Props) {
   const [prompt, setPrompt] = useState('');
-  const [attachedImage, setAttachedImage] = useState<{ uri: string; fileName: string; mimeType: string } | null>(null);
-  const [continueFromJobId, setContinueFromJobId] = useState<string | null>(null);
+  const [source, setSource] = useState<EditSource | null>(null);
   const [generating, setGenerating] = useState(false);
   const [pastImages, setPastImages] = useState<ImageJobSummary[] | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
@@ -46,11 +69,14 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
     };
   }, []);
 
-  // Arriving here via "Continue editing" pre-seeds the chained-edit state instead of a fresh photo.
+  // Arriving here via "Continue editing" pre-seeds the chained-edit state instead of a fresh
+  // photo. Clearing the param right after reading it (rather than leaving it in route.params)
+  // means tapping "Continue editing" on the *same* job a second time still re-fires this effect —
+  // otherwise React Navigation sees an unchanged param and the effect silently no-ops.
   useEffect(() => {
     if (route.params?.continueFromJobId) {
-      setContinueFromJobId(route.params.continueFromJobId);
-      setAttachedImage(null);
+      setSource({ type: 'continue', jobId: route.params.continueFromJobId });
+      navigation.setParams({ continueFromJobId: undefined });
     }
   }, [route.params?.continueFromJobId]);
 
@@ -77,18 +103,11 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
     if (result.canceled || result.assets.length === 0) return;
 
     const asset = result.assets[0];
-    // Attaching a fresh photo and "continue editing" are mutually exclusive — clear the other so
-    // there's never ambiguity about which image is actually about to be edited.
-    setContinueFromJobId(null);
-    setAttachedImage({ uri: asset.uri, fileName: asset.fileName ?? 'photo.jpg', mimeType: asset.mimeType ?? 'image/jpeg' });
+    setSource({ type: 'upload', uri: asset.uri, fileName: asset.fileName ?? 'photo.jpg', mimeType: guessMimeType(asset) });
   }
 
-  function clearAttachedImage() {
-    setAttachedImage(null);
-  }
-
-  function clearContinueFrom() {
-    setContinueFromJobId(null);
+  function clearSource() {
+    setSource(null);
   }
 
   // A single Gemini call is fast enough that a full multi-stage Processing screen isn't
@@ -125,12 +144,16 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
     }
     setGenerating(true);
     try {
-      const source = attachedImage ?? (continueFromJobId ? { sourceImageJobId: continueFromJobId } : undefined);
-      const { imageJobId } = await generateOrEditImage(trimmed, source);
+      const requestSource =
+        source?.type === 'upload'
+          ? { uri: source.uri, fileName: source.fileName, mimeType: source.mimeType }
+          : source?.type === 'continue'
+            ? { sourceImageJobId: source.jobId }
+            : undefined;
+      const { imageJobId, quota: newQuota } = await generateOrEditImage(trimmed, requestSource);
       setPrompt('');
-      setAttachedImage(null);
-      setContinueFromJobId(null);
-      getImageQuota().then(setQuota).catch(() => {}); // the job counted against the limit the moment it was created
+      setSource(null);
+      setQuota(newQuota); // the server already knows the updated count — no extra round-trip needed
       await pollUntilDone(imageJobId);
     } catch (err) {
       setGenerating(false);
@@ -138,7 +161,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
     }
   }
 
-  const isEditing = Boolean(attachedImage || continueFromJobId);
+  const isEditing = source !== null;
 
   return (
     <View style={styles.container}>
@@ -165,23 +188,23 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
         </Text>
       </Card>
 
-      {attachedImage ? (
+      {source?.type === 'upload' ? (
         <View style={styles.attachedRow}>
-          <Image source={{ uri: attachedImage.uri }} style={styles.attachedThumb} />
+          <Image source={{ uri: source.uri }} style={styles.attachedThumb} />
           <Text style={styles.attachedLabel} numberOfLines={1}>
             Editing this photo
           </Text>
-          <TouchableOpacity onPress={clearAttachedImage} disabled={generating}>
+          <TouchableOpacity onPress={clearSource} disabled={generating}>
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
-      ) : continueFromJobId ? (
+      ) : source?.type === 'continue' ? (
         <View style={styles.attachedRow}>
           <Ionicons name="color-wand" size={20} color={colors.accentAI} style={styles.continueIcon} />
           <Text style={styles.attachedLabel} numberOfLines={1}>
             Continuing from a previous image
           </Text>
-          <TouchableOpacity onPress={clearContinueFrom} disabled={generating}>
+          <TouchableOpacity onPress={clearSource} disabled={generating}>
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
           </TouchableOpacity>
         </View>

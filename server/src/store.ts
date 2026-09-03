@@ -1,4 +1,4 @@
-import { getPool } from './db.js';
+import { getPool, isValidUuid } from './db.js';
 
 export type ClipScore = {
   hook: number;
@@ -106,6 +106,7 @@ export async function createJob(userId: string, job: Job): Promise<void> {
 }
 
 export async function getJob(userId: string, id: string): Promise<Job | undefined> {
+  if (!isValidUuid(id)) return undefined;
   const result = await getPool().query<{ data: Job }>('SELECT data FROM jobs WHERE id = $1 AND user_id = $2', [
     id,
     userId,
