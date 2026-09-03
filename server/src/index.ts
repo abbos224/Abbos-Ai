@@ -34,8 +34,22 @@ import {
 import { requireAuth } from './authMiddleware.js';
 import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
 import { processIdeaJob } from './ideaPipeline.js';
-import { createImageJob, getImageJob, listImageJobs, countImageJobs, type ImageJob } from './imageStore.js';
+import { getImageJob, listImageJobs, countImageJobs, createImageJobIfUnderLimit, type ImageJob } from './imageStore.js';
 import { processImageJob } from './imagePipeline.js';
+
+// This process has no external supervisor (no pm2/systemd/docker restart policy) — if it exits,
+// nothing brings it back until someone notices and restarts it by hand. So an unexpected error
+// anywhere (a bug in a route, a rejected promise nobody attached a .catch to) gets logged and
+// swallowed here instead of taking the whole server down for every user over one bad request.
+// This is a deliberate trade-off, not textbook Node advice — Node's own docs warn that resuming
+// after an uncaughtException runs in an "undefined state." Accepted here because the alternative
+// (the process dying with no auto-restart) is worse for this app's actual deployment.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
 
 const app = express();
 app.use(cors());
@@ -200,17 +214,25 @@ app.post(
   '/images',
   requireAuth,
   (req, res, next) => {
-    uploadSourceImage.single('image')(req, res, (err) => {
-      if (err) {
-        const message =
-          err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
-            ? 'Image is too large (max 20MB).'
-            : err.message;
-        res.status(400).json({ error: message });
-        return;
-      }
-      next();
-    });
+    // Multer invokes this callback outside Express's own async-error capture — a throw in here
+    // would otherwise become an uncaughtException with no response ever sent to this request.
+    // Routing it through next(err) instead guarantees the centralized error handler below sends
+    // one, the same guarantee every other route already gets for free.
+    try {
+      uploadSourceImage.single('image')(req, res, (err) => {
+        if (err) {
+          const message =
+            err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+              ? 'Image is too large (max 20MB).'
+              : err.message;
+          res.status(400).json({ error: message });
+          return;
+        }
+        next();
+      });
+    } catch (err) {
+      next(err);
+    }
   },
   async (req, res) => {
     const userId = req.userId!;
@@ -229,8 +251,11 @@ app.post(
       return;
     }
 
-    const usedCount = await countImageJobs(userId);
-    if (usedCount >= FREE_IMAGE_GENERATION_LIMIT) {
+    // Fast-path rejection before doing any real work (disk I/O, Gemini call) — not itself
+    // race-free, so it's only an optimization; createImageJobIfUnderLimit below is what actually
+    // enforces the limit atomically against concurrent requests from the same account.
+    const precheckUsed = await countImageJobs(userId);
+    if (precheckUsed >= FREE_IMAGE_GENERATION_LIMIT) {
       res.status(403).json({
         error: `You've used all ${FREE_IMAGE_GENERATION_LIMIT} free AI image generations.`,
         limitReached: true,
@@ -253,11 +278,14 @@ app.post(
         return;
       }
       const parentPath = path.join(imagesDir, parentJob.id, path.basename(parentJob.outputFile));
-      if (!fs.existsSync(parentPath)) {
+      let buffer: Buffer;
+      try {
+        buffer = await fs.promises.readFile(parentPath);
+      } catch {
         res.status(404).json({ error: 'The source image for that job is no longer available. Try uploading a photo instead.' });
         return;
       }
-      sourceImage = { buffer: fs.readFileSync(parentPath), mimeType: parentJob.outputMimeType ?? 'image/png' };
+      sourceImage = { buffer, mimeType: parentJob.outputMimeType ?? 'image/png' };
       mode = 'edit';
     }
 
@@ -269,13 +297,23 @@ app.post(
       status: 'generating',
       createdAt: new Date().toISOString(),
     };
-    await createImageJob(userId, job);
+    const { created, used } = await createImageJobIfUnderLimit(userId, job, FREE_IMAGE_GENERATION_LIMIT);
+    if (!created) {
+      res.status(403).json({
+        error: `You've used all ${FREE_IMAGE_GENERATION_LIMIT} free AI image generations.`,
+        limitReached: true,
+      });
+      return;
+    }
 
     processImageJob(userId, imageJobId, trimmed, sourceImage).catch((err) => {
       console.error(`Image job ${imageJobId} crashed:`, err);
     });
 
-    res.json({ imageJobId });
+    res.json({
+      imageJobId,
+      quota: { used, limit: FREE_IMAGE_GENERATION_LIMIT, remaining: Math.max(0, FREE_IMAGE_GENERATION_LIMIT - used) },
+    });
   },
 );
 
@@ -829,6 +867,18 @@ app.get('/oauth/google/callback', async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).send(`Google sign-in failed: ${message}`);
+  }
+});
+
+// Centralized error handler — the last middleware in the chain, so ANY route's thrown/forwarded
+// error (existing routes included, not just new ones) gets one guaranteed, well-formed JSON
+// response instead of Express's generic default error page. This is the deep fix the ad-hoc
+// per-route try/catches and the process-level crash guards above were compensating for: without
+// it, an error that reaches here any other way still leaves the client hanging.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[unhandled route error]', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });
 

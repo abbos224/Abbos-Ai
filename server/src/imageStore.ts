@@ -1,4 +1,4 @@
-import { getPool } from './db.js';
+import { getPool, isValidUuid } from './db.js';
 
 export type ImageJobStatus = 'generating' | 'done' | 'failed';
 
@@ -16,16 +16,48 @@ export type ImageJob = {
 // Same JSONB-per-row shape and row-lock pattern as ideaStore.ts — see db.ts's runMigrations for
 // the image_jobs table.
 
-export async function createImageJob(userId: string, job: ImageJob): Promise<void> {
-  await getPool().query('INSERT INTO image_jobs (id, user_id, created_at, data) VALUES ($1, $2, $3, $4)', [
-    job.id,
-    userId,
-    job.createdAt,
-    JSON.stringify(job),
-  ]);
+// Checks the free-tier limit and creates the job atomically, so two concurrent requests from the
+// same account can't both read "9 used" and both slip in an 11th real, paid Gemini call. A plain
+// count-then-insert (what this replaced) has exactly that TOCTOU race — COUNT(*) can't itself be
+// locked with FOR UPDATE, so this serializes concurrent attempts by the same user via a
+// transaction-scoped Postgres advisory lock (released automatically on commit/rollback) around
+// the count-then-insert instead.
+export async function createImageJobIfUnderLimit(
+  userId: string,
+  job: ImageJob,
+  limit: number,
+): Promise<{ created: boolean; used: number }> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [userId]);
+    const countResult = await client.query<{ count: string }>(
+      'SELECT COUNT(*) FROM image_jobs WHERE user_id = $1',
+      [userId],
+    );
+    const used = Number(countResult.rows[0]?.count ?? 0);
+    if (used >= limit) {
+      await client.query('COMMIT');
+      return { created: false, used };
+    }
+    await client.query('INSERT INTO image_jobs (id, user_id, created_at, data) VALUES ($1, $2, $3, $4)', [
+      job.id,
+      userId,
+      job.createdAt,
+      JSON.stringify(job),
+    ]);
+    await client.query('COMMIT');
+    return { created: true, used: used + 1 };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getImageJob(userId: string, id: string): Promise<ImageJob | undefined> {
+  if (!isValidUuid(id)) return undefined;
   const result = await getPool().query<{ data: ImageJob }>(
     'SELECT data FROM image_jobs WHERE id = $1 AND user_id = $2',
     [id, userId],
