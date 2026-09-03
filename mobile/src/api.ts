@@ -369,3 +369,12 @@ export async function getCurrentUser(token: string): Promise<AuthUser> {
   }
   return (await res.json()).user;
 }
+
+// "Continue with Google" opens a real external browser (same reason as YouTube's connect flow —
+// no in-app WebView OAuth), but unlike YouTube there's no logged-in user yet to protect, so this
+// is plain client-side URL construction — no authFetch round-trip needed first. `returnTo` is this
+// session's own exp:// deep link; the server signs it into the OAuth state and hands it back with
+// a token appended once sign-in completes (see AuthContext's Linking listener for the other half).
+export function googleSignInUrl(returnTo: string): string {
+  return `${API_BASE_URL}/oauth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+}

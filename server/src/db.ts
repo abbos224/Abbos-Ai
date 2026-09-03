@@ -26,6 +26,11 @@ export async function runMigrations(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // A Google-only account has no password. Both statements are idempotent (safe to re-run on
+  // every startup like everything else here) — DROP NOT NULL on an already-nullable column, and
+  // ADD COLUMN IF NOT EXISTS on an already-present one, are both no-ops.
+  await pool.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;`);
   // Jobs/clips are stored as one JSONB blob per job (see store.ts) rather than fully normalized
   // tables — keeps the existing Job/Clip shape and every caller untouched; id/user_id/created_at
   // are promoted to real columns purely for the PK, ownership filter, and list ordering.
