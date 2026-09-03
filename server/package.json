@@ -15,6 +15,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
+    "@google/genai": "^2.21.0",
     "assemblyai": "^4.36.7",
     "axios": "^1.20.0",
     "bcrypt": "^6.0.0",

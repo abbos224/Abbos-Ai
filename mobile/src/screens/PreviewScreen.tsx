@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image, Linking } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Directory, File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +18,7 @@ import {
   translateClip,
   youtubeConnectUrl,
 } from '../api';
+import { saveRemoteFileToLibrary, shareRemoteFile } from '../utils/shareRemoteFile';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import { colors, getScoreColor, gradients, radius, spacing } from '../theme';
@@ -53,6 +52,7 @@ function formatScheduledDate(iso: string): string {
 
 export default function PreviewScreen({ route }: Props) {
   const { clip } = route.params;
+  const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [translations, setTranslations] = useState<Translation[]>(clip.translations ?? []);
@@ -143,19 +143,6 @@ export default function PreviewScreen({ route }: Props) {
     }
   }
 
-  async function shareRemoteFile(url: string) {
-    const destination = new Directory(Paths.cache);
-    destination.create({ idempotent: true });
-    const file = await File.downloadFileAsync(url, destination, { idempotent: true });
-
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(file.uri);
-    } else {
-      Alert.alert('Saved', `File saved to ${file.uri}`);
-    }
-  }
-
   async function handleSchedule(date: string | null) {
     setScheduling(true);
     try {
@@ -214,13 +201,26 @@ export default function PreviewScreen({ route }: Props) {
     );
   }
 
+  async function handleSaveVideo() {
+    if (!videoUrl) return;
+    setSaving(true);
+    try {
+      await saveRemoteFileToLibrary(videoUrl);
+      Alert.alert('Saved', 'Video saved to your photo library.');
+    } catch (err) {
+      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleExport() {
     if (!videoUrl) return;
     setExporting(true);
     try {
       await shareRemoteFile(videoUrl);
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
+      Alert.alert('Share failed', err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
     }
@@ -495,14 +495,24 @@ export default function PreviewScreen({ route }: Props) {
         </Card>
       )}
 
-      <GradientButton
-        label="Export / Share"
-        icon="share-outline"
-        gradient={gradients.brand}
-        onPress={handleExport}
-        loading={exporting}
-        style={styles.exportButton}
-      />
+      <View style={styles.exportRow}>
+        <GradientButton
+          label="Save"
+          icon="download-outline"
+          gradient={gradients.brand}
+          onPress={handleSaveVideo}
+          loading={saving}
+          style={styles.exportButtonHalf}
+        />
+        <GradientButton
+          label="Share"
+          icon="share-outline"
+          gradient={gradients.brand}
+          onPress={handleExport}
+          loading={exporting}
+          style={styles.exportButtonHalf}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -625,5 +635,6 @@ const styles = StyleSheet.create({
   scheduleChipText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   publishedLink: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   disconnectLink: { color: colors.textMuted, fontSize: 12, marginLeft: spacing.sm, alignSelf: 'center' },
-  exportButton: { marginTop: spacing.lg },
+  exportRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  exportButtonHalf: { flex: 1 },
 });

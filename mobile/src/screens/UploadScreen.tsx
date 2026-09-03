@@ -104,6 +104,21 @@ export default function UploadScreen({ navigation }: Props) {
         </Card>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        onPress={() => navigation.navigate('ImageGenerator')}
+        disabled={uploading}
+        activeOpacity={0.85}
+      >
+        <Card style={styles.actionCard}>
+          <IconBadge icon="image" color={colors.accentAI} />
+          <View style={styles.actionText}>
+            <Text style={styles.actionTitle}>Generate or edit an image with AI</Text>
+            <Text style={styles.actionSubtitle}>Describe an image, or edit a photo with a prompt</Text>
+          </View>
+          <Ionicons name="arrow-forward-circle-outline" size={26} color={colors.accentAI} />
+        </Card>
+      </TouchableOpacity>
+
       <View style={styles.featureGrid}>
         {FEATURES.map((f) => (
           <View key={f.title} style={styles.featureTile}>

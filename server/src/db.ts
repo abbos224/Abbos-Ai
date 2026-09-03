@@ -89,4 +89,16 @@ export async function runMigrations(): Promise<void> {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idea_jobs_user_id_idx ON idea_jobs (user_id);`);
+
+  // AI image generation/editing (a text prompt, optionally with a source photo to edit) — same
+  // JSONB-per-row shape as idea_jobs, for the same reasons (see imageStore.ts).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS image_jobs (
+      id UUID PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      data JSONB NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS image_jobs_user_id_idx ON image_jobs (user_id);`);
 }

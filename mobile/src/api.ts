@@ -8,6 +8,9 @@ import type {
   CaptionStyleName,
   IdeaJob,
   IdeaJobSummary,
+  ImageJob,
+  ImageJobSummary,
+  ImageQuota,
   Job,
   JobSummary,
   Language,
@@ -98,6 +101,62 @@ export async function getIdeaJob(ideaJobId: string): Promise<IdeaJob> {
 
 export function clipFileUrl(outputFile: string): string {
   return `${API_BASE_URL}${outputFile}`;
+}
+
+// Either a freshly-picked photo to edit, or a previous finished image job's id to chain another
+// edit onto its output without re-uploading it. Omit `source` entirely for pure generation.
+export async function generateOrEditImage(
+  prompt: string,
+  source?: { uri: string; fileName: string; mimeType: string } | { sourceImageJobId: string },
+): Promise<{ imageJobId: string }> {
+  const form = new FormData();
+  form.append('prompt', prompt);
+  if (source && 'uri' in source) {
+    form.append('image', { uri: source.uri, name: source.fileName, type: source.mimeType } as unknown as Blob);
+  } else if (source && 'sourceImageJobId' in source) {
+    form.append('sourceImageJobId', source.sourceImageJobId);
+  }
+
+  const res = await authFetch('/images', {
+    method: 'POST',
+    body: form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    let message = body;
+    try {
+      message = JSON.parse(body).error ?? body;
+    } catch {
+      // body wasn't JSON — fall through with the raw text
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
+export async function getAllImageJobs(): Promise<ImageJobSummary[]> {
+  const res = await authFetch('/images');
+  if (!res.ok) {
+    throw new Error(`Failed to fetch images: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getImageJob(imageJobId: string): Promise<ImageJob> {
+  const res = await authFetch(`/images/${imageJobId}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch image job: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getImageQuota(): Promise<ImageQuota> {
+  const res = await authFetch('/images/quota');
+  if (!res.ok) {
+    throw new Error(`Failed to fetch image quota: ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function getLanguages(): Promise<Language[]> {
