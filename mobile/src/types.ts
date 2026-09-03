@@ -147,6 +147,24 @@ export type IdeaJob = {
 
 export type IdeaJobSummary = { id: string; topic: string; status: IdeaJobStatus; createdAt: string; ideaCount: number };
 
+export type ImageJobStatus = 'generating' | 'done' | 'failed';
+
+export type ImageJobMode = 'generate' | 'edit';
+
+export type ImageJob = {
+  id: string;
+  prompt: string;
+  mode: ImageJobMode;
+  status: ImageJobStatus;
+  error?: string;
+  createdAt: string;
+  outputFile?: string;
+};
+
+export type ImageJobSummary = Omit<ImageJob, 'error'>;
+
+export type ImageQuota = { used: number; limit: number; remaining: number };
+
 export type RootStackParamList = {
   Upload: undefined;
   Processing: { jobId: string };
@@ -162,4 +180,6 @@ export type RootStackParamList = {
   Menu: undefined;
   IdeaGenerator: undefined;
   IdeaResults: { ideaJobId: string };
+  ImageGenerator: { continueFromJobId?: string } | undefined;
+  ImageResult: { imageJobId: string };
 };

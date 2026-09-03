@@ -34,6 +34,8 @@ import {
 import { requireAuth } from './authMiddleware.js';
 import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
 import { processIdeaJob } from './ideaPipeline.js';
+import { createImageJob, getImageJob, listImageJobs, countImageJobs, type ImageJob } from './imageStore.js';
+import { processImageJob } from './imagePipeline.js';
 
 const app = express();
 app.use(cors());
@@ -67,6 +69,20 @@ const uploadLogo = multer({
     },
   }),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB — a logo, not a video
+});
+
+const imagesDir = path.join(env.storageDir, 'images');
+fs.mkdirSync(imagesDir, { recursive: true });
+
+// The source photo for an image edit is fed to Gemini once and never needed again afterwards — a
+// chained "continue editing" reuses the *output* file of a previous job, never the original
+// input — so there's no reason to persist it to disk like the video/logo uploads do.
+const MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB — a phone photo, not a video
+const ALLOWED_IMAGE_MIMETYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif']);
+
+const uploadSourceImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES },
 });
 
 app.get('/health', (_req, res) => {
@@ -173,6 +189,125 @@ app.get('/ideas/:id', requireAuth, async (req, res) => {
   }
   res.json(ideaJob);
 });
+
+const MAX_IMAGE_PROMPT_LENGTH = 2000;
+// Every image generation is a real, paid Gemini API call — this is a free-tier cap per account
+// until a real payment/credits system exists (tracked as future work; not built yet, so no
+// fake/non-functional "upgrade" button anywhere in the app).
+const FREE_IMAGE_GENERATION_LIMIT = 10;
+
+app.post(
+  '/images',
+  requireAuth,
+  (req, res, next) => {
+    uploadSourceImage.single('image')(req, res, (err) => {
+      if (err) {
+        const message =
+          err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+            ? 'Image is too large (max 20MB).'
+            : err.message;
+        res.status(400).json({ error: message });
+        return;
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    const userId = req.userId!;
+    const { prompt, sourceImageJobId } = req.body as { prompt?: string; sourceImageJobId?: string };
+    const trimmed = prompt?.trim();
+    if (!trimmed) {
+      res.status(400).json({ error: 'Missing "prompt" in request body' });
+      return;
+    }
+    if (trimmed.length > MAX_IMAGE_PROMPT_LENGTH) {
+      res.status(400).json({ error: `"prompt" must be ${MAX_IMAGE_PROMPT_LENGTH} characters or fewer` });
+      return;
+    }
+    if (req.file && !ALLOWED_IMAGE_MIMETYPES.has(req.file.mimetype)) {
+      res.status(400).json({ error: `Unsupported image type "${req.file.mimetype}". Use PNG, JPEG, WebP, or HEIC.` });
+      return;
+    }
+
+    const usedCount = await countImageJobs(userId);
+    if (usedCount >= FREE_IMAGE_GENERATION_LIMIT) {
+      res.status(403).json({
+        error: `You've used all ${FREE_IMAGE_GENERATION_LIMIT} free AI image generations.`,
+        limitReached: true,
+      });
+      return;
+    }
+
+    let sourceImage: { buffer: Buffer; mimeType: string } | undefined;
+    let mode: 'generate' | 'edit' = 'generate';
+
+    if (req.file) {
+      // A fresh upload always takes precedence over a chained sourceImageJobId, if a request
+      // somehow carried both.
+      sourceImage = { buffer: req.file.buffer, mimeType: req.file.mimetype };
+      mode = 'edit';
+    } else if (sourceImageJobId) {
+      const parentJob = await getImageJob(userId, sourceImageJobId);
+      if (!parentJob || parentJob.status !== 'done' || !parentJob.outputFile) {
+        res.status(400).json({ error: 'sourceImageJobId does not refer to a completed image of yours.' });
+        return;
+      }
+      const parentPath = path.join(imagesDir, parentJob.id, path.basename(parentJob.outputFile));
+      if (!fs.existsSync(parentPath)) {
+        res.status(404).json({ error: 'The source image for that job is no longer available. Try uploading a photo instead.' });
+        return;
+      }
+      sourceImage = { buffer: fs.readFileSync(parentPath), mimeType: parentJob.outputMimeType ?? 'image/png' };
+      mode = 'edit';
+    }
+
+    const imageJobId = uuid();
+    const job: ImageJob = {
+      id: imageJobId,
+      prompt: trimmed,
+      mode,
+      status: 'generating',
+      createdAt: new Date().toISOString(),
+    };
+    await createImageJob(userId, job);
+
+    processImageJob(userId, imageJobId, trimmed, sourceImage).catch((err) => {
+      console.error(`Image job ${imageJobId} crashed:`, err);
+    });
+
+    res.json({ imageJobId });
+  },
+);
+
+app.get('/images', requireAuth, async (req, res) => {
+  const imageJobs = await listImageJobs(req.userId!);
+  res.json(
+    imageJobs.map((job) => ({
+      id: job.id,
+      prompt: job.prompt,
+      mode: job.mode,
+      status: job.status,
+      createdAt: job.createdAt,
+      outputFile: job.outputFile,
+    }))
+  );
+});
+
+app.get('/images/quota', requireAuth, async (req, res) => {
+  const used = await countImageJobs(req.userId!);
+  res.json({ used, limit: FREE_IMAGE_GENERATION_LIMIT, remaining: Math.max(0, FREE_IMAGE_GENERATION_LIMIT - used) });
+});
+
+app.get('/images/:id', requireAuth, async (req, res) => {
+  const imageJob = await getImageJob(req.userId!, req.params.id as string);
+  if (!imageJob) {
+    res.status(404).json({ error: 'Image job not found' });
+    return;
+  }
+  res.json(imageJob);
+});
+
+app.use('/generated-images', express.static(imagesDir));
 
 app.get('/languages', (_req, res) => {
   res.json(SUPPORTED_LANGUAGES);
