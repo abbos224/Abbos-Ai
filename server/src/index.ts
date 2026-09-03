@@ -16,9 +16,21 @@ import { SOUND_EFFECTS_STYLES, isSoundEffectsStyle, type SoundEffectsStyle } fro
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
+import * as google from './google.js';
 import { getPublishedClips } from './analytics.js';
 import { runMigrations } from './db.js';
-import { registerUser, loginUser, signToken, getUserById, AuthError, signOAuthState, verifyOAuthState } from './auth.js';
+import {
+  registerUser,
+  loginUser,
+  signToken,
+  getUserById,
+  AuthError,
+  signOAuthState,
+  verifyOAuthState,
+  findOrCreateGoogleUser,
+  signGoogleState,
+  verifyGoogleState,
+} from './auth.js';
 import { requireAuth } from './authMiddleware.js';
 import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
 import { processIdeaJob } from './ideaPipeline.js';
@@ -615,6 +627,74 @@ app.get('/auth/me', requireAuth, async (req, res) => {
     return;
   }
   res.json({ user });
+});
+
+// --- Google sign-in ---
+//
+// Unlike the "Connect YouTube" flow (which attaches a third-party grant to an *already logged-in*
+// account via a userId-carrying state token), Google sign-in has no session at all when it
+// starts — that's the whole point of the button. Expo Go can't register a native URL scheme for
+// Google to redirect into directly (no custom dev client here), so the server plays the role of
+// the actual OAuth client: it owns a real redirect_uri, and the mobile app's own exp:// deep link
+// (computed via expo-linking) rides through as the `returnTo` in a signed state instead of a
+// userId. The callback mints the same session JWT /auth/register and /auth/login already
+// produce, then hands it back via a tap-through link into that exp:// URL.
+
+app.get('/oauth/google/start', (req, res) => {
+  if (!google.isConfigured()) {
+    res.status(400).send('Google sign-in is not configured on the server (missing GOOGLE_CLIENT_ID/SECRET).');
+    return;
+  }
+  const { returnTo } = req.query as { returnTo?: string };
+  // returnTo is client-supplied on this unauthenticated route — restricted to exp:// so this
+  // can't be turned into an open redirect that leaks a freshly-minted session token to an
+  // arbitrary URL.
+  if (!returnTo || !returnTo.startsWith('exp://')) {
+    res.status(400).send('Missing or invalid return address.');
+    return;
+  }
+  res.redirect(google.getAuthUrl(signGoogleState(returnTo)));
+});
+
+app.get('/oauth/google/callback', async (req, res) => {
+  const { code, error, state } = req.query as { code?: string; error?: string; state?: string };
+  if (error) {
+    res.status(400).send(`Google sign-in was not granted: ${error}`);
+    return;
+  }
+  if (!code || !state) {
+    res.status(400).send('Missing "code" or "state" from Google redirect.');
+    return;
+  }
+
+  let returnTo: string;
+  try {
+    returnTo = verifyGoogleState(state);
+  } catch {
+    res.status(400).send('This sign-in request has expired — go back to the app and try again.');
+    return;
+  }
+
+  try {
+    const identity = await google.completeAuth(code);
+    const user = await findOrCreateGoogleUser(identity.googleId, identity.email);
+    const token = signToken(user.id);
+    const returnUrl = `${returnTo}?token=${encodeURIComponent(token)}`;
+    // Auto-navigate to the exp:// deep link immediately — no extra tap needed. The visible link
+    // stays as a fallback for the rare case a browser blocks a script-initiated navigation to a
+    // custom URL scheme (iOS Safari still shows its own "Open in Expo Go?" confirmation either
+    // way; that native prompt is expected, not a bug in this page).
+    res.send(
+      `<html><body style="font-family:sans-serif;padding:40px">` +
+        `<h2>Signed in ✅</h2>` +
+        `<p><a href="${returnUrl}" id="return-link">Tap here to return to MrAiBos</a></p>` +
+        `<script>window.location.replace(${JSON.stringify(returnUrl)});</script>` +
+        `</body></html>`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).send(`Google sign-in failed: ${message}`);
+  }
 });
 
 // Postgres is no longer auth-only: jobs/clips now live there too, so a missing/unreachable

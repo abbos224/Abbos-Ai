@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
-import { loginUser } from '../api';
+import { loginUser, googleSignInUrl } from '../api';
 import { useAuth } from '../AuthContext';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
@@ -17,6 +18,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -26,13 +28,23 @@ export default function LoginScreen({ navigation }: Props) {
     setSubmitting(true);
     try {
       const { token } = await loginUser(email.trim(), password);
-      // No further navigation needed — App.tsx's auth gate swaps to the tab navigator as soon as
-      // signIn() flips the shared status to 'loggedIn'.
       await signIn(token);
     } catch (err) {
       Alert.alert('Login failed', err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    try {
+      const returnTo = Linking.createURL('/oauth-callback');
+      await Linking.openURL(googleSignInUrl(returnTo));
+    } catch (err) {
+      Alert.alert('Failed to start Google sign-in', err instanceof Error ? err.message : String(err));
+    } finally {
+      setGoogleLoading(false);
     }
   }
 
@@ -77,6 +89,23 @@ export default function LoginScreen({ navigation }: Props) {
         style={styles.submitButton}
       />
 
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn} disabled={googleLoading} activeOpacity={0.85}>
+        {googleLoading ? (
+          <ActivityIndicator color={colors.background} />
+        ) : (
+          <>
+            <Ionicons name="logo-google" size={18} color="#1F1F1F" style={styles.googleIcon} />
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </>
+        )}
+      </TouchableOpacity>
+
       <TouchableOpacity onPress={() => navigation.replace('SignUp')} style={styles.linkRow}>
         <Text style={styles.linkText}>
           Don&rsquo;t have an account? <Text style={styles.linkTextAccent}>Sign up</Text>
@@ -102,6 +131,22 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: spacing.sm },
   input: { flex: 1, color: colors.textPrimary, fontSize: 15, paddingVertical: 14 },
   submitButton: { marginTop: spacing.sm },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textMuted, fontSize: 12, marginHorizontal: spacing.sm },
+  // Google's brand guidelines want a neutral white button, not blended into the app's own
+  // purple/cyan gradient system — a deliberate one-off style rather than a GradientButton variant.
+  googleButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.lg,
+  },
+  googleIcon: { marginRight: spacing.sm },
+  googleButtonText: { color: '#1F1F1F', fontSize: 15, fontWeight: '600' },
   linkRow: { marginTop: spacing.lg, alignItems: 'center' },
   linkText: { color: colors.textSecondary, fontSize: 13 },
   linkTextAccent: { color: colors.accent, fontWeight: '600' },

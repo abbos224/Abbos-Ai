@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import * as Linking from 'expo-linking';
 import type { AuthUser } from './types';
 import { clearToken, getToken, saveToken } from './authStorage';
 import { getCurrentUser } from './api';
@@ -18,9 +19,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  // Runs once on app launch: a stored token is only trusted once the server confirms it's still
-  // valid — a rejected token is cleared here (SecureStore previously kept a stale/expired token
-  // around indefinitely since nothing ever called clearToken() for it).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -56,6 +54,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setStatus('loggedOut');
   }, []);
+
+  // The only deep link this app has: the tap-through link the server's Google OAuth callback
+  // sends the user back to (see api.ts's googleSignInUrl / LoginScreen's handleGoogleSignIn) —
+  // /oauth-callback?token=<jwt>. Handled here, not in a screen, so Google sign-in works no matter
+  // which screen was showing when the browser tab closed. getInitialURL covers the (unlikely in
+  // Expo Go's dev flow, but cheap to handle) case of the link arriving before this listener was
+  // attached; the event listener covers the normal case of tapping it while already running.
+  useEffect(() => {
+    function handleUrl(url: string) {
+      const { path, queryParams } = Linking.parse(url);
+      if (path !== 'oauth-callback') return;
+      const token = queryParams?.token;
+      if (typeof token === 'string') signIn(token).catch(() => {});
+    }
+
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url);
+    });
+    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => subscription.remove();
+  }, [signIn]);
 
   return <AuthContext.Provider value={{ status, user, signIn, signOut }}>{children}</AuthContext.Provider>;
 }

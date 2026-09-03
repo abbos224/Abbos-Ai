@@ -10,6 +10,9 @@ export const env = {
   youtubeClientId: process.env.YOUTUBE_CLIENT_ID ?? '',
   youtubeClientSecret: process.env.YOUTUBE_CLIENT_SECRET ?? '',
   youtubeRedirectUri: process.env.YOUTUBE_REDIRECT_URI ?? '',
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? '',
   databaseUrl: process.env.DATABASE_URL ?? '',
   jwtSecret: process.env.JWT_SECRET ?? '',
 };
