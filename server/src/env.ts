@@ -14,6 +14,8 @@ export const env = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? '',
   geminiApiKey: process.env.GEMINI_API_KEY ?? '',
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  resendFromEmail: process.env.RESEND_FROM_EMAIL ?? '',
   databaseUrl: process.env.DATABASE_URL ?? '',
   jwtSecret: process.env.JWT_SECRET ?? '',
 };

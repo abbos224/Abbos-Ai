@@ -23,6 +23,9 @@ import IdeaGeneratorScreen from './src/screens/IdeaGeneratorScreen';
 import IdeaResultsScreen from './src/screens/IdeaResultsScreen';
 import ImageGeneratorScreen from './src/screens/ImageGeneratorScreen';
 import ImageResultScreen from './src/screens/ImageResultScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import VerifyEmailScreen from './src/screens/VerifyEmailScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -105,6 +108,8 @@ function AuthStack() {
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
       <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -138,8 +143,8 @@ function AppTabs() {
 }
 
 // The mandatory-login gate: reads the shared auth status and renders exactly one of a loading
-// spinner, the sign-in flow, or the real app — nothing behind AppTabs is reachable while logged
-// out.
+// spinner, the sign-in flow, a mandatory email-verification screen, or the real app — nothing
+// behind AppTabs is reachable while logged out OR unverified.
 function AppShell() {
   const { status } = useAuth();
 
@@ -150,6 +155,8 @@ function AppShell() {
       </View>
     );
   }
+
+  if (status === 'pendingVerification') return <VerifyEmailScreen />;
 
   return status === 'loggedIn' ? <AppTabs /> : <AuthStack />;
 }

@@ -4,16 +4,25 @@ import type { AuthUser } from './types';
 import { clearToken, getToken, saveToken } from './authStorage';
 import { getCurrentUser } from './api';
 
-type AuthStatus = 'loading' | 'loggedIn' | 'loggedOut';
+// 'pendingVerification': a real, logged-in session whose email hasn't been verified yet — gated
+// to VerifyEmailScreen by App.tsx's AppShell, distinct from 'loggedOut' (no session at all).
+type AuthStatus = 'loading' | 'loggedOut' | 'pendingVerification' | 'loggedIn';
 
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   signIn: (token: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Re-fetches the current user and re-evaluates status — used by VerifyEmailScreen right after
+   * a successful verify-email call, so the app flips to the main tabs without a full re-login. */
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function statusForUser(user: AuthUser): AuthStatus {
+  return user.emailVerified ? 'loggedIn' : 'pendingVerification';
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -31,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const current = await getCurrentUser(token);
         if (cancelled) return;
         setUser(current);
-        setStatus('loggedIn');
+        setStatus(statusForUser(current));
       } catch {
         await clearToken();
         if (!cancelled) setStatus('loggedOut');
@@ -46,13 +55,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await saveToken(token);
     const current = await getCurrentUser(token);
     setUser(current);
-    setStatus('loggedIn');
+    setStatus(statusForUser(current));
   }, []);
 
   const signOut = useCallback(async () => {
     await clearToken();
     setUser(null);
     setStatus('loggedOut');
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const token = await getToken();
+    if (!token) {
+      setUser(null);
+      setStatus('loggedOut');
+      return;
+    }
+    const current = await getCurrentUser(token);
+    setUser(current);
+    setStatus(statusForUser(current));
   }, []);
 
   // The only deep link this app has: the tap-through link the server's Google OAuth callback
@@ -76,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [signIn]);
 
-  return <AuthContext.Provider value={{ status, user, signIn, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ status, user, signIn, signOut, refreshUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

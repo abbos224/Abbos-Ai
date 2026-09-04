@@ -81,6 +81,10 @@ export default function LoginScreen({ navigation }: Props) {
         />
       </View>
 
+      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotRow}>
+        <Text style={styles.forgotText}>Forgot password?</Text>
+      </TouchableOpacity>
+
       <GradientButton
         label="Log In"
         onPress={handleLogin}
@@ -130,6 +134,8 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: spacing.sm },
   input: { flex: 1, color: colors.textPrimary, fontSize: 15, paddingVertical: 14 },
+  forgotRow: { alignSelf: 'flex-end', marginBottom: spacing.sm },
+  forgotText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   submitButton: { marginTop: spacing.sm },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
