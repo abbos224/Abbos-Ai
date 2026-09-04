@@ -11,6 +11,7 @@ import UploadScreen from './src/screens/UploadScreen';
 import ProcessingScreen from './src/screens/ProcessingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
 import PreviewScreen from './src/screens/PreviewScreen';
+import EditCaptionsScreen from './src/screens/EditCaptionsScreen';
 import BrandKitScreen from './src/screens/BrandKitScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import PersonasScreen from './src/screens/PersonasScreen';
@@ -51,6 +52,7 @@ function CreateStack() {
       <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: 'Processing' }} />
       <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
       <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
       <Stack.Screen name="IdeaGenerator" component={IdeaGeneratorScreen} options={{ title: 'Idea Generator' }} />
       <Stack.Screen name="IdeaResults" component={IdeaResultsScreen} options={{ title: 'Ideas' }} />
       <Stack.Screen name="ImageGenerator" component={ImageGeneratorScreen} options={{ title: 'AI Image' }} />
@@ -65,6 +67,7 @@ function ProjectsStack() {
       <Stack.Screen name="Projects" component={ProjectsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
       <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
     </Stack.Navigator>
   );
 }
@@ -74,6 +77,7 @@ function CalendarStack() {
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
     </Stack.Navigator>
   );
 }

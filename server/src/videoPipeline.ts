@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { v4 as uuid } from 'uuid';
 import { runFfmpeg, probe, escapeFfmpegFilterPath } from './ffmpegRunner.js';
-import { buildAssFile, buildCaptionCues, type CaptionCue } from './ass.js';
+import { buildAssFile, buildCaptionCues, staticFallbackFor, type CaptionCue, type WordFormatOverride } from './ass.js';
 import { translateCaptions } from './translate.js';
 import { groupIntoSpeakerTurns, detectSpeakerPositions, type SpeakerTurn } from './speakerFraming.js';
 import { getBrandKit } from './brandKit.js';
@@ -711,6 +711,10 @@ export async function renderTranslation(
 
   const { durationSec: finalDuration } = await probe(croppedPath);
   const brandForCaptions = await getBrandKit(userId);
+  // translatedCues carries the original clip's per-word `words`/timing (a different language's
+  // words, wrong lengths/count) alongside the new translated `text` — a motion caption style would
+  // render the ORIGINAL words with the wrong text if used here. Fall back to a static style instead
+  // of faking timing for the translation.
   fs.writeFileSync(
     assPath,
     buildAssFile(
@@ -719,7 +723,7 @@ export async function renderTranslation(
       finalDuration,
       translated.cta,
       brandForCaptions.accentColor,
-      brandForCaptions.captionStyle,
+      staticFallbackFor(brandForCaptions.captionStyle),
     ),
     'utf-8',
   );
@@ -811,4 +815,75 @@ export async function renderRegeneration(
     cta: regenerated.cta,
     socialCaption: regenerated.socialCaption,
   };
+}
+
+/**
+ * Reads back the real word-level transcript timing for a clip's primary render (persisted by
+ * renderClip as captionCues.json), flattened out of its cue grouping — used by the
+ * GET .../caption-words route so the mobile editor can show real words to tap, not a stub.
+ */
+export function loadCaptionWords(clip: Clip): Word[] {
+  const cuesPath = path.join(env.storageDir, 'clips', clip.id, 'captionCues.json');
+  if (!fs.existsSync(cuesPath)) {
+    throw new Error('No caption data for this clip yet; render it first.');
+  }
+  const cues: CaptionCue[] = JSON.parse(fs.readFileSync(cuesPath, 'utf-8'));
+  return cues.flatMap((c) => c.words);
+}
+
+/**
+ * Re-burns a clip's PRIMARY captions with manual per-word formatting overrides (EditCaptionsScreen
+ * — color/bold/italic/highlight/scale) layered on top of whatever automatic style is active,
+ * reusing the already-cropped-and-broll'd video exactly like renderTranslation/renderRegeneration
+ * do. Unlike those two, this overwrites the clip's own primary output in place (same
+ * captions.ass/6_captioned.mp4/7_branded.mp4/final.mp4 paths renderClip already produced) rather
+ * than writing a new variant subfolder — a caption-formatting edit isn't an alternate version to
+ * pick between, it's "fix how my one clip's captions look." Skips sound-effect re-application,
+ * matching the same accepted limitation renderTranslation/renderRegeneration already have (sound
+ * cues are timing-only and unaffected by caption color/bold/etc).
+ */
+export async function renderCaptionEdits(
+  userId: string,
+  clip: Clip,
+  overrides: WordFormatOverride[],
+): Promise<{ outputFile: string }> {
+  const workDir = path.join(env.storageDir, 'clips', clip.id);
+  // Same post-B-roll-or-plain-crop fallback as renderTranslation/renderRegeneration.
+  const brollPath = path.join(workDir, '5_broll.mp4');
+  const croppedPath = fs.existsSync(brollPath) ? brollPath : path.join(workDir, '3_cropped.mp4');
+  const cuesPath = path.join(workDir, 'captionCues.json');
+
+  if (!fs.existsSync(croppedPath) || !fs.existsSync(cuesPath)) {
+    throw new Error('Original clip render is missing required intermediate files; re-render the clip first.');
+  }
+
+  const originalCues: CaptionCue[] = JSON.parse(fs.readFileSync(cuesPath, 'utf-8'));
+
+  const assPath = path.join(workDir, 'captions.ass');
+  const captionedPath = path.join(workDir, '6_captioned.mp4');
+  const brandedPath = path.join(workDir, '7_branded.mp4');
+  const finalPath = path.join(workDir, 'final.mp4');
+
+  const { durationSec: finalDuration } = await probe(croppedPath);
+  const brandForCaptions = await getBrandKit(userId);
+  fs.writeFileSync(
+    assPath,
+    buildAssFile(
+      clip.chosenHook,
+      originalCues,
+      finalDuration,
+      clip.cta,
+      brandForCaptions.accentColor,
+      brandForCaptions.captionStyle,
+      overrides,
+    ),
+    'utf-8',
+  );
+  await burnSubtitles(croppedPath, assPath, captionedPath);
+  await applyBrandOverlay(userId, captionedPath, brandedPath);
+
+  const musicPath = loadPersistedMusic(workDir);
+  await addBackgroundMusic(brandedPath, musicPath, finalDuration, finalPath);
+
+  return { outputFile: `/files/${clip.id}/final.mp4` };
 }

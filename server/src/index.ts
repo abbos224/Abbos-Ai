@@ -7,11 +7,11 @@ import { v4 as uuid } from 'uuid';
 import { env } from './env.js';
 import { createJob, getJob, listAllJobs, updateClip, type Job, type Regeneration, type Translation } from './store.js';
 import { processJob } from './pipeline.js';
-import { renderTranslation, renderRegeneration } from './videoPipeline.js';
+import { renderTranslation, renderRegeneration, renderCaptionEdits, loadCaptionWords } from './videoPipeline.js';
 import { SUPPORTED_LANGUAGES } from './translate.js';
 import { getModifierLabel, isRegenerateModifier, REGENERATE_MODIFIERS } from './regenerate.js';
 import { getBrandKit, updateBrandKit } from './brandKit.js';
-import { CAPTION_STYLES } from './ass.js';
+import { CAPTION_STYLES, type WordFormatOverride } from './ass.js';
 import { SOUND_EFFECTS_STYLES, isSoundEffectsStyle, type SoundEffectsStyle } from './soundEffects.js';
 import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from './calendar.js';
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
@@ -520,6 +520,91 @@ app.post('/jobs/:jobId/clips/:clipId/regenerate', requireAuth, async (req, res) 
     const message = err instanceof Error ? err.message : String(err);
     await settle({ status: 'failed', error: message });
     res.status(500).json({ error: message });
+  }
+});
+
+app.get('/jobs/:jobId/clips/:clipId/caption-words', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
+
+  const job = await getJob(userId, jobId);
+  const clip = job?.clips.find((c) => c.id === clipId);
+  if (!job || !clip) {
+    res.status(404).json({ error: 'Job or clip not found' });
+    return;
+  }
+
+  try {
+    const words = loadCaptionWords(clip);
+    const overrideByStart = new Map((clip.captionOverrides ?? []).map((o) => [o.start, o]));
+    res.json({
+      words: words.map((w) => ({
+        start: w.start,
+        end: w.end,
+        text: w.text,
+        ...(overrideByStart.get(w.start) ?? {}),
+      })),
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post('/jobs/:jobId/clips/:clipId/caption-edits', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  const { jobId, clipId } = req.params as { jobId: string; clipId: string };
+  const { overrides } = req.body as { overrides?: WordFormatOverride[] };
+
+  if (!Array.isArray(overrides)) {
+    res.status(400).json({ error: 'Missing "overrides" array in request body' });
+    return;
+  }
+  for (const o of overrides) {
+    if (typeof o.start !== 'number') {
+      res.status(400).json({ error: 'Each override needs a numeric "start"' });
+      return;
+    }
+    if (o.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(o.color)) {
+      res.status(400).json({ error: 'color must be a hex color like "#1F3A5F"' });
+      return;
+    }
+    if (o.highlightColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(o.highlightColor)) {
+      res.status(400).json({ error: 'highlightColor must be a hex color like "#1F3A5F"' });
+      return;
+    }
+    if (o.bold !== undefined && typeof o.bold !== 'boolean') {
+      res.status(400).json({ error: '"bold" must be a boolean' });
+      return;
+    }
+    if (o.italic !== undefined && typeof o.italic !== 'boolean') {
+      res.status(400).json({ error: '"italic" must be a boolean' });
+      return;
+    }
+    if (o.scale !== undefined && (typeof o.scale !== 'number' || o.scale < 80 || o.scale > 200)) {
+      res.status(400).json({ error: 'scale must be a number between 80 and 200' });
+      return;
+    }
+  }
+
+  const job = await getJob(userId, jobId);
+  const clip = job?.clips.find((c) => c.id === clipId);
+  if (!job || !clip) {
+    res.status(404).json({ error: 'Job or clip not found' });
+    return;
+  }
+  if (clip.status !== 'done') {
+    res.status(400).json({ error: 'Clip has not finished rendering yet' });
+    return;
+  }
+
+  try {
+    // Persist only after the render succeeds — on failure the clip's prior state and output file
+    // are left completely untouched, so a retry after a transient error is always safe.
+    const { outputFile } = await renderCaptionEdits(userId, clip, overrides);
+    await updateClip(userId, jobId, clipId, { captionOverrides: overrides });
+    res.json({ ok: true, overrides, outputFile });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

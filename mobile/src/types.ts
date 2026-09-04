@@ -68,6 +68,31 @@ export type Clip = {
   regenerations?: Regeneration[];
   scheduledFor?: string;
   publishedYoutubeUrl?: string;
+  captionOverrides?: WordFormatOverride[];
+};
+
+/** One word's manual formatting override (EditCaptionsScreen) — keyed by `start` (seconds), the
+ * same value the /caption-words route echoes back for that word, so no id-generation is needed. */
+export type WordFormatOverride = {
+  start: number;
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  highlightColor?: string;
+  scale?: number;
+};
+
+/** A word from the real transcript, as returned by GET /jobs/:jobId/clips/:clipId/caption-words —
+ * carries its own current override fields (if any) merged in already. */
+export type CaptionWord = {
+  start: number;
+  end: number;
+  text: string;
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  highlightColor?: string;
+  scale?: number;
 };
 
 export type YoutubeStatus = { configured: boolean; connected: boolean; channelTitle?: string };
@@ -107,7 +132,9 @@ export type Job = {
   clips: Clip[];
 };
 
-export type CaptionStyleName = 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'luxury' | 'gaming';
+export type CaptionStyleName =
+  | 'bold' | 'minimal' | 'podcast' | 'kinetic' | 'luxury' | 'gaming'
+  | 'karaoke' | 'wordPop' | 'highlightBox' | 'emphasisWord';
 
 export type SoundEffectsStyle = 'professional' | 'minimal' | 'dynamic';
 
@@ -170,6 +197,7 @@ export type RootStackParamList = {
   Processing: { jobId: string };
   Results: { jobId: string };
   Preview: { clip: Clip };
+  EditCaptions: { clip: Clip };
   BrandKit: undefined;
   Calendar: undefined;
   Personas: undefined;

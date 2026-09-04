@@ -50,7 +50,7 @@ function formatScheduledDate(iso: string): string {
   });
 }
 
-export default function PreviewScreen({ route }: Props) {
+export default function PreviewScreen({ route, navigation }: Props) {
   const { clip } = route.params;
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -407,6 +407,18 @@ export default function PreviewScreen({ route }: Props) {
             </TouchableOpacity>
           ))}
         </View>
+      </Card>
+
+      <Card style={styles.scheduleCard}>
+        <View style={styles.scoreHeader}>
+          <SectionLabel icon="color-palette" label="Captions" />
+        </View>
+        <Text style={styles.regenerateHint}>
+          Pick any word and give it its own color, bold, italic, highlight, or size — re-renders this clip with your edits burned in.
+        </Text>
+        <TouchableOpacity style={styles.scheduleChip} onPress={() => navigation.navigate('EditCaptions', { clip })}>
+          <Text style={styles.scheduleChipText}>Edit words</Text>
+        </TouchableOpacity>
       </Card>
 
       <Card style={styles.scoreCard}>
