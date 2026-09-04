@@ -30,7 +30,12 @@ import {
   findOrCreateGoogleUser,
   signGoogleState,
   verifyGoogleState,
+  createEmailVerificationCode,
+  verifyEmailCode,
+  createPasswordResetCode,
+  resetPasswordWithCode,
 } from './auth.js';
+import * as emailService from './email.js';
 import { requireAuth } from './authMiddleware.js';
 import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
 import { processIdeaJob } from './ideaPipeline.js';
@@ -764,6 +769,15 @@ app.post('/auth/register', async (req, res) => {
 
   try {
     const user = await registerUser(email, password);
+    // Best-effort — a Resend hiccup shouldn't fail the whole registration; the account exists
+    // either way, and POST /auth/resend-verification is the recovery path if this send fails.
+    try {
+      const code = await createEmailVerificationCode(user.id);
+      if (emailService.isConfigured()) await emailService.sendVerificationEmail(user.email, code);
+      else console.error('Resend is not configured — verification email not sent for', user.email);
+    } catch (err) {
+      console.error('Failed to send verification email:', err);
+    }
     res.json({ token: signToken(user.id), user });
   } catch (err) {
     if (err instanceof AuthError) {
@@ -800,6 +814,91 @@ app.get('/auth/me', requireAuth, async (req, res) => {
     return;
   }
   res.json({ user });
+});
+
+app.post('/auth/verify-email', requireAuth, async (req, res) => {
+  const { code } = req.body as { code?: string };
+  if (!code) {
+    res.status(400).json({ error: 'Missing "code" in request body' });
+    return;
+  }
+  try {
+    await verifyEmailCode(req.userId!, code);
+    const user = await getUserById(req.userId!);
+    res.json({ user });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post('/auth/resend-verification', requireAuth, async (req, res) => {
+  const user = await getUserById(req.userId!);
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  if (user.emailVerified) {
+    res.status(400).json({ error: 'This email is already verified.' });
+    return;
+  }
+  try {
+    const code = await createEmailVerificationCode(user.id);
+    if (!emailService.isConfigured()) {
+      res.status(500).json({ error: 'Email sending is not configured on the server.' });
+      return;
+    }
+    await emailService.sendVerificationEmail(user.email, code);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post('/auth/forgot-password', async (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email || !isValidEmail(email)) {
+    res.status(400).json({ error: 'A valid email is required' });
+    return;
+  }
+  // Always the same response whether the account exists or not — avoids leaking which emails are
+  // registered. The actual send only happens when createPasswordResetCode finds a real account.
+  try {
+    const result = await createPasswordResetCode(email);
+    if (result && emailService.isConfigured()) {
+      await emailService.sendPasswordResetEmail(email.toLowerCase(), result.code);
+    } else if (result) {
+      console.error('Resend is not configured — password reset email not sent for', email);
+    }
+  } catch (err) {
+    console.error('Failed to send password reset email:', err);
+  }
+  res.json({ ok: true, message: 'If that email has an account, we sent a reset code to it.' });
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body as { email?: string; code?: string; newPassword?: string };
+  if (!email || !code || !newPassword) {
+    res.status(400).json({ error: 'email, code, and newPassword are all required' });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters' });
+    return;
+  }
+  try {
+    const user = await resetPasswordWithCode(email, code, newPassword);
+    res.json({ token: signToken(user.id), user });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // --- Google sign-in ---

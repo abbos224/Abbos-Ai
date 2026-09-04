@@ -41,6 +41,19 @@ export async function runMigrations(): Promise<void> {
   // ADD COLUMN IF NOT EXISTS on an already-present one, are both no-ops.
   await pool.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;`);
+  // Email verification + password reset, both via a short-lived 6-digit code (see auth.ts) —
+  // stored directly on the row rather than a separate table, same precedent as google_id, since
+  // only one active code of each kind ever matters per account. DEFAULT true grandfathers in
+  // every account that existed before this shipped (including every Google account, which is
+  // already Google-verified) — registerUser explicitly sets false only for a brand-new password
+  // signup, the only path this gate actually applies to.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verify_code_hash TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verify_code_expires_at TIMESTAMPTZ;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verify_attempts INT NOT NULL DEFAULT 0;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_code_hash TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_code_expires_at TIMESTAMPTZ;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_attempts INT NOT NULL DEFAULT 0;`);
   // Jobs/clips are stored as one JSONB blob per job (see store.ts) rather than fully normalized
   // tables — keeps the existing Job/Clip shape and every caller untouched; id/user_id/created_at
   // are promoted to real columns purely for the PK, ownership filter, and list ordering.

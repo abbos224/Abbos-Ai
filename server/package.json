@@ -26,6 +26,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
     "pg": "^8.23.0",
+    "resend": "^6.26.0",
     "uuid": "^14.0.2"
   },
   "devDependencies": {

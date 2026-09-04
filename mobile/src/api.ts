@@ -431,6 +431,53 @@ export async function getCurrentUser(token: string): Promise<AuthUser> {
   return (await res.json()).user;
 }
 
+export async function verifyEmail(code: string): Promise<{ user: AuthUser }> {
+  const res = await authFetch('/auth/verify-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Verification failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function resendVerificationEmail(): Promise<void> {
+  const res = await authFetch('/auth/resend-verification', { method: 'POST' });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Failed to resend: ${res.status}`);
+  }
+}
+
+// No session exists yet for either of these — plain fetch, same as registerUser/loginUser.
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Request failed: ${res.status}`);
+  }
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<{ token: string; user: AuthUser }> {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  if (!res.ok) {
+    throw new Error((await res.json().catch(() => null))?.error ?? `Reset failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 // "Continue with Google" opens a real external browser (same reason as YouTube's connect flow —
 // no in-app WebView OAuth), but unlike YouTube there's no logged-in user yet to protect, so this
 // is plain client-side URL construction — no authFetch round-trip needed first. `returnTo` is this
