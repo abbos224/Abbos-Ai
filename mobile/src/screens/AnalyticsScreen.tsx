@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AnalyticsEntry, RootStackParamList } from '../types';
-import { getYoutubeAnalytics, getYoutubeStatus } from '../api';
+import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -41,6 +41,15 @@ export default function AnalyticsScreen({}: Props) {
 
   useFocusEffect(load);
 
+  async function handleConnectYoutube() {
+    try {
+      const url = await youtubeConnectUrl();
+      await Linking.openURL(url);
+    } catch (err) {
+      Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));
+    }
+  }
+
   if (loading && entries === null) {
     return (
       <View style={styles.center}>
@@ -55,7 +64,9 @@ export default function AnalyticsScreen({}: Props) {
         <EmptyState
           icon="logo-youtube"
           title="YouTube not connected"
-          body="Connect your channel from a clip's Preview screen to see performance here."
+          body="Connect your channel to see real view/like/comment stats for everything you publish."
+          ctaLabel="Connect YouTube"
+          onPressCta={handleConnectYoutube}
         />
       </View>
     );
