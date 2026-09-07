@@ -164,25 +164,29 @@ export default function BrandKitScreen({}: Props) {
       <SectionCard
         icon="text"
         title="Caption style"
-        hint="How every hook and caption is set — from a quiet minimal look to a full kinetic pop."
+        hint="How every hook and caption is set — from a quiet minimal look to a full kinetic pop. Karaoke and WordPop are motion styles: words animate in sync as they're spoken."
       >
         <View style={styles.styleGrid}>
-          {captionStyles.map((style) => (
-            <TouchableOpacity
-              key={style}
-              style={[styles.styleChip, activeStyle === style && styles.styleChipActive]}
-              onPress={() => pickStyle(style)}
-              disabled={savingStyle !== null}
-            >
-              {savingStyle === style ? (
-                <ActivityIndicator size="small" color={activeStyle === style ? colors.onAccent : colors.accent} />
-              ) : (
-                <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
-                  {style[0].toUpperCase() + style.slice(1)}
-                </Text>
-              )}
-            </TouchableOpacity>
-          ))}
+          {captionStyles.map((style) => {
+            const isMotion = style === 'karaoke' || style === 'wordPop' || style === 'highlightBox' || style === 'emphasisWord';
+            return (
+              <TouchableOpacity
+                key={style}
+                style={[styles.styleChip, activeStyle === style && styles.styleChipActive]}
+                onPress={() => pickStyle(style)}
+                disabled={savingStyle !== null}
+              >
+                {savingStyle === style ? (
+                  <ActivityIndicator size="small" color={activeStyle === style ? colors.onAccent : colors.accent} />
+                ) : (
+                  <Text style={[styles.styleChipText, activeStyle === style && styles.styleChipTextActive]}>
+                    {isMotion ? '✨ ' : ''}
+                    {style[0].toUpperCase() + style.slice(1)}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </SectionCard>
 

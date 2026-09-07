@@ -1,4 +1,5 @@
 import { getPool, isValidUuid } from './db.js';
+import type { WordFormatOverride } from './ass.js';
 
 export type ClipScore = {
   hook: number;
@@ -68,6 +69,7 @@ export type Clip = {
   regenerations?: Regeneration[];
   scheduledFor?: string; // ISO date (yyyy-mm-dd), when the user plans to post this clip
   publishedYoutubeUrl?: string; // set once this clip has been uploaded to YouTube
+  captionOverrides?: WordFormatOverride[]; // manual per-word color/bold/italic/highlight/scale edits (EditCaptionsScreen), applied on top of the automatic caption style for the primary render only
 };
 
 export type JobStatus =

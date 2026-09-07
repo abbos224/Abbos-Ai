@@ -6,6 +6,7 @@ import type {
   BrandKit,
   CalendarEntry,
   CaptionStyleName,
+  CaptionWord,
   IdeaJob,
   IdeaJobSummary,
   ImageJob,
@@ -20,6 +21,7 @@ import type {
   RegenerateModifier,
   SoundEffectsStyle,
   Translation,
+  WordFormatOverride,
   YoutubeStatus,
 } from './types';
 
@@ -278,6 +280,30 @@ export async function scheduleClip(
   if (!res.ok) {
     throw new Error(`Scheduling failed: ${res.status} ${await res.text()}`);
   }
+}
+
+export async function getCaptionWords(jobId: string, clipId: string): Promise<{ words: CaptionWord[] }> {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/caption-words`);
+  if (!res.ok) {
+    throw new Error(`Failed to load caption words: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function saveCaptionEdits(
+  jobId: string,
+  clipId: string,
+  overrides: WordFormatOverride[],
+): Promise<{ ok: true; overrides: WordFormatOverride[]; outputFile: string }> {
+  const res = await authFetch(`/jobs/${jobId}/clips/${clipId}/caption-edits`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ overrides }),
+  });
+  if (!res.ok) {
+    throw new Error(`Save failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
 }
 
 export async function getCalendar(): Promise<CalendarEntry[]> {
