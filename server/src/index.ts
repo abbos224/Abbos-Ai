@@ -931,6 +931,21 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
   }
 });
 
+// Real per-video analytics — matches YouTube Studio's own per-video detail page. Same
+// yt-analytics.readonly-scope gating as /analytics/youtube's breakdown fields.
+app.get('/analytics/youtube/videos/:videoId', requireAuth, async (req, res) => {
+  const userId = req.userId!;
+  if (!(await youtube.getConnectionStatus(userId)).connected) {
+    res.status(400).json({ error: 'YouTube is not connected. Visit /oauth/youtube/start first.' });
+    return;
+  }
+  try {
+    res.json(await youtube.getVideoAnalytics(userId, String(req.params.videoId)));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.use('/files', express.static(path.join(env.storageDir, 'clips')));
 
 // --- Auth (foundation only — not yet required by any route above; see project plan) ---

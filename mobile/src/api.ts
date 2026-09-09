@@ -2,6 +2,7 @@ import { API_BASE_URL } from './config';
 import { getToken } from './authStorage';
 import type {
   YoutubeAnalytics,
+  VideoAnalytics,
   AuthUser,
   BrandKit,
   CalendarEntry,
@@ -398,6 +399,14 @@ export async function getYoutubeAnalytics(days?: number): Promise<YoutubeAnalyti
   const res = await authFetch(days ? `/analytics/youtube?days=${days}` : '/analytics/youtube');
   if (!res.ok) {
     throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getVideoAnalytics(videoId: string): Promise<VideoAnalytics> {
+  const res = await authFetch(`/analytics/youtube/videos/${videoId}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch video analytics: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

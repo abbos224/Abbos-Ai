@@ -14,7 +14,6 @@ import type {
   DailySubscriberChange,
   TrendChange,
   ChannelBreakdown,
-  BreakdownRow,
   SubscribedStatusBreakdown,
   DemographicRow,
   RootStackParamList,
@@ -23,27 +22,11 @@ import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
+import BreakdownBarList from '../components/BreakdownBarList';
 import { colors, gradients, spacing, radius } from '../theme';
+import { formatCount, formatDuration, formatDate } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Analytics'>;
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds <= 0) return '';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function formatDate(iso: string): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 // One icon per real insight label (server's computeChannelInsights) — purely cosmetic, matches
 // this app's established "icon + short label + detail" pattern for informational cards elsewhere.
@@ -78,10 +61,10 @@ function StatTile({
 /** A prominent "latest upload" callout — matches YouTube Studio's own Home dashboard spotlight
  * card. `videos` is already sorted most-recent-first by the server, so this is simply its first
  * real entry; renders nothing for a channel with zero uploads. */
-function LatestVideoSpotlight({ video }: { video: ChannelVideo | undefined }) {
+function LatestVideoSpotlight({ video, onOpen }: { video: ChannelVideo | undefined; onOpen: (video: ChannelVideo) => void }) {
   if (!video) return null;
   return (
-    <TouchableOpacity onPress={() => Linking.openURL(video.url)} activeOpacity={0.85}>
+    <TouchableOpacity onPress={() => onOpen(video)} activeOpacity={0.85}>
       <Card style={styles.spotlightCard} variant="highlight">
         <Text style={styles.spotlightLabel}>Latest upload</Text>
         <View style={styles.row}>
@@ -139,43 +122,6 @@ function TopVideosChart({ videos }: { videos: ChannelVideo[] }) {
             />
           </View>
           <Text style={styles.chartRowValue}>{formatCount(v.viewCount)}</Text>
-        </View>
-      ))}
-    </Card>
-  );
-}
-
-/** A real horizontal bar list for any label→views breakdown (traffic sources, top countries) —
- * same gradient-bar mechanism as TopVideosChart, generalized. A genuinely empty list (real, not a
- * loading glitch — YouTube Analytics just has nothing to report for this window) shows honest
- * copy instead of a blank card or a fake "0" row. */
-function BreakdownBarList({ title, rows, emptyText }: { title: string; rows: BreakdownRow[]; emptyText: string }) {
-  if (rows.length === 0) {
-    return (
-      <Card style={styles.chartCard}>
-        <Text style={styles.insightsTitle}>{title}</Text>
-        <Text style={styles.breakdownEmptyText}>{emptyText}</Text>
-      </Card>
-    );
-  }
-  const maxViews = Math.max(...rows.map((r) => r.views), 1);
-  return (
-    <Card style={styles.chartCard}>
-      <Text style={styles.insightsTitle}>{title}</Text>
-      {rows.map((r) => (
-        <View key={r.label} style={styles.chartRow}>
-          <Text style={styles.chartRowTitle} numberOfLines={1}>
-            {r.label}
-          </Text>
-          <View style={styles.chartBarTrack}>
-            <LinearGradient
-              colors={gradients.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.chartBarFill, { width: `${Math.max(6, (r.views / maxViews) * 100)}%` }]}
-            />
-          </View>
-          <Text style={styles.chartRowValue}>{formatCount(r.views)}</Text>
         </View>
       ))}
     </Card>
@@ -367,9 +313,9 @@ function ViewsTrendChart({
 
 /** A real video/short/live card — extracted so both the Content tab's Videos/Shorts/Live lists
  * share exactly one card renderer instead of three near-copies. */
-function VideoCard({ item }: { item: ChannelVideo }) {
+function VideoCard({ item, onOpen }: { item: ChannelVideo; onOpen: (video: ChannelVideo) => void }) {
   return (
-    <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
+    <TouchableOpacity onPress={() => onOpen(item)} activeOpacity={0.85}>
       <Card style={styles.card}>
         <View style={styles.row}>
           <View style={styles.thumbnailWrap}>
@@ -454,11 +400,13 @@ function ContentTabView({
   playlists,
   loading,
   onRefresh,
+  onOpenVideo,
 }: {
   videos: ChannelVideo[];
   playlists: ChannelPlaylist[];
   loading: boolean;
   onRefresh: () => void;
+  onOpenVideo: (video: ChannelVideo) => void;
 }) {
   const [subTab, setSubTab] = useState<ContentSubTab>('videos');
   const [sortBy, setSortBy] = useState<SortBy>('recent');
@@ -559,7 +507,7 @@ function ContentTabView({
           keyExtractor={(item) => item.videoId}
           refreshing={loading}
           onRefresh={onRefresh}
-          renderItem={({ item }) => <VideoCard item={item} />}
+          renderItem={({ item }) => <VideoCard item={item} onOpen={onOpenVideo} />}
         />
       )}
     </View>
@@ -572,7 +520,11 @@ const DAY_RANGE_OPTIONS = [7, 28, 90, 365] as const;
 
 type MainTab = 'overview' | 'content';
 
-export default function AnalyticsScreen({}: Props) {
+export default function AnalyticsScreen({ navigation }: Props) {
+  const handleOpenVideo = useCallback(
+    (video: ChannelVideo) => navigation.navigate('VideoAnalytics', { video }),
+    [navigation],
+  );
   const [connected, setConnected] = useState<boolean | null>(null);
   const [mainTab, setMainTab] = useState<MainTab>('overview');
   const [videos, setVideos] = useState<ChannelVideo[] | null>(null);
@@ -679,7 +631,7 @@ export default function AnalyticsScreen({}: Props) {
         />
       ) : mainTab === 'overview' ? (
         <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}>
-          <LatestVideoSpotlight video={videos?.[0]} />
+          <LatestVideoSpotlight video={videos?.[0]} onOpen={handleOpenVideo} />
           <View style={styles.dayRangeRow}>
             {DAY_RANGE_OPTIONS.map((d) => (
               <TouchableOpacity key={d} onPress={() => setDays(d)} style={[styles.dayRangeChip, days === d && styles.dayRangeChipActive]}>
@@ -764,7 +716,7 @@ export default function AnalyticsScreen({}: Props) {
           )}
         </ScrollView>
       ) : (
-        <ContentTabView videos={videos ?? []} playlists={playlists} loading={loading} onRefresh={load} />
+        <ContentTabView videos={videos ?? []} playlists={playlists} loading={loading} onRefresh={load} onOpenVideo={handleOpenVideo} />
       )}
     </View>
   );
