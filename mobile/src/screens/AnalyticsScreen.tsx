@@ -16,6 +16,7 @@ import type {
   ChannelBreakdown,
   BreakdownRow,
   SubscribedStatusBreakdown,
+  DemographicRow,
   RootStackParamList,
 } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
@@ -217,6 +218,38 @@ function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }
             </View>
           </View>
         </>
+      )}
+    </Card>
+  );
+}
+
+/** Real age/gender viewer breakdown — matches YouTube Studio's Audience "Age and gender" report.
+ * Bar widths are the real reported percentage directly (not relative to a max, since these values
+ * are already percentages of the same whole). YouTube only reports this once a channel has enough
+ * logged-in-viewer data — an honestly empty list for a small/new channel, not an error. */
+function DemographicsChart({ rows }: { rows: DemographicRow[] }) {
+  return (
+    <Card style={styles.chartCard}>
+      <Text style={styles.insightsTitle}>Age &amp; gender</Text>
+      {rows.length === 0 ? (
+        <Text style={styles.breakdownEmptyText}>Not enough viewer data yet to break this down.</Text>
+      ) : (
+        rows.map((r) => (
+          <View key={r.label} style={styles.chartRow}>
+            <Text style={styles.chartRowTitle} numberOfLines={1}>
+              {r.label}
+            </Text>
+            <View style={styles.chartBarTrack}>
+              <LinearGradient
+                colors={gradients.brand}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.chartBarFill, { width: `${Math.max(2, r.percentage)}%` }]}
+              />
+            </View>
+            <Text style={styles.chartRowValue}>{r.percentage.toFixed(0)}%</Text>
+          </View>
+        ))
       )}
     </Card>
   );
@@ -533,6 +566,10 @@ function ContentTabView({
   );
 }
 
+// Matches the server's own allowed set (index.ts's ALLOWED_DAYS) exactly — a fixed, cheap set of
+// real report windows, same as YouTube Studio's own 7D/28D/90D/365D picker.
+const DAY_RANGE_OPTIONS = [7, 28, 90, 365] as const;
+
 type MainTab = 'overview' | 'content';
 
 export default function AnalyticsScreen({}: Props) {
@@ -547,6 +584,7 @@ export default function AnalyticsScreen({}: Props) {
   const [subscriberTrend, setSubscriberTrend] = useState<DailySubscriberChange[] | null>(null);
   const [breakdown, setBreakdown] = useState<ChannelBreakdown | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+  const [days, setDays] = useState(90);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -558,7 +596,7 @@ export default function AnalyticsScreen({}: Props) {
           setVideos([]);
           return;
         }
-        const data = await getYoutubeAnalytics();
+        const data = await getYoutubeAnalytics(days);
         setVideos(data.videos);
         setPlaylists(data.playlists);
         setInsights(data.insights);
@@ -571,7 +609,7 @@ export default function AnalyticsScreen({}: Props) {
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [days]);
 
   useFocusEffect(load);
 
@@ -642,6 +680,15 @@ export default function AnalyticsScreen({}: Props) {
       ) : mainTab === 'overview' ? (
         <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}>
           <LatestVideoSpotlight video={videos?.[0]} />
+          <View style={styles.dayRangeRow}>
+            {DAY_RANGE_OPTIONS.map((d) => (
+              <TouchableOpacity key={d} onPress={() => setDays(d)} style={[styles.dayRangeChip, days === d && styles.dayRangeChipActive]}>
+                <Text style={[styles.dayRangeChipText, days === d && styles.dayRangeChipTextActive]}>
+                  {d >= 365 ? '1Y' : `${d}D`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
           {summary && (
             <View style={styles.statTileRow}>
@@ -702,6 +749,7 @@ export default function AnalyticsScreen({}: Props) {
             />
           )}
           {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
+          {breakdown && <DemographicsChart rows={breakdown.demographics} />}
           <SubscriberGrowthChart trend={subscriberTrend} />
           {insights.length > 0 && (
             <Card style={styles.insightsCard}>
@@ -730,6 +778,11 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   subscriberCountText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   mainTabRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  dayRangeRow: { flexDirection: 'row', gap: 6, marginBottom: spacing.sm, alignSelf: 'flex-end' },
+  dayRangeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  dayRangeChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dayRangeChipText: { color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  dayRangeChipTextActive: { color: colors.onAccent },
   mainTabButton: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   mainTabButtonActive: { backgroundColor: colors.accentSurface, borderColor: colors.accent },
   mainTabText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },

@@ -174,6 +174,10 @@ export type SubscriberChange = { gained: number; lost: number };
  * dimension. */
 export type SubscribedStatusBreakdown = { subscribedViews: number; unsubscribedViews: number };
 
+/** Real age/gender viewer split — YouTube only reports this once a channel has enough logged-in
+ * viewer data, so an empty array is a real "not enough data yet" state, not an error. */
+export type DemographicRow = { label: string; percentage: number };
+
 export type ChannelBreakdown = {
   trafficSources: BreakdownRow[];
   topCountries: BreakdownRow[];
@@ -181,6 +185,7 @@ export type ChannelBreakdown = {
   subscribers: SubscriberChange;
   deviceTypes: BreakdownRow[];
   subscribedStatus: SubscribedStatusBreakdown;
+  demographics: DemographicRow[];
 };
 
 export type YoutubeAnalytics = {
@@ -188,6 +193,9 @@ export type YoutubeAnalytics = {
   playlists: ChannelPlaylist[];
   insights: ChannelInsight[];
   summary: ChannelSummary;
+  // The real day-window this whole response was computed over (7/28/90/365) — echoes back
+  // whatever ?days= was requested (or the 90-day default).
+  days: number;
   // null when the connected account hasn't granted the yt-analytics.readonly scope yet (accounts
   // connected before it was added) — a real "reconnect for this" state, not an error.
   trend: DailyViews[] | null;
