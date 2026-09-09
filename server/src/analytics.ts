@@ -24,6 +24,22 @@ export function getPublishedClips(jobs: Job[]): PublishedEntry[] {
     .filter((entry): entry is PublishedEntry => entry.videoId !== null);
 }
 
+export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngagementRate: number };
+
+/** Headline dashboard numbers — real sums/averages over the channel's actual videos, nothing
+ * estimated. `avgEngagementRate` is 0-1 (likes+comments / views, averaged only over videos that
+ * have at least one view, same guard computeChannelInsights' own engagement figure uses). Pure and
+ * unit-tested. */
+export function computeChannelSummary(videos: ChannelVideo[]): ChannelSummary {
+  const totalViews = videos.reduce((sum, v) => sum + v.viewCount, 0);
+  const withViews = videos.filter((v) => v.viewCount > 0);
+  const avgEngagementRate =
+    withViews.length > 0
+      ? withViews.reduce((sum, v) => sum + (v.likeCount + v.commentCount) / v.viewCount, 0) / withViews.length
+      : 0;
+  return { totalViews, totalVideos: videos.length, avgEngagementRate };
+}
+
 export type ChannelInsight = { label: string; detail: string };
 
 /** Real YouTube titles routinely run long and end in a wall of jammed-together hashtags

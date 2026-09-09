@@ -128,7 +128,10 @@ export type ChannelVideo = {
  * computeChannelInsights) — never a generic tip unrelated to this channel's own numbers. */
 export type ChannelInsight = { label: string; detail: string };
 
-export type YoutubeAnalytics = { videos: ChannelVideo[]; insights: ChannelInsight[] };
+/** Headline dashboard numbers — real sums/averages over the channel's actual videos. */
+export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngagementRate: number };
+
+export type YoutubeAnalytics = { videos: ChannelVideo[]; insights: ChannelInsight[]; summary: ChannelSummary };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractYoutubeVideoId, getPublishedClips, computeChannelInsights, truncateTitle } from './analytics.js';
+import { extractYoutubeVideoId, getPublishedClips, computeChannelInsights, computeChannelSummary, truncateTitle } from './analytics.js';
 import type { Clip, Job } from './store.js';
 import type { ChannelVideo } from './youtube.js';
 
@@ -81,6 +81,22 @@ function video(overrides: Partial<ChannelVideo>): ChannelVideo {
     ...overrides,
   };
 }
+
+test('computeChannelSummary: sums real views and averages engagement over videos with at least one view', () => {
+  const videos = [
+    video({ videoId: 'a', viewCount: 100, likeCount: 10, commentCount: 0 }), // 10%
+    video({ videoId: 'b', viewCount: 200, likeCount: 0, commentCount: 20 }), // 10%
+    video({ videoId: 'c', viewCount: 0, likeCount: 0, commentCount: 0 }), // no views -> excluded from the engagement average
+  ];
+  const summary = computeChannelSummary(videos);
+  assert.equal(summary.totalViews, 300);
+  assert.equal(summary.totalVideos, 3);
+  assert.equal(summary.avgEngagementRate, 0.1);
+});
+
+test('computeChannelSummary: returns zeros for an empty channel instead of dividing by zero', () => {
+  assert.deepEqual(computeChannelSummary([]), { totalViews: 0, totalVideos: 0, avgEngagementRate: 0 });
+});
 
 test('truncateTitle: leaves short titles untouched', () => {
   assert.equal(truncateTitle('Short title'), 'Short title');

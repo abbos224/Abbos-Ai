@@ -1,15 +1,16 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { ChannelVideo, ChannelInsight, RootStackParamList } from '../types';
+import type { ChannelVideo, ChannelInsight, ChannelSummary, RootStackParamList } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
-import { colors, spacing, radius } from '../theme';
+import { colors, gradients, spacing, radius } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Analytics'>;
 
@@ -39,10 +40,64 @@ const INSIGHT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Format: 'film',
 };
 
+/** One gradient headline number — real sums/averages from computeChannelSummary, never a
+ * placeholder. Alternates the app's two established gradient tokens for visual rhythm. */
+function StatTile({
+  icon,
+  label,
+  value,
+  gradient,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  gradient: readonly [string, string];
+}) {
+  return (
+    <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statTile}>
+      <Ionicons name={icon} size={16} color={colors.onAccent} />
+      <Text style={styles.statTileValue}>{value}</Text>
+      <Text style={styles.statTileLabel}>{label}</Text>
+    </LinearGradient>
+  );
+}
+
+/** A real horizontal bar chart of the channel's own top 5 videos by view count — bar widths are
+ * plain percentage-of-max View widths (no charting library needed, no new dependency), gradient-
+ * filled to match this app's established visual language. Every bar's length is a real number. */
+function TopVideosChart({ videos }: { videos: ChannelVideo[] }) {
+  const top = [...videos].sort((a, b) => b.viewCount - a.viewCount).slice(0, 5);
+  const maxViews = Math.max(...top.map((v) => v.viewCount), 1);
+  if (top.length < 2 || maxViews === 0) return null;
+
+  return (
+    <Card style={styles.chartCard}>
+      <Text style={styles.insightsTitle}>Top videos by views</Text>
+      {top.map((v) => (
+        <View key={v.videoId} style={styles.chartRow}>
+          <Text style={styles.chartRowTitle} numberOfLines={1}>
+            {v.title}
+          </Text>
+          <View style={styles.chartBarTrack}>
+            <LinearGradient
+              colors={gradients.ai}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[styles.chartBarFill, { width: `${Math.max(6, (v.viewCount / maxViews) * 100)}%` }]}
+            />
+          </View>
+          <Text style={styles.chartRowValue}>{formatCount(v.viewCount)}</Text>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 export default function AnalyticsScreen({}: Props) {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [videos, setVideos] = useState<ChannelVideo[] | null>(null);
   const [insights, setInsights] = useState<ChannelInsight[]>([]);
+  const [summary, setSummary] = useState<ChannelSummary | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -57,6 +112,7 @@ export default function AnalyticsScreen({}: Props) {
         const data = await getYoutubeAnalytics();
         setVideos(data.videos);
         setInsights(data.insights);
+        setSummary(data.summary);
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -116,17 +172,32 @@ export default function AnalyticsScreen({}: Props) {
           refreshing={loading}
           onRefresh={load}
           ListHeaderComponent={
-            insights.length > 0 ? (
-              <Card style={styles.insightsCard}>
-                <Text style={styles.insightsTitle}>What your real numbers show</Text>
-                {insights.map((insight) => (
-                  <View key={insight.label} style={styles.insightRow}>
-                    <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
-                    <Text style={styles.insightText}>{insight.detail}</Text>
-                  </View>
-                ))}
-              </Card>
-            ) : null
+            <>
+              {summary && (
+                <View style={styles.statTileRow}>
+                  <StatTile icon="eye" label="Total views" value={formatCount(summary.totalViews)} gradient={gradients.ai} />
+                  <StatTile icon="film" label="Videos" value={String(summary.totalVideos)} gradient={gradients.brand} />
+                  <StatTile
+                    icon="heart"
+                    label="Engagement"
+                    value={`${(summary.avgEngagementRate * 100).toFixed(1)}%`}
+                    gradient={gradients.ai}
+                  />
+                </View>
+              )}
+              {videos && <TopVideosChart videos={videos} />}
+              {insights.length > 0 && (
+                <Card style={styles.insightsCard}>
+                  <Text style={styles.insightsTitle}>What your real numbers show</Text>
+                  {insights.map((insight) => (
+                    <View key={insight.label} style={styles.insightRow}>
+                      <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
+                      <Text style={styles.insightText}>{insight.detail}</Text>
+                    </View>
+                  ))}
+                </Card>
+              )}
+            </>
           }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
@@ -191,6 +262,16 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   title: { flex: 1, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  statTileRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  statTile: { flex: 1, borderRadius: radius.lg, padding: spacing.sm, gap: 2 },
+  statTileValue: { color: colors.onAccent, fontSize: 20, fontWeight: '800', marginTop: 4 },
+  statTileLabel: { color: colors.onAccent, fontSize: 11, opacity: 0.85 },
+  chartCard: { marginBottom: spacing.md, gap: spacing.sm },
+  chartRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chartRowTitle: { width: 90, color: colors.textSecondary, fontSize: 11 },
+  chartBarTrack: { flex: 1, height: 16, borderRadius: radius.sm, backgroundColor: colors.background, overflow: 'hidden' },
+  chartBarFill: { height: '100%', borderRadius: radius.sm },
+  chartRowValue: { width: 44, textAlign: 'right', color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
   insightsCard: { marginBottom: spacing.md, gap: spacing.sm },
   insightsTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
