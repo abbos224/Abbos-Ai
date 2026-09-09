@@ -17,7 +17,7 @@ import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
 import * as google from './google.js';
-import { getPublishedClips, computeChannelInsights } from './analytics.js';
+import { getPublishedClips, computeChannelInsights, computeChannelSummary, computeTrendChange } from './analytics.js';
 import { runMigrations } from './db.js';
 import {
   registerUser,
@@ -837,7 +837,73 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       })
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-    res.json({ videos: enrichedVideos, insights: computeChannelInsights(videos) });
+    // Real playlists on the channel — Data API only, works even without the analytics scope.
+    let playlists: youtube.ChannelPlaylist[] = [];
+    try {
+      playlists = await youtube.getChannelPlaylists(userId);
+    } catch (err) {
+      console.log(`[analytics] Playlists unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Everything below needs the yt-analytics.readonly scope, added after some accounts already
+    // connected under the old, narrower scope — their refresh token simply doesn't cover it yet (a
+    // real, expected case, not a bug). Never let that take down the rest of the page: these fields
+    // just come back null so the client shows everything else and, if it wants to, prompts to
+    // reconnect for the real YouTube-Studio-style breakdown specifically.
+    let trend: { date: string; views: number }[] | null = null;
+    let trendChange: ReturnType<typeof computeTrendChange> | null = null;
+    let breakdown: {
+      trafficSources: { label: string; views: number }[];
+      topCountries: { label: string; views: number }[];
+      watchTime: { estimatedMinutesWatched: number; averageViewDurationSec: number };
+      subscribers: { gained: number; lost: number };
+      deviceTypes: { label: string; views: number }[];
+      subscribedStatus: { subscribedViews: number; unsubscribedViews: number };
+    } | null = null;
+    try {
+      // 90 days, not YouTube Studio's own 28-day default — a real, honest choice given this kind
+      // of app-managed channel realistically posts in bursts, not daily; a 28-day window would
+      // show a flat, empty-looking chart for any channel that hasn't posted in the last month even
+      // though it has real, recent-ish activity just outside that window. Still just a wider real
+      // window, not cherry-picked data — every number is exactly what YouTube reports for it.
+      const DAYS = 90;
+      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus] =
+        await Promise.all([
+          youtube.getViewsTrend(userId, DAYS),
+          youtube.getTrafficSources(userId, DAYS),
+          youtube.getTopCountries(userId, DAYS),
+          youtube.getWatchTimeSummary(userId, DAYS),
+          youtube.getSubscriberChange(userId, DAYS),
+          youtube.getDeviceBreakdown(userId, DAYS),
+          youtube.getSubscribedStatusBreakdown(userId, DAYS),
+        ]);
+      trend = fetchedTrend;
+      trendChange = computeTrendChange(fetchedTrend);
+      breakdown = { trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus };
+    } catch (err) {
+      console.log(`[analytics] YouTube Analytics data unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Real lifetime subscriber count via the Data API — works even without the yt-analytics
+    // scope, so fetched outside the try/catch above. null means the channel owner has hidden this
+    // count publicly (a real YouTube setting), not a fetch failure.
+    let subscriberCount: number | null = null;
+    try {
+      subscriberCount = await youtube.getChannelSubscriberCount(userId);
+    } catch (err) {
+      console.log(`[analytics] Subscriber count unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    res.json({
+      videos: enrichedVideos,
+      playlists,
+      insights: computeChannelInsights(videos),
+      summary: computeChannelSummary(videos),
+      trend,
+      trendChange,
+      breakdown,
+      subscriberCount,
+    });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

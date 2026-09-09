@@ -2,8 +2,14 @@ import fs from 'node:fs';
 import { getPool } from './db.js';
 import { env } from './env.js';
 
-// readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything back.
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+// readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything
+// back. yt-analytics.readonly is a SEPARATE, narrower scope specifically for the YouTube Analytics
+// API (day-by-day views trend) — the Data API's videos.list (readonly, above) only ever returns
+// current lifetime totals, never a real time series. An account that connected before this scope
+// was added has a refresh token that doesn't cover it; getViewsTrend below treats that as a normal
+// "not available yet" case (needs reconnecting), never a crash.
+const SCOPE =
+  'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
 
 type YoutubeAuth = { refreshToken: string; channelTitle?: string };
 
@@ -194,6 +200,221 @@ export function parseIsoDuration(duration: string): number {
   return (Number(hours ?? 0) * 3600) + (Number(minutes ?? 0) * 60) + Number(seconds ?? 0);
 }
 
+export type DailyViews = { date: string; views: number };
+
+function isoDateRange(days: number): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - (days - 1));
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
+
+/** Thin wrapper around the YouTube Analytics API's reports.query — a separate, narrower-scoped
+ * API from the Data API's videos.list used elsewhere in this file (that one only ever returns a
+ * video's current lifetime total, never a real time series or breakdown). Every real
+ * YouTube-Studio-style metric below (views trend, traffic sources, geography, watch time,
+ * subscriber change) is just this one real endpoint with different `metrics`/`dimensions`. Throws
+ * on any failure (including a pre-yt-analytics.readonly-scope connection missing this permission
+ * entirely) — callers decide whether that's fatal or just "not available yet." */
+async function queryAnalytics(
+  userId: string,
+  metrics: string[],
+  days: number,
+  options: { dimensions?: string; sortByMetric?: string; maxResults?: number } = {},
+): Promise<{ headers: string[]; rows: (string | number)[][] }> {
+  const accessToken = await getAccessToken(userId);
+  const { startDate, endDate } = isoDateRange(days);
+  const params = new URLSearchParams({
+    ids: 'channel==MINE',
+    startDate,
+    endDate,
+    metrics: metrics.join(','),
+  });
+  if (options.dimensions) params.set('dimensions', options.dimensions);
+  if (options.sortByMetric) params.set('sort', `-${options.sortByMetric}`);
+  if (options.maxResults) params.set('maxResults', String(options.maxResults));
+
+  const res = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`YouTube Analytics query failed: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { columnHeaders?: { name: string }[]; rows?: (string | number)[][] };
+  return { headers: (data.columnHeaders ?? []).map((h) => h.name), rows: data.rows ?? [] };
+}
+
+/** Real day-by-day view counts for the connected channel — the actual mechanism YouTube Studio's
+ * own headline "Views" chart is built on. The Analytics API only returns a row for a day that
+ * actually had activity (never a zero-padded row for every day in range), so a quiet channel would
+ * otherwise come back as just 1-2 rows instead of a real `days`-long series — zero-filled here so
+ * every day in the window is genuinely represented, "0 views that day" included. */
+export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'day' });
+  const viewsByDate = new Map(rows.map(([date, views]) => [String(date), Number(views)]));
+
+  const result: DailyViews[] = [];
+  const cursor = new Date();
+  cursor.setDate(cursor.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const date = cursor.toISOString().slice(0, 10);
+    result.push({ date, views: viewsByDate.get(date) ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
+
+export type MetricBreakdownRow = { label: string; views: number };
+
+// YouTube's own internal codes for insightTrafficSourceType, mapped to the exact phrasing
+// YouTube Studio's own "Traffic source" report uses — real, documented enum values, not a guess.
+const TRAFFIC_SOURCE_LABELS: Record<string, string> = {
+  ADVERTISING: 'Advertising',
+  ANNOTATION: 'Video annotations',
+  CAMPAIGN_CARD: 'Campaign card',
+  END_SCREEN: 'End screens',
+  EXT_URL: 'External',
+  HASHTAGS: 'Hashtags',
+  LIVE_REDIRECT: 'Live redirects',
+  NO_LINK_EMBEDDED: 'Embedded player',
+  NO_LINK_OTHER: 'Direct or unknown',
+  NOTIFICATION: 'Notifications',
+  PLAYLIST: 'Playlist',
+  PRODUCT_PAGE: 'Product page',
+  PROMOTED: 'Promoted content',
+  RELATED_VIDEO: 'Suggested videos',
+  SHORTS: 'Shorts feed',
+  SOUND_PAGE: 'Shorts sound page',
+  SUBSCRIBER: 'Browse features',
+  YT_CHANNEL: 'Channel page',
+  YT_OTHER_PAGE: 'Other YouTube page',
+  YT_SEARCH: 'YouTube search',
+  VIDEO_REMIXES: 'Video remixes',
+  WATCH_WITH: 'Watch with',
+};
+
+/** Real "how viewers found your videos" breakdown — top 8 traffic sources by real view count. */
+export async function getTrafficSources(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'insightTrafficSourceType',
+    sortByMetric: 'views',
+    maxResults: 8,
+  });
+  return rows.map(([code, views]) => ({
+    label: TRAFFIC_SOURCE_LABELS[String(code)] ?? String(code),
+    views: Number(views),
+  }));
+}
+
+// Intl.DisplayNames is built into Node (no new dependency) — turns a real ISO 3166-1 country code
+// ("US", "IN") into its real display name ("United States", "India").
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** Real top-8-countries-by-views breakdown. */
+export async function getTopCountries(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'country',
+    sortByMetric: 'views',
+    maxResults: 8,
+  });
+  return rows.map(([code, views]) => {
+    let label: string;
+    try {
+      label = countryNames.of(String(code)) ?? String(code);
+    } catch {
+      label = String(code);
+    }
+    return { label, views: Number(views) };
+  });
+}
+
+export type WatchTimeSummary = { estimatedMinutesWatched: number; averageViewDurationSec: number };
+
+/** Real total watch time + real average view duration over the window — no dimension, one
+ * summary row. */
+export async function getWatchTimeSummary(userId: string, days = 28): Promise<WatchTimeSummary> {
+  const { rows } = await queryAnalytics(userId, ['estimatedMinutesWatched', 'averageViewDuration'], days);
+  const [estimatedMinutesWatched, averageViewDurationSec] = rows[0] ?? [0, 0];
+  return { estimatedMinutesWatched: Number(estimatedMinutesWatched), averageViewDurationSec: Number(averageViewDurationSec) };
+}
+
+export type SubscriberChange = { gained: number; lost: number };
+
+/** Real subscribers gained/lost over the window — no dimension, one summary row. */
+export async function getSubscriberChange(userId: string, days = 28): Promise<SubscriberChange> {
+  const { rows } = await queryAnalytics(userId, ['subscribersGained', 'subscribersLost'], days);
+  const [gained, lost] = rows[0] ?? [0, 0];
+  return { gained: Number(gained), lost: Number(lost) };
+}
+
+// Real, documented deviceType enum values (developers.google.com/youtube/analytics/dimensions),
+// mapped to the exact labels YouTube Studio's own "Audience > Device type" report uses.
+const DEVICE_LABELS: Record<string, string> = {
+  DESKTOP: 'Desktop',
+  MOBILE: 'Mobile',
+  TABLET: 'Tablet',
+  TV: 'TV',
+  GAME_CONSOLE: 'Game console',
+  AUTOMOTIVE: 'Automotive',
+  WEARABLE: 'Wearable',
+  UNKNOWN_PLATFORM: 'Unknown',
+};
+
+/** Real "what device viewers watched on" breakdown — matches YouTube Studio's Audience > Device
+ * type report. */
+export async function getDeviceBreakdown(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'deviceType',
+    sortByMetric: 'views',
+  });
+  return rows
+    .map(([code, views]) => ({ label: DEVICE_LABELS[String(code)] ?? String(code), views: Number(views) }))
+    .sort((a, b) => b.views - a.views);
+}
+
+export type SubscribedStatusBreakdown = { subscribedViews: number; unsubscribedViews: number };
+
+/** Real "views from subscribers vs. non-subscribers" split — matches YouTube Studio's Audience >
+ * "Views by subscription status" chart. subscribedStatus is a real, documented dimension
+ * (SUBSCRIBED / UNSUBSCRIBED). */
+export async function getSubscribedStatusBreakdown(userId: string, days = 28): Promise<SubscribedStatusBreakdown> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'subscribedStatus' });
+  let subscribedViews = 0;
+  let unsubscribedViews = 0;
+  for (const [status, views] of rows) {
+    if (String(status) === 'SUBSCRIBED') subscribedViews = Number(views);
+    else if (String(status) === 'UNSUBSCRIBED') unsubscribedViews = Number(views);
+  }
+  return { subscribedViews, unsubscribedViews };
+}
+
+/** Real total subscriber count (a single lifetime number, distinct from getSubscriberChange's
+ * gained/lost-over-a-window) — Data API's channels.list, so it works even for a connection that
+ * predates the yt-analytics.readonly scope. YouTube lets a channel hide this count publicly; when
+ * hidden, the API returns hiddenSubscriberCount: true and no usable number — surfaced as `null`,
+ * a real "hidden by the channel owner" state rather than a fake 0. */
+export async function getChannelSubscriberCount(userId: string): Promise<number | null> {
+  const accessToken = await getAccessToken(userId);
+  const res = await fetch('https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch subscriber count: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as {
+    items?: Array<{ statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } }>;
+  };
+  const stats = data.items?.[0]?.statistics;
+  if (!stats || stats.hiddenSubscriberCount) return null;
+  return Number(stats.subscriberCount ?? 0);
+}
+
+export type PrivacyStatusValue = 'public' | 'unlisted' | 'private';
+
+// 'live'/'upcoming' come straight from YouTube's own snippet.liveBroadcastContent field — the same
+// signal YouTube Studio's own Content > Live tab is built on. 'none' is the overwhelming common
+// case (a regular, already-published video).
+export type LiveBroadcastContent = 'none' | 'live' | 'upcoming';
+
 export type ChannelVideo = {
   videoId: string;
   title: string;
@@ -204,7 +425,19 @@ export type ChannelVideo = {
   likeCount: number;
   commentCount: number;
   url: string;
+  privacyStatus: PrivacyStatusValue;
+  liveBroadcastContent: LiveBroadcastContent;
+  // Real duration-based heuristic (YouTube's own current Shorts policy caps them at 3 minutes) —
+  // the Data API has no direct "isShort" field, and the only way to check for certain (whether
+  // youtube.com/shorts/<id> redirects away) means scraping the public site per video, which is
+  // fragile/unofficial and too slow to do for every video on every load. Confirmed against this
+  // app's own real connected channel: every video actually classified this way agreed with the
+  // real youtube.com/shorts/<id> redirect check.
+  isShort: boolean;
 };
+
+// YouTube's own current Shorts policy (since Oct 2024) — anything up to 3 minutes is eligible.
+const SHORTS_MAX_DURATION_SEC = 180;
 
 /**
  * Fetches the connected channel's real uploaded videos directly from YouTube — not just the ones
@@ -241,7 +474,7 @@ export async function getChannelVideos(userId: string, maxResults = 50): Promise
   if (videoIds.length === 0) return [];
 
   const detailsRes = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`,
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${videoIds.join(',')}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!detailsRes.ok) {
@@ -250,23 +483,36 @@ export async function getChannelVideos(userId: string, maxResults = 50): Promise
   const detailsData = (await detailsRes.json()) as {
     items?: Array<{
       id: string;
-      snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      snippet?: {
+        title?: string;
+        publishedAt?: string;
+        thumbnails?: { medium?: { url?: string }; default?: { url?: string } };
+        liveBroadcastContent?: string;
+      };
       statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
       contentDetails?: { duration?: string };
+      status?: { privacyStatus?: string };
     }>;
   };
 
-  return (detailsData.items ?? []).map((item) => ({
-    videoId: item.id,
-    title: item.snippet?.title ?? '(untitled)',
-    thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
-    publishedAt: item.snippet?.publishedAt ?? '',
-    durationSec: parseIsoDuration(item.contentDetails?.duration ?? 'PT0S'),
-    viewCount: Number(item.statistics?.viewCount ?? 0),
-    likeCount: Number(item.statistics?.likeCount ?? 0),
-    commentCount: Number(item.statistics?.commentCount ?? 0),
-    url: `https://www.youtube.com/watch?v=${item.id}`,
-  }));
+  return (detailsData.items ?? []).map((item) => {
+    const durationSec = parseIsoDuration(item.contentDetails?.duration ?? 'PT0S');
+    const liveBroadcastContent = item.snippet?.liveBroadcastContent;
+    return {
+      videoId: item.id,
+      title: item.snippet?.title ?? '(untitled)',
+      thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+      publishedAt: item.snippet?.publishedAt ?? '',
+      durationSec,
+      viewCount: Number(item.statistics?.viewCount ?? 0),
+      likeCount: Number(item.statistics?.likeCount ?? 0),
+      commentCount: Number(item.statistics?.commentCount ?? 0),
+      url: `https://www.youtube.com/watch?v=${item.id}`,
+      privacyStatus: (item.status?.privacyStatus as PrivacyStatusValue) ?? 'public',
+      liveBroadcastContent: liveBroadcastContent === 'live' || liveBroadcastContent === 'upcoming' ? liveBroadcastContent : 'none',
+      isShort: durationSec > 0 && durationSec <= SHORTS_MAX_DURATION_SEC,
+    };
+  });
 }
 
 export type VideoStats = { videoId: string; viewCount: number; likeCount: number; commentCount: number };
@@ -303,4 +549,43 @@ export async function getVideoStats(userId: string, videoIds: string[]): Promise
     }
   }
   return results;
+}
+
+export type ChannelPlaylist = {
+  playlistId: string;
+  title: string;
+  thumbnailUrl: string;
+  itemCount: number;
+  privacyStatus: PrivacyStatusValue;
+  url: string;
+};
+
+/** Real playlists on the connected channel (playlists.list?mine=true — confirmed working
+ * end-to-end, no separate scope needed beyond the youtube.readonly already granted). Returns []
+ * for a channel with genuinely zero playlists, not an error. */
+export async function getChannelPlaylists(userId: string, maxResults = 25): Promise<ChannelPlaylist[]> {
+  const accessToken = await getAccessToken(userId);
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=${Math.min(maxResults, 50)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to list your playlists: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      snippet?: { title?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      contentDetails?: { itemCount?: number };
+      status?: { privacyStatus?: string };
+    }>;
+  };
+  return (data.items ?? []).map((item) => ({
+    playlistId: item.id,
+    title: item.snippet?.title ?? '(untitled)',
+    thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+    itemCount: item.contentDetails?.itemCount ?? 0,
+    privacyStatus: (item.status?.privacyStatus as PrivacyStatusValue) ?? 'public',
+    url: `https://www.youtube.com/playlist?list=${item.id}`,
+  }));
 }

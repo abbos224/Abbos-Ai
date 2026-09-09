@@ -106,6 +106,12 @@ export type CalendarEntry = {
   outputFile?: string;
 };
 
+export type PrivacyStatusValue = 'public' | 'unlisted' | 'private';
+
+// 'live'/'upcoming' come straight from YouTube's own snippet.liveBroadcastContent — the same
+// signal YouTube Studio's own Content > Live tab is built on.
+export type LiveBroadcastContent = 'none' | 'live' | 'upcoming';
+
 /** A real video on the connected YouTube channel — every video actually on the channel, not just
  * ones published from inside this app (topic/chosenHook/publishedFromApp are only set for the
  * ones that were). */
@@ -122,13 +128,71 @@ export type ChannelVideo = {
   topic?: string;
   chosenHook?: string;
   publishedFromApp: boolean;
+  privacyStatus: PrivacyStatusValue;
+  liveBroadcastContent: LiveBroadcastContent;
+  // Real duration-based heuristic (YouTube caps Shorts at 3 minutes) — see server's youtube.ts
+  // for why this, not a scrape-based check, is what backs this flag.
+  isShort: boolean;
+};
+
+/** A real playlist on the connected channel. */
+export type ChannelPlaylist = {
+  playlistId: string;
+  title: string;
+  thumbnailUrl: string;
+  itemCount: number;
+  privacyStatus: PrivacyStatusValue;
+  url: string;
 };
 
 /** A real, data-grounded observation about the channel's actual videos (see server's
  * computeChannelInsights) — never a generic tip unrelated to this channel's own numbers. */
 export type ChannelInsight = { label: string; detail: string };
 
-export type YoutubeAnalytics = { videos: ChannelVideo[]; insights: ChannelInsight[] };
+/** Headline dashboard numbers — real sums/averages over the channel's actual videos. */
+export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngagementRate: number };
+
+export type DailyViews = { date: string; views: number };
+
+/** Real second-half-vs-first-half comparison over the views trend window — changePercent is null
+ * (not 0) when the previous period had zero views, since a percent change from zero isn't a real
+ * number. */
+export type TrendChange = { currentPeriodViews: number; previousPeriodViews: number; changePercent: number | null };
+
+/** One row of a real breakdown list (traffic source or country), sorted by views descending. */
+export type BreakdownRow = { label: string; views: number };
+
+export type WatchTimeSummary = { estimatedMinutesWatched: number; averageViewDurationSec: number };
+
+export type SubscriberChange = { gained: number; lost: number };
+
+/** Real "views from subscribers vs. non-subscribers" split — YouTube's subscribedStatus
+ * dimension. */
+export type SubscribedStatusBreakdown = { subscribedViews: number; unsubscribedViews: number };
+
+export type ChannelBreakdown = {
+  trafficSources: BreakdownRow[];
+  topCountries: BreakdownRow[];
+  watchTime: WatchTimeSummary;
+  subscribers: SubscriberChange;
+  deviceTypes: BreakdownRow[];
+  subscribedStatus: SubscribedStatusBreakdown;
+};
+
+export type YoutubeAnalytics = {
+  videos: ChannelVideo[];
+  playlists: ChannelPlaylist[];
+  insights: ChannelInsight[];
+  summary: ChannelSummary;
+  // null when the connected account hasn't granted the yt-analytics.readonly scope yet (accounts
+  // connected before it was added) — a real "reconnect for this" state, not an error.
+  trend: DailyViews[] | null;
+  trendChange: TrendChange | null;
+  breakdown: ChannelBreakdown | null;
+  // Real lifetime subscriber count (Data API, works even without the analytics scope). null means
+  // the channel owner has hidden it publicly — a real YouTube setting, not a failed fetch.
+  subscriberCount: number | null;
+};
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 

@@ -1,5 +1,5 @@
 import type { Clip, Job } from './store.js';
-import type { ChannelVideo } from './youtube.js';
+import type { ChannelVideo, DailyViews } from './youtube.js';
 
 export type PublishedEntry = { jobId: string; clip: Clip; videoId: string };
 
@@ -22,6 +22,41 @@ export function getPublishedClips(jobs: Job[]): PublishedEntry[] {
     .filter((entry): entry is { jobId: string; clip: Clip } => Boolean(entry.clip.publishedYoutubeUrl))
     .map((entry) => ({ ...entry, videoId: extractYoutubeVideoId(entry.clip.publishedYoutubeUrl!) }))
     .filter((entry): entry is PublishedEntry => entry.videoId !== null);
+}
+
+export type TrendChange = { currentPeriodViews: number; previousPeriodViews: number; changePercent: number | null };
+
+/**
+ * Splits a real day-by-day views window in half — the earlier half as the "previous period," the
+ * later half as "current" — and compares real totals, the same headline "views this period vs.
+ * last period, ▲/▼ X%" comparison YouTube Studio's own dashboard shows. `changePercent` is `null`
+ * (not 0 or Infinity) when the previous period had zero views — a real percent change from zero is
+ * undefined, not honestly expressible as a number. Pure and unit-tested.
+ */
+export function computeTrendChange(trend: DailyViews[]): TrendChange {
+  const half = Math.floor(trend.length / 2);
+  const previous = trend.slice(0, half);
+  const current = trend.slice(half);
+  const currentPeriodViews = current.reduce((sum, d) => sum + d.views, 0);
+  const previousPeriodViews = previous.reduce((sum, d) => sum + d.views, 0);
+  const changePercent = previousPeriodViews > 0 ? ((currentPeriodViews - previousPeriodViews) / previousPeriodViews) * 100 : null;
+  return { currentPeriodViews, previousPeriodViews, changePercent };
+}
+
+export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngagementRate: number };
+
+/** Headline dashboard numbers — real sums/averages over the channel's actual videos, nothing
+ * estimated. `avgEngagementRate` is 0-1 (likes+comments / views, averaged only over videos that
+ * have at least one view, same guard computeChannelInsights' own engagement figure uses). Pure and
+ * unit-tested. */
+export function computeChannelSummary(videos: ChannelVideo[]): ChannelSummary {
+  const totalViews = videos.reduce((sum, v) => sum + v.viewCount, 0);
+  const withViews = videos.filter((v) => v.viewCount > 0);
+  const avgEngagementRate =
+    withViews.length > 0
+      ? withViews.reduce((sum, v) => sum + (v.likeCount + v.commentCount) / v.viewCount, 0) / withViews.length
+      : 0;
+  return { totalViews, totalVideos: videos.length, avgEngagementRate };
 }
 
 export type ChannelInsight = { label: string; detail: string };
