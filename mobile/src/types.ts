@@ -131,7 +131,22 @@ export type ChannelInsight = { label: string; detail: string };
 /** Headline dashboard numbers — real sums/averages over the channel's actual videos. */
 export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngagementRate: number };
 
-export type YoutubeAnalytics = { videos: ChannelVideo[]; insights: ChannelInsight[]; summary: ChannelSummary };
+export type DailyViews = { date: string; views: number };
+
+/** Real second-half-vs-first-half comparison over the views trend window — changePercent is null
+ * (not 0) when the previous period had zero views, since a percent change from zero isn't a real
+ * number. */
+export type TrendChange = { currentPeriodViews: number; previousPeriodViews: number; changePercent: number | null };
+
+export type YoutubeAnalytics = {
+  videos: ChannelVideo[];
+  insights: ChannelInsight[];
+  summary: ChannelSummary;
+  // null when the connected account hasn't granted the yt-analytics.readonly scope yet (accounts
+  // connected before it was added) — a real "reconnect for this" state, not an error.
+  trend: DailyViews[] | null;
+  trendChange: TrendChange | null;
+};
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 

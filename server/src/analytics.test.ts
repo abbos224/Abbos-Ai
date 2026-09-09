@@ -1,8 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractYoutubeVideoId, getPublishedClips, computeChannelInsights, computeChannelSummary, truncateTitle } from './analytics.js';
+import {
+  extractYoutubeVideoId,
+  getPublishedClips,
+  computeChannelInsights,
+  computeChannelSummary,
+  computeTrendChange,
+  truncateTitle,
+} from './analytics.js';
 import type { Clip, Job } from './store.js';
-import type { ChannelVideo } from './youtube.js';
+import type { ChannelVideo, DailyViews } from './youtube.js';
 
 function clip(overrides: Partial<Clip>): Clip {
   return {
@@ -81,6 +88,30 @@ function video(overrides: Partial<ChannelVideo>): ChannelVideo {
     ...overrides,
   };
 }
+
+function daily(date: string, views: number): DailyViews {
+  return { date, views };
+}
+
+test('computeTrendChange: compares the real second half of the window against the real first half', () => {
+  const trend = [daily('2026-01-01', 10), daily('2026-01-02', 20), daily('2026-01-03', 30), daily('2026-01-04', 40)];
+  // previous = [10, 20] = 30, current = [30, 40] = 70
+  const result = computeTrendChange(trend);
+  assert.equal(result.previousPeriodViews, 30);
+  assert.equal(result.currentPeriodViews, 70);
+  assert.equal(result.changePercent, ((70 - 30) / 30) * 100);
+});
+
+test('computeTrendChange: changePercent is null (not 0 or Infinity) when the previous period had zero views', () => {
+  const trend = [daily('2026-01-01', 0), daily('2026-01-02', 0), daily('2026-01-03', 5), daily('2026-01-04', 5)];
+  const result = computeTrendChange(trend);
+  assert.equal(result.previousPeriodViews, 0);
+  assert.equal(result.changePercent, null);
+});
+
+test('computeTrendChange: handles an empty trend without dividing by zero', () => {
+  assert.deepEqual(computeTrendChange([]), { currentPeriodViews: 0, previousPeriodViews: 0, changePercent: null });
+});
 
 test('computeChannelSummary: sums real views and averages engagement over videos with at least one view', () => {
   const videos = [

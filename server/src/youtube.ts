@@ -2,8 +2,14 @@ import fs from 'node:fs';
 import { getPool } from './db.js';
 import { env } from './env.js';
 
-// readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything back.
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+// readonly is needed for view/like/comment stats (analytics) — upload alone can't read anything
+// back. yt-analytics.readonly is a SEPARATE, narrower scope specifically for the YouTube Analytics
+// API (day-by-day views trend) — the Data API's videos.list (readonly, above) only ever returns
+// current lifetime totals, never a real time series. An account that connected before this scope
+// was added has a refresh token that doesn't cover it; getViewsTrend below treats that as a normal
+// "not available yet" case (needs reconnecting), never a crash.
+const SCOPE =
+  'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
 
 type YoutubeAuth = { refreshToken: string; channelTitle?: string };
 
@@ -192,6 +198,34 @@ export function parseIsoDuration(duration: string): number {
   if (!match) return 0;
   const [, hours, minutes, seconds] = match;
   return (Number(hours ?? 0) * 3600) + (Number(minutes ?? 0) * 60) + Number(seconds ?? 0);
+}
+
+export type DailyViews = { date: string; views: number };
+
+/**
+ * Real day-by-day view counts for the connected channel over the last `days` days, straight from
+ * the YouTube Analytics API (a separate, narrower-scoped API from the Data API's videos.list above
+ * — that one only ever returns a video's current lifetime total, never a real time series). This
+ * is the actual mechanism YouTube Studio's own headline "Views" chart is built on. Throws on any
+ * failure (including a pre-yt-analytics.readonly-scope connection missing this permission
+ * entirely) — callers decide whether that's fatal or just "no trend available yet."
+ */
+export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
+  const accessToken = await getAccessToken(userId);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - (days - 1));
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  const res = await fetch(
+    `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${fmt(start)}&endDate=${fmt(end)}&metrics=views&dimensions=day&sort=day`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch views trend: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { rows?: [string, number][] };
+  return (data.rows ?? []).map(([date, views]) => ({ date, views }));
 }
 
 export type ChannelVideo = {

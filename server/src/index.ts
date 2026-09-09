@@ -17,7 +17,7 @@ import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
 import * as google from './google.js';
-import { getPublishedClips, computeChannelInsights, computeChannelSummary } from './analytics.js';
+import { getPublishedClips, computeChannelInsights, computeChannelSummary, computeTrendChange } from './analytics.js';
 import { runMigrations } from './db.js';
 import {
   registerUser,
@@ -837,7 +837,27 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       })
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-    res.json({ videos: enrichedVideos, insights: computeChannelInsights(videos), summary: computeChannelSummary(videos) });
+    // A real daily-views trend needs the yt-analytics.readonly scope, added after some accounts
+    // already connected under the old, narrower scope — their refresh token simply doesn't cover
+    // it yet (a real, expected case, not a bug). Never let that take down the rest of the page:
+    // the trend/change fields are just omitted (null) so the client shows everything else and, if
+    // it wants to, prompts to reconnect for the trend chart specifically.
+    let trend: { date: string; views: number }[] | null = null;
+    let trendChange: ReturnType<typeof computeTrendChange> | null = null;
+    try {
+      trend = await youtube.getViewsTrend(userId);
+      trendChange = computeTrendChange(trend);
+    } catch (err) {
+      console.log(`[analytics] views trend unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    res.json({
+      videos: enrichedVideos,
+      insights: computeChannelInsights(videos),
+      summary: computeChannelSummary(videos),
+      trend,
+      trendChange,
+    });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

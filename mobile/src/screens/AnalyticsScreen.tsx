@@ -5,7 +5,7 @@ import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { ChannelVideo, ChannelInsight, ChannelSummary, RootStackParamList } from '../types';
+import type { ChannelVideo, ChannelInsight, ChannelSummary, DailyViews, TrendChange, RootStackParamList } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
@@ -93,11 +93,86 @@ function TopVideosChart({ videos }: { videos: ChannelVideo[] }) {
   );
 }
 
+const SPARKLINE_HEIGHT = 56;
+
+/**
+ * The real headline "views over time" chart YouTube Studio's own dashboard is built around — a
+ * genuine day-by-day bar sparkline (server's getViewsTrend, the actual YouTube Analytics API, not
+ * the Data API's lifetime-total-only videos.list) plus a real vs.-previous-period % change badge.
+ * `trend`/`trendChange` are null for an account connected before this scope existed — shown as a
+ * real, actionable "reconnect for this" prompt instead of an empty or fake chart.
+ */
+function ViewsTrendChart({
+  trend,
+  trendChange,
+  onReconnect,
+}: {
+  trend: DailyViews[] | null;
+  trendChange: TrendChange | null;
+  onReconnect: () => void;
+}) {
+  if (!trend || trend.length === 0) {
+    return (
+      <Card style={styles.trendCard}>
+        <View style={styles.trendReconnectRow}>
+          <Ionicons name="analytics-outline" size={22} color={colors.accent} />
+          <View style={styles.trendReconnectTextWrap}>
+            <Text style={styles.trendReconnectTitle}>See your daily views trend</Text>
+            <Text style={styles.trendReconnectBody}>Reconnect YouTube to unlock the real day-by-day chart.</Text>
+          </View>
+          <TouchableOpacity onPress={onReconnect} style={styles.trendReconnectButton}>
+            <Text style={styles.trendReconnectButtonText}>Reconnect</Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+    );
+  }
+
+  const maxViews = Math.max(...trend.map((d) => d.views), 1);
+  const changePercent = trendChange?.changePercent ?? null;
+  const isUp = (changePercent ?? 0) >= 0;
+
+  return (
+    <Card style={styles.trendCard}>
+      <Text style={styles.insightsTitle}>Views — last {trend.length} days</Text>
+      <View style={styles.trendHeadlineRow}>
+        <Text style={styles.trendHeadlineValue}>{formatCount(trendChange?.currentPeriodViews ?? 0)}</Text>
+        {changePercent !== null && (
+          <View
+            style={[
+              styles.trendChangeBadge,
+              { backgroundColor: isUp ? `${colors.success}22` : `${colors.danger}22` },
+            ]}
+          >
+            <Ionicons name={isUp ? 'trending-up' : 'trending-down'} size={12} color={isUp ? colors.success : colors.danger} />
+            <Text style={[styles.trendChangeText, { color: isUp ? colors.success : colors.danger }]}>
+              {Math.abs(changePercent).toFixed(0)}% vs. previous period
+            </Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.sparklineRow}>
+        {trend.map((d) => (
+          <LinearGradient
+            key={d.date}
+            colors={gradients.ai}
+            start={{ x: 0, y: 1 }}
+            end={{ x: 0, y: 0 }}
+            style={[styles.sparklineBar, { height: Math.max(4, (d.views / maxViews) * SPARKLINE_HEIGHT) }]}
+          />
+        ))}
+      </View>
+    </Card>
+  );
+}
+
 export default function AnalyticsScreen({}: Props) {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [videos, setVideos] = useState<ChannelVideo[] | null>(null);
   const [insights, setInsights] = useState<ChannelInsight[]>([]);
   const [summary, setSummary] = useState<ChannelSummary | null>(null);
+  const [trend, setTrend] = useState<DailyViews[] | null>(null);
+  const [trendChange, setTrendChange] = useState<TrendChange | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -113,6 +188,8 @@ export default function AnalyticsScreen({}: Props) {
         setVideos(data.videos);
         setInsights(data.insights);
         setSummary(data.summary);
+        setTrend(data.trend);
+        setTrendChange(data.trendChange);
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -173,6 +250,7 @@ export default function AnalyticsScreen({}: Props) {
           onRefresh={load}
           ListHeaderComponent={
             <>
+              <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
               {summary && (
                 <View style={styles.statTileRow}>
                   <StatTile icon="eye" label="Total views" value={formatCount(summary.totalViews)} gradient={gradients.ai} />
@@ -262,6 +340,19 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   title: { flex: 1, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  trendCard: { marginBottom: spacing.md, gap: spacing.sm },
+  trendHeadlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  trendHeadlineValue: { color: colors.textPrimary, fontSize: 28, fontWeight: '800' },
+  trendChangeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
+  trendChangeText: { fontSize: 11, fontWeight: '700' },
+  sparklineRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: SPARKLINE_HEIGHT, marginTop: spacing.xs },
+  sparklineBar: { flex: 1, borderRadius: 2, minWidth: 2 },
+  trendReconnectRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  trendReconnectTextWrap: { flex: 1 },
+  trendReconnectTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  trendReconnectBody: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  trendReconnectButton: { backgroundColor: colors.accentSurface, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
+  trendReconnectButtonText: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   statTileRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   statTile: { flex: 1, borderRadius: radius.lg, padding: spacing.sm, gap: 2 },
   statTileValue: { color: colors.onAccent, fontSize: 20, fontWeight: '800', marginTop: 4 },
