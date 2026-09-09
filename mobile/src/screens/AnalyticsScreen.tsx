@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
+import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -43,7 +44,8 @@ export default function AnalyticsScreen({}: Props) {
 
   async function handleConnectYoutube() {
     try {
-      const url = await youtubeConnectUrl();
+      const returnTo = ExpoLinking.createURL('/oauth-callback');
+      const url = await youtubeConnectUrl(returnTo);
       await Linking.openURL(url);
     } catch (err) {
       Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));

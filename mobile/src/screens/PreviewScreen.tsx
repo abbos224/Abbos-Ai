@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image, Linking } from 'react-native';
+import * as ExpoLinking from 'expo-linking';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
@@ -157,7 +158,8 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
   async function handleConnectYoutube() {
     try {
-      const url = await youtubeConnectUrl();
+      const returnTo = ExpoLinking.createURL('/oauth-callback');
+      const url = await youtubeConnectUrl(returnTo);
       await Linking.openURL(url);
     } catch (err) {
       Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));

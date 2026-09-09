@@ -696,7 +696,8 @@ app.get('/youtube/status', requireAuth, async (req, res) => {
 // unchanged on the callback, which is how the callback recovers which account to attach the
 // connection to without any server-side session storage for the handshake.
 app.get('/oauth/youtube/connect-state', requireAuth, (req, res) => {
-  res.json({ state: signOAuthState(req.userId!) });
+  const { returnTo } = req.query as { returnTo?: string };
+  res.json({ state: signOAuthState(req.userId!, returnTo) });
 });
 
 app.get('/oauth/youtube/start', (req, res) => {
@@ -730,8 +731,9 @@ app.get('/oauth/youtube/callback', async (req, res) => {
   }
 
   let userId: string;
+  let returnTo: string | undefined;
   try {
-    userId = verifyOAuthState(state);
+    ({ userId, returnTo } = verifyOAuthState(state));
   } catch {
     res.status(400).send('This connection request has expired — go back to the app and try connecting again.');
     return;
@@ -739,7 +741,19 @@ app.get('/oauth/youtube/callback', async (req, res) => {
 
   try {
     await youtube.completeAuth(userId, code);
-    res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>');
+    // No new session token to hand back (unlike Google sign-in) — the app already refreshes its
+    // YouTube connection status on every screen focus, so the deep link just needs to bring Expo
+    // Go back to the foreground. Auto-navigates via a script tag (most reliable on iOS Safari,
+    // which will show its own "Open in Expo Go?" prompt) with the same tap-through link as a
+    // fallback for anyone who dismissed that prompt or is on a browser that blocks the auto-nav.
+    const html = returnTo
+      ? `<html><body style="font-family:sans-serif;padding:40px">
+           <h2>YouTube connected ✅</h2>
+           <p>Returning you to the app… if nothing happens, <a href="${returnTo}">tap here</a>.</p>
+           <script>window.location.href = ${JSON.stringify(returnTo)};</script>
+         </body></html>`
+      : '<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>';
+    res.send(html);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).send(`YouTube connection failed: ${message}`);

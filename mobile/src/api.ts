@@ -358,8 +358,12 @@ export async function getYoutubeStatus(): Promise<YoutubeStatus> {
 // URL can't carry our normal Authorization header. It first fetches a short-lived, purpose-scoped
 // state token via an authenticated call, then embeds it in the /oauth/youtube/start URL the app
 // opens — see index.ts's /oauth/youtube/connect-state for the other half of this.
-export async function youtubeConnectUrl(): Promise<string> {
-  const res = await authFetch('/oauth/youtube/connect-state');
+// `returnTo` (this session's own exp:// deep link, from Linking.createURL('/oauth-callback')) is
+// optional — passed through to /oauth/youtube/connect-state so the callback page can auto-navigate
+// back into the app once the connection completes, same mechanism googleSignInUrl already uses.
+export async function youtubeConnectUrl(returnTo?: string): Promise<string> {
+  const query = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+  const res = await authFetch(`/oauth/youtube/connect-state${query}`);
   if (!res.ok) {
     throw new Error(`Failed to start YouTube connection: ${res.status}`);
   }
