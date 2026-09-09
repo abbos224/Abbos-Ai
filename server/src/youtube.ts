@@ -245,24 +245,39 @@ async function queryAnalytics(
   return { headers: (data.columnHeaders ?? []).map((h) => h.name), rows: data.rows ?? [] };
 }
 
-/** Real day-by-day view counts for the connected channel — the actual mechanism YouTube Studio's
- * own headline "Views" chart is built on. The Analytics API only returns a row for a day that
- * actually had activity (never a zero-padded row for every day in range), so a quiet channel would
- * otherwise come back as just 1-2 rows instead of a real `days`-long series — zero-filled here so
- * every day in the window is genuinely represented, "0 views that day" included. */
-export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
-  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'day' });
-  const viewsByDate = new Map(rows.map(([date, views]) => [String(date), Number(views)]));
-
-  const result: DailyViews[] = [];
+/** Every real calendar date in the last `days` days (today included), oldest first — the Analytics
+ * API only returns a row for a day that actually had activity, never a zero-padded row for every
+ * day in range, so any real per-day series needs this to fill the gaps itself. Shared by
+ * getViewsTrend and getSubscriberTrend below. */
+function everyDateInRange(days: number): string[] {
+  const dates: string[] = [];
   const cursor = new Date();
   cursor.setDate(cursor.getDate() - (days - 1));
   for (let i = 0; i < days; i++) {
-    const date = cursor.toISOString().slice(0, 10);
-    result.push({ date, views: viewsByDate.get(date) ?? 0 });
+    dates.push(cursor.toISOString().slice(0, 10));
     cursor.setDate(cursor.getDate() + 1);
   }
-  return result;
+  return dates;
+}
+
+/** Real day-by-day view counts for the connected channel — the actual mechanism YouTube Studio's
+ * own headline "Views" chart is built on. Zero-filled (see everyDateInRange) so every day in the
+ * window is genuinely represented, "0 views that day" included. */
+export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'day' });
+  const viewsByDate = new Map(rows.map(([date, views]) => [String(date), Number(views)]));
+  return everyDateInRange(days).map((date) => ({ date, views: viewsByDate.get(date) ?? 0 }));
+}
+
+export type DailySubscriberChange = { date: string; netChange: number };
+
+/** Real day-by-day net subscriber change (gained minus lost) — matches YouTube Studio's own
+ * "Channel growth" chart on its Home/Overview dashboard. Zero-filled like getViewsTrend, for the
+ * same real reason (the API only reports days with actual gain/loss activity). */
+export async function getSubscriberTrend(userId: string, days = 90): Promise<DailySubscriberChange[]> {
+  const { rows } = await queryAnalytics(userId, ['subscribersGained', 'subscribersLost'], days, { dimensions: 'day' });
+  const netByDate = new Map(rows.map(([date, gained, lost]) => [String(date), Number(gained) - Number(lost)]));
+  return everyDateInRange(days).map((date) => ({ date, netChange: netByDate.get(date) ?? 0 }));
 }
 
 export type MetricBreakdownRow = { label: string; views: number };

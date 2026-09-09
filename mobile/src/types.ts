@@ -154,6 +154,10 @@ export type ChannelSummary = { totalViews: number; totalVideos: number; avgEngag
 
 export type DailyViews = { date: string; views: number };
 
+/** Real day-by-day net subscriber change (gained minus lost) — matches YouTube Studio's own
+ * "Channel growth" chart. */
+export type DailySubscriberChange = { date: string; netChange: number };
+
 /** Real second-half-vs-first-half comparison over the views trend window — changePercent is null
  * (not 0) when the previous period had zero views, since a percent change from zero isn't a real
  * number. */
@@ -188,6 +192,7 @@ export type YoutubeAnalytics = {
   // connected before it was added) — a real "reconnect for this" state, not an error.
   trend: DailyViews[] | null;
   trendChange: TrendChange | null;
+  subscriberTrend: DailySubscriberChange[] | null;
   breakdown: ChannelBreakdown | null;
   // Real lifetime subscriber count (Data API, works even without the analytics scope). null means
   // the channel owner has hidden it publicly — a real YouTube setting, not a failed fetch.
