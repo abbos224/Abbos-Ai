@@ -132,11 +132,18 @@ export default function AnalyticsScreen({}: Props) {
             <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
               <Card style={styles.card}>
                 <View style={styles.row}>
-                  {item.thumbnailUrl ? (
-                    <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.thumbnail} />
-                  )}
+                  <View style={styles.thumbnailWrap}>
+                    {item.thumbnailUrl ? (
+                      <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.thumbnail} />
+                    )}
+                    {item.durationSec > 0 && (
+                      <View style={styles.durationPill}>
+                        <Text style={styles.durationPillText}>{formatDuration(item.durationSec)}</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.cardBody}>
                     <Text style={styles.cardTitle} numberOfLines={2}>
                       {item.title}
@@ -146,11 +153,14 @@ export default function AnalyticsScreen({}: Props) {
                         &ldquo;{item.chosenHook}&rdquo;
                       </Text>
                     )}
-                    <Text style={styles.cardMeta}>
-                      {formatDate(item.publishedAt)}
-                      {item.durationSec > 0 ? ` · ${formatDuration(item.durationSec)}` : ''}
-                      {item.publishedFromApp ? ' · via this app' : ''}
-                    </Text>
+                    <View style={styles.metaRow}>
+                      <Text style={styles.cardMeta}>{formatDate(item.publishedAt)}</Text>
+                      {item.publishedFromApp && (
+                        <View style={styles.appBadge}>
+                          <Text style={styles.appBadgeText}>via this app</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
                 <View style={styles.statsRow}>
@@ -187,11 +197,28 @@ const styles = StyleSheet.create({
   insightText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   card: { marginBottom: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
-  thumbnail: { width: 96, height: 64, borderRadius: radius.sm, backgroundColor: colors.surface },
+  // 16:9 (not the old 1.5:1 box) — matches the real aspect ratio YouTube's own thumbnails.medium
+  // always returns, even for vertical Shorts (YouTube crops those to 16:9 itself), so the image
+  // fills the box cleanly instead of leaving letterboxed gaps top/bottom.
+  thumbnailWrap: { width: 104, height: 58.5, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.surface },
+  thumbnail: { width: '100%', height: '100%' },
+  durationPill: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  durationPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   cardBody: { flex: 1, justifyContent: 'center' },
   cardTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   cardHook: { color: colors.textSecondary, fontSize: 12, marginTop: 2, fontStyle: 'italic' },
-  cardMeta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  cardMeta: { color: colors.textMuted, fontSize: 11 },
+  appBadge: { backgroundColor: colors.accentSurface, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  appBadgeText: { color: colors.accent, fontSize: 10, fontWeight: '600' },
   statsRow: {
     flexDirection: 'row',
     gap: spacing.lg,

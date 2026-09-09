@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractYoutubeVideoId, getPublishedClips, computeChannelInsights } from './analytics.js';
+import { extractYoutubeVideoId, getPublishedClips, computeChannelInsights, truncateTitle } from './analytics.js';
 import type { Clip, Job } from './store.js';
 import type { ChannelVideo } from './youtube.js';
 
@@ -81,6 +81,32 @@ function video(overrides: Partial<ChannelVideo>): ChannelVideo {
     ...overrides,
   };
 }
+
+test('truncateTitle: leaves short titles untouched', () => {
+  assert.equal(truncateTitle('Short title'), 'Short title');
+});
+
+test('truncateTitle: cuts long titles at a word boundary, not mid-word', () => {
+  const long = 'Sometimes all it takes is a moment to change your life.#motivation #mindset';
+  const result = truncateTitle(long, 40);
+  assert.ok(result.length <= 41); // 40 chars + the ellipsis
+  assert.ok(result.endsWith('…'));
+  assert.ok(!result.includes('#motiv')); // cut before the hashtag jam, not mid-word into it
+});
+
+test('computeChannelInsights: truncates a long hashtag-heavy title in the top-performer callout, but not mid-word', () => {
+  const videos = [
+    video({
+      videoId: 'a',
+      title: 'Sometimes all it takes is a moment... to change your life.#motivation #mindset  #dailyinspiration',
+      viewCount: 669,
+    }),
+  ];
+  const top = computeChannelInsights(videos).find((i) => i.label === 'Top performer');
+  assert.ok(top);
+  assert.ok(!top!.detail.includes('#dailyinspiration'));
+  assert.match(top!.detail, /…" leads with 669 views/);
+});
 
 test('computeChannelInsights: returns nothing for an empty channel', () => {
   assert.deepEqual(computeChannelInsights([]), []);
