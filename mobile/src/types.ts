@@ -267,18 +267,68 @@ export type Idea = {
   socialCaption?: SocialCaption;
 };
 
+export type ScriptSection = { label: string; script: string; visualNotes?: string };
+export type ProfessionalScript = {
+  id: string;
+  title: string;
+  angle: string;
+  sections: ScriptSection[];
+  cta: string;
+  estimatedDurationSec: number;
+};
+
+export type ContentPlanEntry = {
+  id: string;
+  day: number;
+  format: string;
+  title: string;
+  captionShort: string;
+  hashtags: string[];
+};
+
+export type ShotListItem = {
+  id: string;
+  shotNumber: number;
+  shotType: string;
+  description: string;
+  durationEstimateSec: number;
+  gearNotes?: string;
+};
+export type ShotList = { items: ShotListItem[]; overallTips: string[] };
+
+export type AudienceSegment = { id: string; name: string; ageRange: string; interests: string[]; rationale: string };
+export type AdCopyVariant = { id: string; headline: string; primaryText: string; cta: string };
+export type TargetingBrief = { audienceSegments: AudienceSegment[]; adCopyVariants: AdCopyVariant[] };
+
+/** Which specialist-facing output the generator produced for this job — one generator, five
+ * switchable output shapes. 'topics' is the original/default mode. */
+export type IdeaJobMode = 'topics' | 'script' | 'contentPlan' | 'shotList' | 'targeting';
+
 export type IdeaJobStatus = 'generating' | 'done' | 'failed';
 
 export type IdeaJob = {
   id: string;
   topic: string;
+  mode: IdeaJobMode;
   status: IdeaJobStatus;
   error?: string;
   createdAt: string;
+  // Exactly one of these is populated, matching `mode`.
   ideas: Idea[];
+  scripts: ProfessionalScript[];
+  contentPlan: ContentPlanEntry[];
+  shotList: ShotList | null;
+  targeting: TargetingBrief | null;
 };
 
-export type IdeaJobSummary = { id: string; topic: string; status: IdeaJobStatus; createdAt: string; ideaCount: number };
+export type IdeaJobSummary = {
+  id: string;
+  topic: string;
+  mode: IdeaJobMode;
+  status: IdeaJobStatus;
+  createdAt: string;
+  ideaCount: number;
+};
 
 export type ImageJobStatus = 'generating' | 'done' | 'failed';
 
