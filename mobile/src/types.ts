@@ -138,6 +138,20 @@ export type DailyViews = { date: string; views: number };
  * number. */
 export type TrendChange = { currentPeriodViews: number; previousPeriodViews: number; changePercent: number | null };
 
+/** One row of a real breakdown list (traffic source or country), sorted by views descending. */
+export type BreakdownRow = { label: string; views: number };
+
+export type WatchTimeSummary = { estimatedMinutesWatched: number; averageViewDurationSec: number };
+
+export type SubscriberChange = { gained: number; lost: number };
+
+export type ChannelBreakdown = {
+  trafficSources: BreakdownRow[];
+  topCountries: BreakdownRow[];
+  watchTime: WatchTimeSummary;
+  subscribers: SubscriberChange;
+};
+
 export type YoutubeAnalytics = {
   videos: ChannelVideo[];
   insights: ChannelInsight[];
@@ -146,6 +160,7 @@ export type YoutubeAnalytics = {
   // connected before it was added) — a real "reconnect for this" state, not an error.
   trend: DailyViews[] | null;
   trendChange: TrendChange | null;
+  breakdown: ChannelBreakdown | null;
 };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';

@@ -202,30 +202,150 @@ export function parseIsoDuration(duration: string): number {
 
 export type DailyViews = { date: string; views: number };
 
-/**
- * Real day-by-day view counts for the connected channel over the last `days` days, straight from
- * the YouTube Analytics API (a separate, narrower-scoped API from the Data API's videos.list above
- * — that one only ever returns a video's current lifetime total, never a real time series). This
- * is the actual mechanism YouTube Studio's own headline "Views" chart is built on. Throws on any
- * failure (including a pre-yt-analytics.readonly-scope connection missing this permission
- * entirely) — callers decide whether that's fatal or just "no trend available yet."
- */
-export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
-  const accessToken = await getAccessToken(userId);
+function isoDateRange(days: number): { startDate: string; endDate: string } {
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - (days - 1));
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
 
-  const res = await fetch(
-    `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${fmt(start)}&endDate=${fmt(end)}&metrics=views&dimensions=day&sort=day`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
+/** Thin wrapper around the YouTube Analytics API's reports.query — a separate, narrower-scoped
+ * API from the Data API's videos.list used elsewhere in this file (that one only ever returns a
+ * video's current lifetime total, never a real time series or breakdown). Every real
+ * YouTube-Studio-style metric below (views trend, traffic sources, geography, watch time,
+ * subscriber change) is just this one real endpoint with different `metrics`/`dimensions`. Throws
+ * on any failure (including a pre-yt-analytics.readonly-scope connection missing this permission
+ * entirely) — callers decide whether that's fatal or just "not available yet." */
+async function queryAnalytics(
+  userId: string,
+  metrics: string[],
+  days: number,
+  options: { dimensions?: string; sortByMetric?: string; maxResults?: number } = {},
+): Promise<{ headers: string[]; rows: (string | number)[][] }> {
+  const accessToken = await getAccessToken(userId);
+  const { startDate, endDate } = isoDateRange(days);
+  const params = new URLSearchParams({
+    ids: 'channel==MINE',
+    startDate,
+    endDate,
+    metrics: metrics.join(','),
+  });
+  if (options.dimensions) params.set('dimensions', options.dimensions);
+  if (options.sortByMetric) params.set('sort', `-${options.sortByMetric}`);
+  if (options.maxResults) params.set('maxResults', String(options.maxResults));
+
+  const res = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   if (!res.ok) {
-    throw new Error(`Failed to fetch views trend: ${res.status} ${await res.text()}`);
+    throw new Error(`YouTube Analytics query failed: ${res.status} ${await res.text()}`);
   }
-  const data = (await res.json()) as { rows?: [string, number][] };
-  return (data.rows ?? []).map(([date, views]) => ({ date, views }));
+  const data = (await res.json()) as { columnHeaders?: { name: string }[]; rows?: (string | number)[][] };
+  return { headers: (data.columnHeaders ?? []).map((h) => h.name), rows: data.rows ?? [] };
+}
+
+/** Real day-by-day view counts for the connected channel — the actual mechanism YouTube Studio's
+ * own headline "Views" chart is built on. The Analytics API only returns a row for a day that
+ * actually had activity (never a zero-padded row for every day in range), so a quiet channel would
+ * otherwise come back as just 1-2 rows instead of a real `days`-long series — zero-filled here so
+ * every day in the window is genuinely represented, "0 views that day" included. */
+export async function getViewsTrend(userId: string, days = 28): Promise<DailyViews[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'day' });
+  const viewsByDate = new Map(rows.map(([date, views]) => [String(date), Number(views)]));
+
+  const result: DailyViews[] = [];
+  const cursor = new Date();
+  cursor.setDate(cursor.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const date = cursor.toISOString().slice(0, 10);
+    result.push({ date, views: viewsByDate.get(date) ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
+
+export type MetricBreakdownRow = { label: string; views: number };
+
+// YouTube's own internal codes for insightTrafficSourceType, mapped to the exact phrasing
+// YouTube Studio's own "Traffic source" report uses — real, documented enum values, not a guess.
+const TRAFFIC_SOURCE_LABELS: Record<string, string> = {
+  ADVERTISING: 'Advertising',
+  ANNOTATION: 'Video annotations',
+  CAMPAIGN_CARD: 'Campaign card',
+  END_SCREEN: 'End screens',
+  EXT_URL: 'External',
+  HASHTAGS: 'Hashtags',
+  LIVE_REDIRECT: 'Live redirects',
+  NO_LINK_EMBEDDED: 'Embedded player',
+  NO_LINK_OTHER: 'Direct or unknown',
+  NOTIFICATION: 'Notifications',
+  PLAYLIST: 'Playlist',
+  PRODUCT_PAGE: 'Product page',
+  PROMOTED: 'Promoted content',
+  RELATED_VIDEO: 'Suggested videos',
+  SHORTS: 'Shorts feed',
+  SOUND_PAGE: 'Shorts sound page',
+  SUBSCRIBER: 'Browse features',
+  YT_CHANNEL: 'Channel page',
+  YT_OTHER_PAGE: 'Other YouTube page',
+  YT_SEARCH: 'YouTube search',
+  VIDEO_REMIXES: 'Video remixes',
+  WATCH_WITH: 'Watch with',
+};
+
+/** Real "how viewers found your videos" breakdown — top 8 traffic sources by real view count. */
+export async function getTrafficSources(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'insightTrafficSourceType',
+    sortByMetric: 'views',
+    maxResults: 8,
+  });
+  return rows.map(([code, views]) => ({
+    label: TRAFFIC_SOURCE_LABELS[String(code)] ?? String(code),
+    views: Number(views),
+  }));
+}
+
+// Intl.DisplayNames is built into Node (no new dependency) — turns a real ISO 3166-1 country code
+// ("US", "IN") into its real display name ("United States", "India").
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** Real top-8-countries-by-views breakdown. */
+export async function getTopCountries(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'country',
+    sortByMetric: 'views',
+    maxResults: 8,
+  });
+  return rows.map(([code, views]) => {
+    let label: string;
+    try {
+      label = countryNames.of(String(code)) ?? String(code);
+    } catch {
+      label = String(code);
+    }
+    return { label, views: Number(views) };
+  });
+}
+
+export type WatchTimeSummary = { estimatedMinutesWatched: number; averageViewDurationSec: number };
+
+/** Real total watch time + real average view duration over the window — no dimension, one
+ * summary row. */
+export async function getWatchTimeSummary(userId: string, days = 28): Promise<WatchTimeSummary> {
+  const { rows } = await queryAnalytics(userId, ['estimatedMinutesWatched', 'averageViewDuration'], days);
+  const [estimatedMinutesWatched, averageViewDurationSec] = rows[0] ?? [0, 0];
+  return { estimatedMinutesWatched: Number(estimatedMinutesWatched), averageViewDurationSec: Number(averageViewDurationSec) };
+}
+
+export type SubscriberChange = { gained: number; lost: number };
+
+/** Real subscribers gained/lost over the window — no dimension, one summary row. */
+export async function getSubscriberChange(userId: string, days = 28): Promise<SubscriberChange> {
+  const { rows } = await queryAnalytics(userId, ['subscribersGained', 'subscribersLost'], days);
+  const [gained, lost] = rows[0] ?? [0, 0];
+  return { gained: Number(gained), lost: Number(lost) };
 }
 
 export type ChannelVideo = {

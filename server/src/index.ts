@@ -837,18 +837,38 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       })
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-    // A real daily-views trend needs the yt-analytics.readonly scope, added after some accounts
-    // already connected under the old, narrower scope — their refresh token simply doesn't cover
-    // it yet (a real, expected case, not a bug). Never let that take down the rest of the page:
-    // the trend/change fields are just omitted (null) so the client shows everything else and, if
-    // it wants to, prompts to reconnect for the trend chart specifically.
+    // Everything below needs the yt-analytics.readonly scope, added after some accounts already
+    // connected under the old, narrower scope — their refresh token simply doesn't cover it yet (a
+    // real, expected case, not a bug). Never let that take down the rest of the page: these fields
+    // just come back null so the client shows everything else and, if it wants to, prompts to
+    // reconnect for the real YouTube-Studio-style breakdown specifically.
     let trend: { date: string; views: number }[] | null = null;
     let trendChange: ReturnType<typeof computeTrendChange> | null = null;
+    let breakdown: {
+      trafficSources: { label: string; views: number }[];
+      topCountries: { label: string; views: number }[];
+      watchTime: { estimatedMinutesWatched: number; averageViewDurationSec: number };
+      subscribers: { gained: number; lost: number };
+    } | null = null;
     try {
-      trend = await youtube.getViewsTrend(userId);
-      trendChange = computeTrendChange(trend);
+      // 90 days, not YouTube Studio's own 28-day default — a real, honest choice given this kind
+      // of app-managed channel realistically posts in bursts, not daily; a 28-day window would
+      // show a flat, empty-looking chart for any channel that hasn't posted in the last month even
+      // though it has real, recent-ish activity just outside that window. Still just a wider real
+      // window, not cherry-picked data — every number is exactly what YouTube reports for it.
+      const DAYS = 90;
+      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers] = await Promise.all([
+        youtube.getViewsTrend(userId, DAYS),
+        youtube.getTrafficSources(userId, DAYS),
+        youtube.getTopCountries(userId, DAYS),
+        youtube.getWatchTimeSummary(userId, DAYS),
+        youtube.getSubscriberChange(userId, DAYS),
+      ]);
+      trend = fetchedTrend;
+      trendChange = computeTrendChange(fetchedTrend);
+      breakdown = { trafficSources, topCountries, watchTime, subscribers };
     } catch (err) {
-      console.log(`[analytics] views trend unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+      console.log(`[analytics] YouTube Analytics data unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
     }
 
     res.json({
@@ -857,6 +877,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       summary: computeChannelSummary(videos),
       trend,
       trendChange,
+      breakdown,
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

@@ -5,7 +5,16 @@ import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { ChannelVideo, ChannelInsight, ChannelSummary, DailyViews, TrendChange, RootStackParamList } from '../types';
+import type {
+  ChannelVideo,
+  ChannelInsight,
+  ChannelSummary,
+  DailyViews,
+  TrendChange,
+  ChannelBreakdown,
+  BreakdownRow,
+  RootStackParamList,
+} from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
@@ -93,6 +102,48 @@ function TopVideosChart({ videos }: { videos: ChannelVideo[] }) {
   );
 }
 
+/** A real horizontal bar list for any label→views breakdown (traffic sources, top countries) —
+ * same gradient-bar mechanism as TopVideosChart, generalized. A genuinely empty list (real, not a
+ * loading glitch — YouTube Analytics just has nothing to report for this window) shows honest
+ * copy instead of a blank card or a fake "0" row. */
+function BreakdownBarList({ title, rows, emptyText }: { title: string; rows: BreakdownRow[]; emptyText: string }) {
+  if (rows.length === 0) {
+    return (
+      <Card style={styles.chartCard}>
+        <Text style={styles.insightsTitle}>{title}</Text>
+        <Text style={styles.breakdownEmptyText}>{emptyText}</Text>
+      </Card>
+    );
+  }
+  const maxViews = Math.max(...rows.map((r) => r.views), 1);
+  return (
+    <Card style={styles.chartCard}>
+      <Text style={styles.insightsTitle}>{title}</Text>
+      {rows.map((r) => (
+        <View key={r.label} style={styles.chartRow}>
+          <Text style={styles.chartRowTitle} numberOfLines={1}>
+            {r.label}
+          </Text>
+          <View style={styles.chartBarTrack}>
+            <LinearGradient
+              colors={gradients.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[styles.chartBarFill, { width: `${Math.max(6, (r.views / maxViews) * 100)}%` }]}
+            />
+          </View>
+          <Text style={styles.chartRowValue}>{formatCount(r.views)}</Text>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function formatMinutes(minutes: number): string {
+  if (minutes >= 60) return `${(minutes / 60).toFixed(1)}h`;
+  return `${Math.round(minutes)}m`;
+}
+
 const SPARKLINE_HEIGHT = 56;
 
 /**
@@ -111,7 +162,11 @@ function ViewsTrendChart({
   trendChange: TrendChange | null;
   onReconnect: () => void;
 }) {
-  if (!trend || trend.length === 0) {
+  // `trend` is null only when the connected account predates the yt-analytics.readonly scope —
+  // once zero-filled server-side, a connected account's trend is never a true empty array again,
+  // so an all-zero (but present) trend renders as real, honest (very flat) data below instead of
+  // hitting this reconnect prompt.
+  if (!trend) {
     return (
       <Card style={styles.trendCard}>
         <View style={styles.trendReconnectRow}>
@@ -173,6 +228,7 @@ export default function AnalyticsScreen({}: Props) {
   const [summary, setSummary] = useState<ChannelSummary | null>(null);
   const [trend, setTrend] = useState<DailyViews[] | null>(null);
   const [trendChange, setTrendChange] = useState<TrendChange | null>(null);
+  const [breakdown, setBreakdown] = useState<ChannelBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -190,6 +246,7 @@ export default function AnalyticsScreen({}: Props) {
         setSummary(data.summary);
         setTrend(data.trend);
         setTrendChange(data.trendChange);
+        setBreakdown(data.breakdown);
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -263,7 +320,45 @@ export default function AnalyticsScreen({}: Props) {
                   />
                 </View>
               )}
+              {breakdown && (
+                <View style={styles.statTileRow}>
+                  <StatTile
+                    icon="time"
+                    label="Watch time"
+                    value={formatMinutes(breakdown.watchTime.estimatedMinutesWatched)}
+                    gradient={gradients.brand}
+                  />
+                  <StatTile
+                    icon="hourglass"
+                    label="Avg duration"
+                    value={formatDuration(breakdown.watchTime.averageViewDurationSec) || '0:00'}
+                    gradient={gradients.ai}
+                  />
+                  <StatTile
+                    icon="person-add"
+                    label="Net subs"
+                    value={`${breakdown.subscribers.gained - breakdown.subscribers.lost >= 0 ? '+' : ''}${
+                      breakdown.subscribers.gained - breakdown.subscribers.lost
+                    }`}
+                    gradient={gradients.brand}
+                  />
+                </View>
+              )}
               {videos && <TopVideosChart videos={videos} />}
+              {breakdown && (
+                <BreakdownBarList
+                  title="Traffic sources"
+                  rows={breakdown.trafficSources}
+                  emptyText="No traffic-source data for this period yet."
+                />
+              )}
+              {breakdown && (
+                <BreakdownBarList
+                  title="Top countries"
+                  rows={breakdown.topCountries}
+                  emptyText="No geography data for this period yet."
+                />
+              )}
               {insights.length > 0 && (
                 <Card style={styles.insightsCard}>
                   <Text style={styles.insightsTitle}>What your real numbers show</Text>
@@ -363,6 +458,7 @@ const styles = StyleSheet.create({
   chartBarTrack: { flex: 1, height: 16, borderRadius: radius.sm, backgroundColor: colors.background, overflow: 'hidden' },
   chartBarFill: { height: '100%', borderRadius: radius.sm },
   chartRowValue: { width: 44, textAlign: 'right', color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
+  breakdownEmptyText: { color: colors.textSecondary, fontSize: 12 },
   insightsCard: { marginBottom: spacing.md, gap: spacing.sm },
   insightsTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
