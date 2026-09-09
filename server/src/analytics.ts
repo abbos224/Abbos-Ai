@@ -26,6 +26,20 @@ export function getPublishedClips(jobs: Job[]): PublishedEntry[] {
 
 export type ChannelInsight = { label: string; detail: string };
 
+/** Real YouTube titles routinely run long and end in a wall of jammed-together hashtags
+ * ("...to change your life.#motivation #mindset #dailyinspiration") — fine as a video's own full
+ * title in a list, but unreadable embedded mid-sentence inside a one-line insight. Trims to a
+ * clean word boundary under `maxLen` rather than cutting mid-word. Pure and unit-tested. */
+export function truncateTitle(title: string, maxLen = 40): string {
+  if (title.length <= maxLen) return title;
+  const cut = title.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(' ');
+  // Strip any trailing '.'/'…' the real title already ended that clause with, so the cut never
+  // reads as a doubled-up ellipsis ("moment...…") — just one clean "…" of our own.
+  const trimmed = (lastSpace > 10 ? cut.slice(0, lastSpace) : cut).replace(/[.…\s]+$/, '');
+  return `${trimmed}…`;
+}
+
 /**
  * Real, data-grounded observations about a connected channel's actual videos — every number here
  * traces back to a real view/like/comment/duration value from `videos`, never a generic tip
@@ -47,7 +61,7 @@ export function computeChannelInsights(videos: ChannelVideo[]): ChannelInsight[]
     insights.push({
       label: 'Top performer',
       detail:
-        `"${top.title}" leads with ${top.viewCount.toLocaleString()} views` +
+        `"${truncateTitle(top.title)}" leads with ${top.viewCount.toLocaleString()} views` +
         (timesAvg >= 1.3 ? ` — ${timesAvg.toFixed(1)}x your channel average` : ''),
     });
   }
