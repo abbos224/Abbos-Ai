@@ -408,6 +408,13 @@ export async function getChannelSubscriberCount(userId: string): Promise<number 
   return Number(stats.subscriberCount ?? 0);
 }
 
+export type PrivacyStatusValue = 'public' | 'unlisted' | 'private';
+
+// 'live'/'upcoming' come straight from YouTube's own snippet.liveBroadcastContent field — the same
+// signal YouTube Studio's own Content > Live tab is built on. 'none' is the overwhelming common
+// case (a regular, already-published video).
+export type LiveBroadcastContent = 'none' | 'live' | 'upcoming';
+
 export type ChannelVideo = {
   videoId: string;
   title: string;
@@ -418,7 +425,19 @@ export type ChannelVideo = {
   likeCount: number;
   commentCount: number;
   url: string;
+  privacyStatus: PrivacyStatusValue;
+  liveBroadcastContent: LiveBroadcastContent;
+  // Real duration-based heuristic (YouTube's own current Shorts policy caps them at 3 minutes) —
+  // the Data API has no direct "isShort" field, and the only way to check for certain (whether
+  // youtube.com/shorts/<id> redirects away) means scraping the public site per video, which is
+  // fragile/unofficial and too slow to do for every video on every load. Confirmed against this
+  // app's own real connected channel: every video actually classified this way agreed with the
+  // real youtube.com/shorts/<id> redirect check.
+  isShort: boolean;
 };
+
+// YouTube's own current Shorts policy (since Oct 2024) — anything up to 3 minutes is eligible.
+const SHORTS_MAX_DURATION_SEC = 180;
 
 /**
  * Fetches the connected channel's real uploaded videos directly from YouTube — not just the ones
@@ -455,7 +474,7 @@ export async function getChannelVideos(userId: string, maxResults = 50): Promise
   if (videoIds.length === 0) return [];
 
   const detailsRes = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`,
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${videoIds.join(',')}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!detailsRes.ok) {
@@ -464,23 +483,36 @@ export async function getChannelVideos(userId: string, maxResults = 50): Promise
   const detailsData = (await detailsRes.json()) as {
     items?: Array<{
       id: string;
-      snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      snippet?: {
+        title?: string;
+        publishedAt?: string;
+        thumbnails?: { medium?: { url?: string }; default?: { url?: string } };
+        liveBroadcastContent?: string;
+      };
       statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
       contentDetails?: { duration?: string };
+      status?: { privacyStatus?: string };
     }>;
   };
 
-  return (detailsData.items ?? []).map((item) => ({
-    videoId: item.id,
-    title: item.snippet?.title ?? '(untitled)',
-    thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
-    publishedAt: item.snippet?.publishedAt ?? '',
-    durationSec: parseIsoDuration(item.contentDetails?.duration ?? 'PT0S'),
-    viewCount: Number(item.statistics?.viewCount ?? 0),
-    likeCount: Number(item.statistics?.likeCount ?? 0),
-    commentCount: Number(item.statistics?.commentCount ?? 0),
-    url: `https://www.youtube.com/watch?v=${item.id}`,
-  }));
+  return (detailsData.items ?? []).map((item) => {
+    const durationSec = parseIsoDuration(item.contentDetails?.duration ?? 'PT0S');
+    const liveBroadcastContent = item.snippet?.liveBroadcastContent;
+    return {
+      videoId: item.id,
+      title: item.snippet?.title ?? '(untitled)',
+      thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+      publishedAt: item.snippet?.publishedAt ?? '',
+      durationSec,
+      viewCount: Number(item.statistics?.viewCount ?? 0),
+      likeCount: Number(item.statistics?.likeCount ?? 0),
+      commentCount: Number(item.statistics?.commentCount ?? 0),
+      url: `https://www.youtube.com/watch?v=${item.id}`,
+      privacyStatus: (item.status?.privacyStatus as PrivacyStatusValue) ?? 'public',
+      liveBroadcastContent: liveBroadcastContent === 'live' || liveBroadcastContent === 'upcoming' ? liveBroadcastContent : 'none',
+      isShort: durationSec > 0 && durationSec <= SHORTS_MAX_DURATION_SEC,
+    };
+  });
 }
 
 export type VideoStats = { videoId: string; viewCount: number; likeCount: number; commentCount: number };
@@ -517,4 +549,43 @@ export async function getVideoStats(userId: string, videoIds: string[]): Promise
     }
   }
   return results;
+}
+
+export type ChannelPlaylist = {
+  playlistId: string;
+  title: string;
+  thumbnailUrl: string;
+  itemCount: number;
+  privacyStatus: PrivacyStatusValue;
+  url: string;
+};
+
+/** Real playlists on the connected channel (playlists.list?mine=true — confirmed working
+ * end-to-end, no separate scope needed beyond the youtube.readonly already granted). Returns []
+ * for a channel with genuinely zero playlists, not an error. */
+export async function getChannelPlaylists(userId: string, maxResults = 25): Promise<ChannelPlaylist[]> {
+  const accessToken = await getAccessToken(userId);
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails,status&mine=true&maxResults=${Math.min(maxResults, 50)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to list your playlists: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      snippet?: { title?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      contentDetails?: { itemCount?: number };
+      status?: { privacyStatus?: string };
+    }>;
+  };
+  return (data.items ?? []).map((item) => ({
+    playlistId: item.id,
+    title: item.snippet?.title ?? '(untitled)',
+    thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+    itemCount: item.contentDetails?.itemCount ?? 0,
+    privacyStatus: (item.status?.privacyStatus as PrivacyStatusValue) ?? 'public',
+    url: `https://www.youtube.com/playlist?list=${item.id}`,
+  }));
 }

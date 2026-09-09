@@ -837,6 +837,14 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       })
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
+    // Real playlists on the channel — Data API only, works even without the analytics scope.
+    let playlists: youtube.ChannelPlaylist[] = [];
+    try {
+      playlists = await youtube.getChannelPlaylists(userId);
+    } catch (err) {
+      console.log(`[analytics] Playlists unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
     // Everything below needs the yt-analytics.readonly scope, added after some accounts already
     // connected under the old, narrower scope — their refresh token simply doesn't cover it yet (a
     // real, expected case, not a bug). Never let that take down the rest of the page: these fields
@@ -888,6 +896,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
 
     res.json({
       videos: enrichedVideos,
+      playlists,
       insights: computeChannelInsights(videos),
       summary: computeChannelSummary(videos),
       trend,

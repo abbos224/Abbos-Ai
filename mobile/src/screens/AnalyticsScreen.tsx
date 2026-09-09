@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking, Image } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking, Image, ScrollView, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type {
   ChannelVideo,
+  ChannelPlaylist,
   ChannelInsight,
   ChannelSummary,
   DailyViews,
@@ -258,9 +259,214 @@ function ViewsTrendChart({
   );
 }
 
+/** A real video/short/live card — extracted so both the Content tab's Videos/Shorts/Live lists
+ * share exactly one card renderer instead of three near-copies. */
+function VideoCard({ item }: { item: ChannelVideo }) {
+  return (
+    <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
+      <Card style={styles.card}>
+        <View style={styles.row}>
+          <View style={styles.thumbnailWrap}>
+            {item.thumbnailUrl ? (
+              <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+            ) : (
+              <View style={styles.thumbnail} />
+            )}
+            {item.durationSec > 0 && (
+              <View style={styles.durationPill}>
+                <Text style={styles.durationPillText}>{formatDuration(item.durationSec)}</Text>
+              </View>
+            )}
+            {item.liveBroadcastContent !== 'none' && (
+              <View style={[styles.liveBadge, item.liveBroadcastContent === 'live' && styles.liveBadgeLive]}>
+                <Text style={styles.liveBadgeText}>{item.liveBroadcastContent === 'live' ? 'LIVE' : 'UPCOMING'}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            {item.publishedFromApp && item.topic && (
+              <Text style={styles.cardHook} numberOfLines={1}>
+                &ldquo;{item.chosenHook}&rdquo;
+              </Text>
+            )}
+            <View style={styles.metaRow}>
+              <Text style={styles.cardMeta}>{formatDate(item.publishedAt)}</Text>
+              {item.publishedFromApp && (
+                <View style={styles.appBadge}>
+                  <Text style={styles.appBadgeText}>via this app</Text>
+                </View>
+              )}
+              {item.privacyStatus !== 'public' && (
+                <View style={styles.privacyBadge}>
+                  <Text style={styles.privacyBadgeText}>{item.privacyStatus}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Ionicons name="eye" size={14} color={colors.accent} />
+            <Text style={styles.statValue}>{formatCount(item.viewCount)}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Ionicons name="heart" size={14} color={colors.accent} />
+            <Text style={styles.statValue}>{formatCount(item.likeCount)}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Ionicons name="chatbubble" size={14} color={colors.accent} />
+            <Text style={styles.statValue}>{formatCount(item.commentCount)}</Text>
+          </View>
+        </View>
+      </Card>
+    </TouchableOpacity>
+  );
+}
+
+type ContentSubTab = 'videos' | 'shorts' | 'live' | 'playlists';
+type SortBy = 'recent' | 'views';
+
+const CONTENT_SUB_TABS: { key: ContentSubTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'videos', label: 'Videos', icon: 'videocam' },
+  { key: 'shorts', label: 'Shorts', icon: 'flash' },
+  { key: 'live', label: 'Live', icon: 'radio' },
+  { key: 'playlists', label: 'Playlists', icon: 'list' },
+];
+
+/**
+ * Real channel-content browser — matches YouTube Studio's Content screen (Videos/Shorts/Live/
+ * Playlists tabs + a sort control). Videos/Shorts are split by a real duration heuristic
+ * (ChannelVideo.isShort, see server's youtube.ts); Live uses YouTube's own real
+ * liveBroadcastContent field, so a channel with no live-streaming history honestly shows empty
+ * rather than a fake/placeholder row.
+ */
+function ContentTabView({
+  videos,
+  playlists,
+  loading,
+  onRefresh,
+}: {
+  videos: ChannelVideo[];
+  playlists: ChannelPlaylist[];
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const [subTab, setSubTab] = useState<ContentSubTab>('videos');
+  const [sortBy, setSortBy] = useState<SortBy>('recent');
+
+  const sortedVideos = useMemo(() => {
+    const filtered = videos.filter((v) => {
+      if (subTab === 'live') return v.liveBroadcastContent !== 'none';
+      if (v.liveBroadcastContent !== 'none') return false; // live/upcoming only shows under Live
+      return subTab === 'shorts' ? v.isShort : !v.isShort;
+    });
+    return [...filtered].sort((a, b) =>
+      sortBy === 'views' ? b.viewCount - a.viewCount : new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+    );
+  }, [videos, subTab, sortBy]);
+
+  return (
+    <View style={styles.contentTabWrap}>
+      <View style={styles.subTabRow}>
+        {CONTENT_SUB_TABS.map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            onPress={() => setSubTab(t.key)}
+            style={[styles.subTabChip, subTab === t.key && styles.subTabChipActive]}
+          >
+            <Ionicons name={t.icon} size={13} color={subTab === t.key ? colors.onAccent : colors.textSecondary} />
+            <Text style={[styles.subTabText, subTab === t.key && styles.subTabTextActive]}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {subTab !== 'playlists' && (
+        <View style={styles.sortRow}>
+          <Text style={styles.sortLabel}>Sort:</Text>
+          {(['recent', 'views'] as const).map((s) => (
+            <TouchableOpacity key={s} onPress={() => setSortBy(s)} style={[styles.sortChip, sortBy === s && styles.sortChipActive]}>
+              <Text style={[styles.sortChipText, sortBy === s && styles.sortChipTextActive]}>
+                {s === 'recent' ? 'Most recent' : 'Views'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {subTab === 'playlists' ? (
+        playlists.length === 0 ? (
+          <EmptyState icon="list" title="No playlists yet" body="Playlists on this channel will show up here." />
+        ) : (
+          <FlatList
+            data={playlists}
+            keyExtractor={(p) => p.playlistId}
+            refreshing={loading}
+            onRefresh={onRefresh}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
+                <Card style={styles.card}>
+                  <View style={styles.row}>
+                    <View style={styles.thumbnailWrap}>
+                      {item.thumbnailUrl ? (
+                        <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.thumbnail} />
+                      )}
+                    </View>
+                    <View style={styles.cardBody}>
+                      <Text style={styles.cardTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      <View style={styles.metaRow}>
+                        <Text style={styles.cardMeta}>
+                          {item.itemCount} video{item.itemCount === 1 ? '' : 's'}
+                        </Text>
+                        {item.privacyStatus !== 'public' && (
+                          <View style={styles.privacyBadge}>
+                            <Text style={styles.privacyBadgeText}>{item.privacyStatus}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            )}
+          />
+        )
+      ) : sortedVideos.length === 0 ? (
+        <EmptyState
+          icon={subTab === 'live' ? 'radio' : 'film'}
+          title={subTab === 'live' ? 'No live activity' : `No ${subTab} yet`}
+          body={
+            subTab === 'live'
+              ? 'Live and upcoming broadcasts on this channel will show up here.'
+              : 'Nothing here yet — upload something and it will show up.'
+          }
+        />
+      ) : (
+        <FlatList
+          data={sortedVideos}
+          keyExtractor={(item) => item.videoId}
+          refreshing={loading}
+          onRefresh={onRefresh}
+          renderItem={({ item }) => <VideoCard item={item} />}
+        />
+      )}
+    </View>
+  );
+}
+
+type MainTab = 'overview' | 'content';
+
 export default function AnalyticsScreen({}: Props) {
   const [connected, setConnected] = useState<boolean | null>(null);
+  const [mainTab, setMainTab] = useState<MainTab>('overview');
   const [videos, setVideos] = useState<ChannelVideo[] | null>(null);
+  const [playlists, setPlaylists] = useState<ChannelPlaylist[]>([]);
   const [insights, setInsights] = useState<ChannelInsight[]>([]);
   const [summary, setSummary] = useState<ChannelSummary | null>(null);
   const [trend, setTrend] = useState<DailyViews[] | null>(null);
@@ -280,6 +486,7 @@ export default function AnalyticsScreen({}: Props) {
         }
         const data = await getYoutubeAnalytics();
         setVideos(data.videos);
+        setPlaylists(data.playlists);
         setInsights(data.insights);
         setSummary(data.summary);
         setTrend(data.trend);
@@ -337,146 +544,102 @@ export default function AnalyticsScreen({}: Props) {
         </View>
       </View>
 
+      <View style={styles.mainTabRow}>
+        {(['overview', 'content'] as const).map((t) => (
+          <TouchableOpacity
+            key={t}
+            onPress={() => setMainTab(t)}
+            style={[styles.mainTabButton, mainTab === t && styles.mainTabButtonActive]}
+          >
+            <Text style={[styles.mainTabText, mainTab === t && styles.mainTabTextActive]}>
+              {t === 'overview' ? 'Overview' : 'Content'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {videos && videos.length === 0 ? (
         <EmptyState
           icon="trending-up"
           title="Nothing uploaded yet"
           body="Upload something to your channel and its real stats will show up here."
         />
-      ) : (
-        <FlatList
-          data={videos ?? []}
-          keyExtractor={(item) => item.videoId}
-          refreshing={loading}
-          onRefresh={load}
-          ListHeaderComponent={
-            <>
-              <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
-              {summary && (
-                <View style={styles.statTileRow}>
-                  <StatTile icon="eye" label="Total views" value={formatCount(summary.totalViews)} gradient={gradients.ai} />
-                  <StatTile icon="film" label="Videos" value={String(summary.totalVideos)} gradient={gradients.brand} />
-                  <StatTile
-                    icon="heart"
-                    label="Engagement"
-                    value={`${(summary.avgEngagementRate * 100).toFixed(1)}%`}
-                    gradient={gradients.ai}
-                  />
-                </View>
-              )}
-              {breakdown && (
-                <View style={styles.statTileRow}>
-                  <StatTile
-                    icon="time"
-                    label="Watch time"
-                    value={formatMinutes(breakdown.watchTime.estimatedMinutesWatched)}
-                    gradient={gradients.brand}
-                  />
-                  <StatTile
-                    icon="hourglass"
-                    label="Avg duration"
-                    value={formatDuration(breakdown.watchTime.averageViewDurationSec) || '0:00'}
-                    gradient={gradients.ai}
-                  />
-                  <StatTile
-                    icon="person-add"
-                    label="Net subs"
-                    value={`${breakdown.subscribers.gained - breakdown.subscribers.lost >= 0 ? '+' : ''}${
-                      breakdown.subscribers.gained - breakdown.subscribers.lost
-                    }`}
-                    gradient={gradients.brand}
-                  />
-                </View>
-              )}
-              {videos && <TopVideosChart videos={videos} />}
-              {breakdown && (
-                <BreakdownBarList
-                  title="Traffic sources"
-                  rows={breakdown.trafficSources}
-                  emptyText="No traffic-source data for this period yet."
-                />
-              )}
-              {breakdown && (
-                <BreakdownBarList
-                  title="Top countries"
-                  rows={breakdown.topCountries}
-                  emptyText="No geography data for this period yet."
-                />
-              )}
-              {breakdown && (
-                <BreakdownBarList
-                  title="Device type"
-                  rows={breakdown.deviceTypes}
-                  emptyText="No device data for this period yet."
-                />
-              )}
-              {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
-              {insights.length > 0 && (
-                <Card style={styles.insightsCard}>
-                  <Text style={styles.insightsTitle}>What your real numbers show</Text>
-                  {insights.map((insight) => (
-                    <View key={insight.label} style={styles.insightRow}>
-                      <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
-                      <Text style={styles.insightText}>{insight.detail}</Text>
-                    </View>
-                  ))}
-                </Card>
-              )}
-            </>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
-              <Card style={styles.card}>
-                <View style={styles.row}>
-                  <View style={styles.thumbnailWrap}>
-                    {item.thumbnailUrl ? (
-                      <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
-                    ) : (
-                      <View style={styles.thumbnail} />
-                    )}
-                    {item.durationSec > 0 && (
-                      <View style={styles.durationPill}>
-                        <Text style={styles.durationPillText}>{formatDuration(item.durationSec)}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    {item.publishedFromApp && item.topic && (
-                      <Text style={styles.cardHook} numberOfLines={1}>
-                        &ldquo;{item.chosenHook}&rdquo;
-                      </Text>
-                    )}
-                    <View style={styles.metaRow}>
-                      <Text style={styles.cardMeta}>{formatDate(item.publishedAt)}</Text>
-                      {item.publishedFromApp && (
-                        <View style={styles.appBadge}>
-                          <Text style={styles.appBadgeText}>via this app</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.statsRow}>
-                  <View style={styles.stat}>
-                    <Ionicons name="eye" size={14} color={colors.accent} />
-                    <Text style={styles.statValue}>{formatCount(item.viewCount)}</Text>
-                  </View>
-                  <View style={styles.stat}>
-                    <Ionicons name="heart" size={14} color={colors.accent} />
-                    <Text style={styles.statValue}>{formatCount(item.likeCount)}</Text>
-                  </View>
-                  <View style={styles.stat}>
-                    <Ionicons name="chatbubble" size={14} color={colors.accent} />
-                    <Text style={styles.statValue}>{formatCount(item.commentCount)}</Text>
-                  </View>
-                </View>
-              </Card>
-            </TouchableOpacity>
+      ) : mainTab === 'overview' ? (
+        <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}>
+          <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
+          {summary && (
+            <View style={styles.statTileRow}>
+              <StatTile icon="eye" label="Total views" value={formatCount(summary.totalViews)} gradient={gradients.ai} />
+              <StatTile icon="film" label="Videos" value={String(summary.totalVideos)} gradient={gradients.brand} />
+              <StatTile
+                icon="heart"
+                label="Engagement"
+                value={`${(summary.avgEngagementRate * 100).toFixed(1)}%`}
+                gradient={gradients.ai}
+              />
+            </View>
           )}
-        />
+          {breakdown && (
+            <View style={styles.statTileRow}>
+              <StatTile
+                icon="time"
+                label="Watch time"
+                value={formatMinutes(breakdown.watchTime.estimatedMinutesWatched)}
+                gradient={gradients.brand}
+              />
+              <StatTile
+                icon="hourglass"
+                label="Avg duration"
+                value={formatDuration(breakdown.watchTime.averageViewDurationSec) || '0:00'}
+                gradient={gradients.ai}
+              />
+              <StatTile
+                icon="person-add"
+                label="Net subs"
+                value={`${breakdown.subscribers.gained - breakdown.subscribers.lost >= 0 ? '+' : ''}${
+                  breakdown.subscribers.gained - breakdown.subscribers.lost
+                }`}
+                gradient={gradients.brand}
+              />
+            </View>
+          )}
+          {videos && <TopVideosChart videos={videos} />}
+          {breakdown && (
+            <BreakdownBarList
+              title="Traffic sources"
+              rows={breakdown.trafficSources}
+              emptyText="No traffic-source data for this period yet."
+            />
+          )}
+          {breakdown && (
+            <BreakdownBarList
+              title="Top countries"
+              rows={breakdown.topCountries}
+              emptyText="No geography data for this period yet."
+            />
+          )}
+          {breakdown && (
+            <BreakdownBarList
+              title="Device type"
+              rows={breakdown.deviceTypes}
+              emptyText="No device data for this period yet."
+            />
+          )}
+          {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
+          {insights.length > 0 && (
+            <Card style={styles.insightsCard}>
+              <Text style={styles.insightsTitle}>What your real numbers show</Text>
+              {insights.map((insight) => (
+                <View key={insight.label} style={styles.insightRow}>
+                  <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
+                  <Text style={styles.insightText}>{insight.detail}</Text>
+                </View>
+              ))}
+            </Card>
+          )}
+        </ScrollView>
+      ) : (
+        <ContentTabView videos={videos ?? []} playlists={playlists} loading={loading} onRefresh={load} />
       )}
     </View>
   );
@@ -489,6 +652,23 @@ const styles = StyleSheet.create({
   headerTextWrap: { flex: 1 },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
   subscriberCountText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  mainTabRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  mainTabButton: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  mainTabButtonActive: { backgroundColor: colors.accentSurface, borderColor: colors.accent },
+  mainTabText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  mainTabTextActive: { color: colors.accent },
+  contentTabWrap: { flex: 1 },
+  subTabRow: { flexDirection: 'row', gap: 6, marginBottom: spacing.sm },
+  subTabChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  subTabChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  subTabText: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+  subTabTextActive: { color: colors.onAccent },
+  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
+  sortLabel: { color: colors.textMuted, fontSize: 11 },
+  sortChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm, backgroundColor: colors.surface },
+  sortChipActive: { backgroundColor: colors.accentSurface },
+  sortChipText: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+  sortChipTextActive: { color: colors.accent },
   trendCard: { marginBottom: spacing.md, gap: spacing.sm },
   trendHeadlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   trendHeadlineValue: { color: colors.textPrimary, fontSize: 28, fontWeight: '800' },
@@ -540,6 +720,19 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   durationPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  liveBadge: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    backgroundColor: colors.textMuted,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  liveBadgeLive: { backgroundColor: colors.danger },
+  liveBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  privacyBadge: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  privacyBadgeText: { color: colors.textSecondary, fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   cardBody: { flex: 1, justifyContent: 'center' },
   cardTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   cardHook: { color: colors.textSecondary, fontSize: 12, marginTop: 2, fontStyle: 'italic' },

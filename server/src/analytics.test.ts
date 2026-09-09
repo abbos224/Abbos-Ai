@@ -85,6 +85,9 @@ function video(overrides: Partial<ChannelVideo>): ChannelVideo {
     likeCount: overrides.likeCount ?? 0,
     commentCount: overrides.commentCount ?? 0,
     url: `https://www.youtube.com/watch?v=${overrides.videoId ?? 'v1'}`,
+    privacyStatus: 'public',
+    liveBroadcastContent: 'none',
+    isShort: (overrides.durationSec ?? 90) <= 180,
     ...overrides,
   };
 }

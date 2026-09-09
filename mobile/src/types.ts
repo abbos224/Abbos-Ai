@@ -106,6 +106,12 @@ export type CalendarEntry = {
   outputFile?: string;
 };
 
+export type PrivacyStatusValue = 'public' | 'unlisted' | 'private';
+
+// 'live'/'upcoming' come straight from YouTube's own snippet.liveBroadcastContent — the same
+// signal YouTube Studio's own Content > Live tab is built on.
+export type LiveBroadcastContent = 'none' | 'live' | 'upcoming';
+
 /** A real video on the connected YouTube channel — every video actually on the channel, not just
  * ones published from inside this app (topic/chosenHook/publishedFromApp are only set for the
  * ones that were). */
@@ -122,6 +128,21 @@ export type ChannelVideo = {
   topic?: string;
   chosenHook?: string;
   publishedFromApp: boolean;
+  privacyStatus: PrivacyStatusValue;
+  liveBroadcastContent: LiveBroadcastContent;
+  // Real duration-based heuristic (YouTube caps Shorts at 3 minutes) — see server's youtube.ts
+  // for why this, not a scrape-based check, is what backs this flag.
+  isShort: boolean;
+};
+
+/** A real playlist on the connected channel. */
+export type ChannelPlaylist = {
+  playlistId: string;
+  title: string;
+  thumbnailUrl: string;
+  itemCount: number;
+  privacyStatus: PrivacyStatusValue;
+  url: string;
 };
 
 /** A real, data-grounded observation about the channel's actual videos (see server's
@@ -160,6 +181,7 @@ export type ChannelBreakdown = {
 
 export type YoutubeAnalytics = {
   videos: ChannelVideo[];
+  playlists: ChannelPlaylist[];
   insights: ChannelInsight[];
   summary: ChannelSummary;
   // null when the connected account hasn't granted the yt-analytics.readonly scope yet (accounts
