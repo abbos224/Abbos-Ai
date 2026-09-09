@@ -37,7 +37,7 @@ import {
 } from './auth.js';
 import * as emailService from './email.js';
 import { requireAuth } from './authMiddleware.js';
-import { createIdeaJob, getIdeaJob, listIdeaJobs, type IdeaJob } from './ideaStore.js';
+import { createIdeaJob, getIdeaJob, listIdeaJobs, ideaJobItemCount, type IdeaJob, type IdeaJobMode } from './ideaStore.js';
 import { processIdeaJob } from './ideaPipeline.js';
 import { getImageJob, listImageJobs, countImageJobs, createImageJobIfUnderLimit, type ImageJob } from './imageStore.js';
 import { processImageJob } from './imagePipeline.js';
@@ -157,9 +157,14 @@ app.get('/jobs/:id', requireAuth, async (req, res) => {
 
 const MAX_TOPIC_LENGTH = 200;
 
+const IDEA_JOB_MODES: IdeaJobMode[] = ['topics', 'script', 'contentPlan', 'shotList', 'targeting'];
+// Real, fixed set matching what generateContentPlan's prompt is actually written/token-budgeted
+// for — not an arbitrary user-typed number.
+const CONTENT_PLAN_DAY_OPTIONS = [7, 14, 30];
+
 app.post('/ideas', requireAuth, async (req, res) => {
   const userId = req.userId!;
-  const { topic } = req.body as { topic?: string };
+  const { topic, mode, days } = req.body as { topic?: string; mode?: string; days?: number };
   const trimmed = topic?.trim();
   if (!trimmed) {
     res.status(400).json({ error: 'Missing "topic" in request body' });
@@ -169,18 +174,29 @@ app.post('/ideas', requireAuth, async (req, res) => {
     res.status(400).json({ error: `"topic" must be ${MAX_TOPIC_LENGTH} characters or fewer` });
     return;
   }
+  const resolvedMode: IdeaJobMode = mode && IDEA_JOB_MODES.includes(mode as IdeaJobMode) ? (mode as IdeaJobMode) : 'topics';
+  if (resolvedMode === 'contentPlan' && days !== undefined && !CONTENT_PLAN_DAY_OPTIONS.includes(days)) {
+    res.status(400).json({ error: `"days" must be one of ${CONTENT_PLAN_DAY_OPTIONS.join(', ')}` });
+    return;
+  }
+  const resolvedDays = resolvedMode === 'contentPlan' ? (days ?? 7) : undefined;
 
   const ideaJobId = uuid();
   const ideaJob: IdeaJob = {
     id: ideaJobId,
     topic: trimmed,
+    mode: resolvedMode,
     status: 'generating',
     createdAt: new Date().toISOString(),
     ideas: [],
+    scripts: [],
+    contentPlan: [],
+    shotList: null,
+    targeting: null,
   };
   await createIdeaJob(userId, ideaJob);
 
-  processIdeaJob(userId, ideaJobId, trimmed).catch((err) => {
+  processIdeaJob(userId, ideaJobId, trimmed, resolvedMode, resolvedDays).catch((err) => {
     console.error(`Idea job ${ideaJobId} crashed:`, err);
   });
 
@@ -193,9 +209,10 @@ app.get('/ideas', requireAuth, async (req, res) => {
     ideaJobs.map((job) => ({
       id: job.id,
       topic: job.topic,
+      mode: job.mode,
       status: job.status,
       createdAt: job.createdAt,
-      ideaCount: job.ideas.length,
+      ideaCount: ideaJobItemCount(job),
     }))
   );
 });

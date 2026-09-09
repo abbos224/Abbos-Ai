@@ -10,6 +10,7 @@ import type {
   CaptionWord,
   IdeaJob,
   IdeaJobSummary,
+  IdeaJobMode,
   ImageJob,
   ImageJobSummary,
   ImageQuota,
@@ -74,11 +75,11 @@ export async function getJob(jobId: string): Promise<Job> {
   return res.json();
 }
 
-export async function generateIdeas(topic: string): Promise<{ ideaJobId: string }> {
+export async function generateIdeas(topic: string, mode?: IdeaJobMode, days?: number): Promise<{ ideaJobId: string }> {
   const res = await authFetch('/ideas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic }),
+    body: JSON.stringify({ topic, mode, days }),
   });
   if (!res.ok) {
     throw new Error(`Failed to start idea generation: ${res.status} ${await res.text()}`);
