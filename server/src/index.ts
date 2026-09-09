@@ -849,6 +849,8 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       topCountries: { label: string; views: number }[];
       watchTime: { estimatedMinutesWatched: number; averageViewDurationSec: number };
       subscribers: { gained: number; lost: number };
+      deviceTypes: { label: string; views: number }[];
+      subscribedStatus: { subscribedViews: number; unsubscribedViews: number };
     } | null = null;
     try {
       // 90 days, not YouTube Studio's own 28-day default — a real, honest choice given this kind
@@ -857,18 +859,31 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       // though it has real, recent-ish activity just outside that window. Still just a wider real
       // window, not cherry-picked data — every number is exactly what YouTube reports for it.
       const DAYS = 90;
-      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers] = await Promise.all([
-        youtube.getViewsTrend(userId, DAYS),
-        youtube.getTrafficSources(userId, DAYS),
-        youtube.getTopCountries(userId, DAYS),
-        youtube.getWatchTimeSummary(userId, DAYS),
-        youtube.getSubscriberChange(userId, DAYS),
-      ]);
+      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus] =
+        await Promise.all([
+          youtube.getViewsTrend(userId, DAYS),
+          youtube.getTrafficSources(userId, DAYS),
+          youtube.getTopCountries(userId, DAYS),
+          youtube.getWatchTimeSummary(userId, DAYS),
+          youtube.getSubscriberChange(userId, DAYS),
+          youtube.getDeviceBreakdown(userId, DAYS),
+          youtube.getSubscribedStatusBreakdown(userId, DAYS),
+        ]);
       trend = fetchedTrend;
       trendChange = computeTrendChange(fetchedTrend);
-      breakdown = { trafficSources, topCountries, watchTime, subscribers };
+      breakdown = { trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus };
     } catch (err) {
       console.log(`[analytics] YouTube Analytics data unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Real lifetime subscriber count via the Data API — works even without the yt-analytics
+    // scope, so fetched outside the try/catch above. null means the channel owner has hidden this
+    // count publicly (a real YouTube setting), not a fetch failure.
+    let subscriberCount: number | null = null;
+    try {
+      subscriberCount = await youtube.getChannelSubscriberCount(userId);
+    } catch (err) {
+      console.log(`[analytics] Subscriber count unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
     }
 
     res.json({
@@ -878,6 +893,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       trend,
       trendChange,
       breakdown,
+      subscriberCount,
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

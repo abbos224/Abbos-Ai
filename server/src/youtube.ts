@@ -348,6 +348,66 @@ export async function getSubscriberChange(userId: string, days = 28): Promise<Su
   return { gained: Number(gained), lost: Number(lost) };
 }
 
+// Real, documented deviceType enum values (developers.google.com/youtube/analytics/dimensions),
+// mapped to the exact labels YouTube Studio's own "Audience > Device type" report uses.
+const DEVICE_LABELS: Record<string, string> = {
+  DESKTOP: 'Desktop',
+  MOBILE: 'Mobile',
+  TABLET: 'Tablet',
+  TV: 'TV',
+  GAME_CONSOLE: 'Game console',
+  AUTOMOTIVE: 'Automotive',
+  WEARABLE: 'Wearable',
+  UNKNOWN_PLATFORM: 'Unknown',
+};
+
+/** Real "what device viewers watched on" breakdown — matches YouTube Studio's Audience > Device
+ * type report. */
+export async function getDeviceBreakdown(userId: string, days = 28): Promise<MetricBreakdownRow[]> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, {
+    dimensions: 'deviceType',
+    sortByMetric: 'views',
+  });
+  return rows
+    .map(([code, views]) => ({ label: DEVICE_LABELS[String(code)] ?? String(code), views: Number(views) }))
+    .sort((a, b) => b.views - a.views);
+}
+
+export type SubscribedStatusBreakdown = { subscribedViews: number; unsubscribedViews: number };
+
+/** Real "views from subscribers vs. non-subscribers" split — matches YouTube Studio's Audience >
+ * "Views by subscription status" chart. subscribedStatus is a real, documented dimension
+ * (SUBSCRIBED / UNSUBSCRIBED). */
+export async function getSubscribedStatusBreakdown(userId: string, days = 28): Promise<SubscribedStatusBreakdown> {
+  const { rows } = await queryAnalytics(userId, ['views'], days, { dimensions: 'subscribedStatus' });
+  let subscribedViews = 0;
+  let unsubscribedViews = 0;
+  for (const [status, views] of rows) {
+    if (String(status) === 'SUBSCRIBED') subscribedViews = Number(views);
+    else if (String(status) === 'UNSUBSCRIBED') unsubscribedViews = Number(views);
+  }
+  return { subscribedViews, unsubscribedViews };
+}
+
+/** Real total subscriber count (a single lifetime number, distinct from getSubscriberChange's
+ * gained/lost-over-a-window) — Data API's channels.list, so it works even for a connection that
+ * predates the yt-analytics.readonly scope. YouTube lets a channel hide this count publicly; when
+ * hidden, the API returns hiddenSubscriberCount: true and no usable number — surfaced as `null`,
+ * a real "hidden by the channel owner" state rather than a fake 0. */
+export async function getChannelSubscriberCount(userId: string): Promise<number | null> {
+  const accessToken = await getAccessToken(userId);
+  const res = await fetch('https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch subscriber count: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as {
+    items?: Array<{ statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean } }>;
+  };
+  const stats = data.items?.[0]?.statistics;
+  if (!stats || stats.hiddenSubscriberCount) return null;
+  return Number(stats.subscriberCount ?? 0);
+}
+
 export type ChannelVideo = {
   videoId: string;
   title: string;

@@ -13,6 +13,7 @@ import type {
   TrendChange,
   ChannelBreakdown,
   BreakdownRow,
+  SubscribedStatusBreakdown,
   RootStackParamList,
 } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
@@ -144,6 +145,42 @@ function formatMinutes(minutes: number): string {
   return `${Math.round(minutes)}m`;
 }
 
+/** A real two-segment stacked bar (subscribed vs. non-subscribed views) — matches YouTube
+ * Studio's Audience "Views by subscription status" chart, just as a bar instead of a pie (no
+ * charting library in this app). Honest empty state when the window has zero views at all. */
+function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }) {
+  const total = status.subscribedViews + status.unsubscribedViews;
+  return (
+    <Card style={styles.chartCard}>
+      <Text style={styles.insightsTitle}>Views by subscription status</Text>
+      {total === 0 ? (
+        <Text style={styles.breakdownEmptyText}>No views to break down for this period yet.</Text>
+      ) : (
+        <>
+          <View style={styles.subStatusTrack}>
+            <View style={[styles.subStatusSegment, { flex: status.subscribedViews, backgroundColor: colors.accent }]} />
+            <View style={[styles.subStatusSegment, { flex: status.unsubscribedViews, backgroundColor: colors.accentAI }]} />
+          </View>
+          <View style={styles.subStatusLegendRow}>
+            <View style={styles.subStatusLegendItem}>
+              <View style={[styles.subStatusDot, { backgroundColor: colors.accent }]} />
+              <Text style={styles.subStatusLegendText}>
+                Subscribers · {formatCount(status.subscribedViews)} ({((status.subscribedViews / total) * 100).toFixed(0)}%)
+              </Text>
+            </View>
+            <View style={styles.subStatusLegendItem}>
+              <View style={[styles.subStatusDot, { backgroundColor: colors.accentAI }]} />
+              <Text style={styles.subStatusLegendText}>
+                Non-subscribers · {formatCount(status.unsubscribedViews)} ({((status.unsubscribedViews / total) * 100).toFixed(0)}%)
+              </Text>
+            </View>
+          </View>
+        </>
+      )}
+    </Card>
+  );
+}
+
 const SPARKLINE_HEIGHT = 56;
 
 /**
@@ -229,6 +266,7 @@ export default function AnalyticsScreen({}: Props) {
   const [trend, setTrend] = useState<DailyViews[] | null>(null);
   const [trendChange, setTrendChange] = useState<TrendChange | null>(null);
   const [breakdown, setBreakdown] = useState<ChannelBreakdown | null>(null);
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -247,6 +285,7 @@ export default function AnalyticsScreen({}: Props) {
         setTrend(data.trend);
         setTrendChange(data.trendChange);
         setBreakdown(data.breakdown);
+        setSubscriberCount(data.subscriberCount);
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -290,7 +329,12 @@ export default function AnalyticsScreen({}: Props) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <IconBadge icon="stats-chart" color={colors.accent} size={40} />
-        <Text style={styles.title}>YouTube Performance</Text>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.title}>YouTube Performance</Text>
+          {subscriberCount !== null && (
+            <Text style={styles.subscriberCountText}>{formatCount(subscriberCount)} subscribers</Text>
+          )}
+        </View>
       </View>
 
       {videos && videos.length === 0 ? (
@@ -359,6 +403,14 @@ export default function AnalyticsScreen({}: Props) {
                   emptyText="No geography data for this period yet."
                 />
               )}
+              {breakdown && (
+                <BreakdownBarList
+                  title="Device type"
+                  rows={breakdown.deviceTypes}
+                  emptyText="No device data for this period yet."
+                />
+              )}
+              {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
               {insights.length > 0 && (
                 <Card style={styles.insightsCard}>
                   <Text style={styles.insightsTitle}>What your real numbers show</Text>
@@ -434,7 +486,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
-  title: { flex: 1, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  headerTextWrap: { flex: 1 },
+  title: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  subscriberCountText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   trendCard: { marginBottom: spacing.md, gap: spacing.sm },
   trendHeadlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   trendHeadlineValue: { color: colors.textPrimary, fontSize: 28, fontWeight: '800' },
@@ -459,6 +513,12 @@ const styles = StyleSheet.create({
   chartBarFill: { height: '100%', borderRadius: radius.sm },
   chartRowValue: { width: 44, textAlign: 'right', color: colors.textPrimary, fontSize: 12, fontWeight: '700' },
   breakdownEmptyText: { color: colors.textSecondary, fontSize: 12 },
+  subStatusTrack: { flexDirection: 'row', height: 16, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.background },
+  subStatusSegment: { height: '100%' },
+  subStatusLegendRow: { gap: 6 },
+  subStatusLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  subStatusDot: { width: 8, height: 8, borderRadius: 4 },
+  subStatusLegendText: { color: colors.textSecondary, fontSize: 12 },
   insightsCard: { marginBottom: spacing.md, gap: spacing.sm },
   insightsTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

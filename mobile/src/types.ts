@@ -145,11 +145,17 @@ export type WatchTimeSummary = { estimatedMinutesWatched: number; averageViewDur
 
 export type SubscriberChange = { gained: number; lost: number };
 
+/** Real "views from subscribers vs. non-subscribers" split — YouTube's subscribedStatus
+ * dimension. */
+export type SubscribedStatusBreakdown = { subscribedViews: number; unsubscribedViews: number };
+
 export type ChannelBreakdown = {
   trafficSources: BreakdownRow[];
   topCountries: BreakdownRow[];
   watchTime: WatchTimeSummary;
   subscribers: SubscriberChange;
+  deviceTypes: BreakdownRow[];
+  subscribedStatus: SubscribedStatusBreakdown;
 };
 
 export type YoutubeAnalytics = {
@@ -161,6 +167,9 @@ export type YoutubeAnalytics = {
   trend: DailyViews[] | null;
   trendChange: TrendChange | null;
   breakdown: ChannelBreakdown | null;
+  // Real lifetime subscriber count (Data API, works even without the analytics scope). null means
+  // the channel owner has hidden it publicly — a real YouTube setting, not a failed fetch.
+  subscriberCount: number | null;
 };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
