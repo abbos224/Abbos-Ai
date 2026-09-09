@@ -1,14 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking, Image } from 'react-native';
+import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { AnalyticsEntry, RootStackParamList } from '../types';
+import type { ChannelVideo, ChannelInsight, RootStackParamList } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
-import { colors, spacing } from '../theme';
+import { colors, spacing, radius } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Analytics'>;
 
@@ -18,9 +19,30 @@ function formatCount(n: number): string {
   return String(n);
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return '';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// One icon per real insight label (server's computeChannelInsights) — purely cosmetic, matches
+// this app's established "icon + short label + detail" pattern for informational cards elsewhere.
+const INSIGHT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  'Top performer': 'trophy',
+  Engagement: 'heart',
+  Format: 'film',
+};
+
 export default function AnalyticsScreen({}: Props) {
   const [connected, setConnected] = useState<boolean | null>(null);
-  const [entries, setEntries] = useState<AnalyticsEntry[] | null>(null);
+  const [videos, setVideos] = useState<ChannelVideo[] | null>(null);
+  const [insights, setInsights] = useState<ChannelInsight[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(() => {
@@ -29,11 +51,12 @@ export default function AnalyticsScreen({}: Props) {
       .then(async (status) => {
         setConnected(status.connected);
         if (!status.connected) {
-          setEntries([]);
+          setVideos([]);
           return;
         }
         const data = await getYoutubeAnalytics();
-        setEntries([...data].sort((a, b) => b.viewCount - a.viewCount));
+        setVideos(data.videos);
+        setInsights(data.insights);
       })
       .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
@@ -43,14 +66,15 @@ export default function AnalyticsScreen({}: Props) {
 
   async function handleConnectYoutube() {
     try {
-      const url = await youtubeConnectUrl();
+      const returnTo = ExpoLinking.createURL('/oauth-callback');
+      const url = await youtubeConnectUrl(returnTo);
       await Linking.openURL(url);
     } catch (err) {
       Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));
     }
   }
 
-  if (loading && entries === null) {
+  if (loading && videos === null) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.accent} />
@@ -64,7 +88,7 @@ export default function AnalyticsScreen({}: Props) {
         <EmptyState
           icon="logo-youtube"
           title="YouTube not connected"
-          body="Connect your channel to see real view/like/comment stats for everything you publish."
+          body="Connect your channel to see real view/like/comment stats for everything on it."
           ctaLabel="Connect YouTube"
           onPressCta={handleConnectYoutube}
         />
@@ -79,27 +103,56 @@ export default function AnalyticsScreen({}: Props) {
         <Text style={styles.title}>YouTube Performance</Text>
       </View>
 
-      {entries && entries.length === 0 ? (
+      {videos && videos.length === 0 ? (
         <EmptyState
           icon="trending-up"
-          title="Nothing published yet"
-          body="Publish a clip from its Preview screen and its stats will show up here."
+          title="Nothing uploaded yet"
+          body="Upload something to your channel and its real stats will show up here."
         />
       ) : (
         <FlatList
-          data={entries ?? []}
-          keyExtractor={(item) => item.clipId}
+          data={videos ?? []}
+          keyExtractor={(item) => item.videoId}
           refreshing={loading}
           onRefresh={load}
+          ListHeaderComponent={
+            insights.length > 0 ? (
+              <Card style={styles.insightsCard}>
+                <Text style={styles.insightsTitle}>What your real numbers show</Text>
+                {insights.map((insight) => (
+                  <View key={insight.label} style={styles.insightRow}>
+                    <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
+                    <Text style={styles.insightText}>{insight.detail}</Text>
+                  </View>
+                ))}
+              </Card>
+            ) : null
+          }
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => Linking.openURL(item.url)} activeOpacity={0.85}>
               <Card style={styles.card}>
-                <Text style={styles.cardTopic} numberOfLines={1}>
-                  {item.topic}
-                </Text>
-                <Text style={styles.cardHook} numberOfLines={1}>
-                  &ldquo;{item.chosenHook}&rdquo;
-                </Text>
+                <View style={styles.row}>
+                  {item.thumbnailUrl ? (
+                    <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.thumbnail} />
+                  )}
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    {item.publishedFromApp && item.topic && (
+                      <Text style={styles.cardHook} numberOfLines={1}>
+                        &ldquo;{item.chosenHook}&rdquo;
+                      </Text>
+                    )}
+                    <Text style={styles.cardMeta}>
+                      {formatDate(item.publishedAt)}
+                      {item.durationSec > 0 ? ` · ${formatDuration(item.durationSec)}` : ''}
+                      {item.publishedFromApp ? ' · via this app' : ''}
+                    </Text>
+                  </View>
+                </View>
                 <View style={styles.statsRow}>
                   <View style={styles.stat}>
                     <Ionicons name="eye" size={14} color={colors.accent} />
@@ -128,9 +181,17 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   title: { flex: 1, color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  insightsCard: { marginBottom: spacing.md, gap: spacing.sm },
+  insightsTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  insightText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   card: { marginBottom: spacing.sm },
-  cardTopic: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  cardHook: { color: colors.textSecondary, fontSize: 13, marginTop: 4, fontStyle: 'italic' },
+  row: { flexDirection: 'row', gap: spacing.sm },
+  thumbnail: { width: 96, height: 64, borderRadius: radius.sm, backgroundColor: colors.surface },
+  cardBody: { flex: 1, justifyContent: 'center' },
+  cardTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  cardHook: { color: colors.textSecondary, fontSize: 12, marginTop: 2, fontStyle: 'italic' },
+  cardMeta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
   statsRow: {
     flexDirection: 'row',
     gap: spacing.lg,

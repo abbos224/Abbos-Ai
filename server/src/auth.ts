@@ -103,18 +103,24 @@ export function verifyToken(token: string): string {
 const OAUTH_STATE_TTL = '10m';
 const OAUTH_STATE_PURPOSE = 'youtube-oauth';
 
-export function signOAuthState(userId: string): string {
+// `returnTo` is optional: the mobile app's own exp:// deep link (Linking.createURL('/oauth-callback')),
+// computed client-side once and threaded straight through Google's opaque `state` param — same
+// idea as signGoogleState's returnTo below, just alongside a real userId here since YouTube
+// "connect" always has an existing logged-in account. Lets the callback auto-redirect the browser
+// back into the app when the mobile app supplied one; older/other callers that omit it still work
+// exactly as before (the callback just falls back to its plain "close this tab" message).
+export function signOAuthState(userId: string, returnTo?: string): string {
   if (!env.jwtSecret) throw new Error('JWT_SECRET is not set. Add it to server/.env');
-  return jwt.sign({ sub: userId, purpose: OAUTH_STATE_PURPOSE }, env.jwtSecret, { expiresIn: OAUTH_STATE_TTL });
+  return jwt.sign({ sub: userId, purpose: OAUTH_STATE_PURPOSE, returnTo }, env.jwtSecret, { expiresIn: OAUTH_STATE_TTL });
 }
 
-export function verifyOAuthState(token: string): string {
+export function verifyOAuthState(token: string): { userId: string; returnTo?: string } {
   if (!env.jwtSecret) throw new Error('JWT_SECRET is not set. Add it to server/.env');
-  const decoded = jwt.verify(token, env.jwtSecret) as jwt.JwtPayload;
+  const decoded = jwt.verify(token, env.jwtSecret) as jwt.JwtPayload & { returnTo?: string };
   if (typeof decoded.sub !== 'string' || decoded.purpose !== OAUTH_STATE_PURPOSE) {
     throw new AuthError('Invalid or expired OAuth state.');
   }
-  return decoded.sub;
+  return { userId: decoded.sub, returnTo: typeof decoded.returnTo === 'string' ? decoded.returnTo : undefined };
 }
 
 // Same shape/purpose as signOAuthState/verifyOAuthState above, but for the opposite case: Google

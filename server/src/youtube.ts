@@ -184,6 +184,91 @@ export async function uploadVideo(
   return { videoId: video.id, url: `https://www.youtube.com/watch?v=${video.id}` };
 }
 
+/** Parses an ISO 8601 duration ("PT1M30S", "PT45S", "PT2H5M") into whole seconds. Pure and
+ * unit-tested — YouTube's Data API returns video length in exactly this format, never plain
+ * seconds. */
+export function parseIsoDuration(duration: string): number {
+  const match = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!match) return 0;
+  const [, hours, minutes, seconds] = match;
+  return (Number(hours ?? 0) * 3600) + (Number(minutes ?? 0) * 60) + Number(seconds ?? 0);
+}
+
+export type ChannelVideo = {
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  publishedAt: string;
+  durationSec: number;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  url: string;
+};
+
+/**
+ * Fetches the connected channel's real uploaded videos directly from YouTube — not just the ones
+ * published from inside this app (see analytics.ts's getPublishedClips for that narrower,
+ * app-only view). Most-recent-50 for v1 (one playlistItems page): channels.list resolves the
+ * account's "uploads" playlist, playlistItems.list lists what's actually on it, then videos.list
+ * (reusing the same batching shape as getVideoStats) pulls real title/thumbnail/duration/stats for
+ * each. Returns [] (not an error) if the channel genuinely has zero uploads.
+ */
+export async function getChannelVideos(userId: string, maxResults = 50): Promise<ChannelVideo[]> {
+  const accessToken = await getAccessToken(userId);
+
+  const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!channelRes.ok) {
+    throw new Error(`Failed to look up your channel: ${channelRes.status} ${await channelRes.text()}`);
+  }
+  const channelData = (await channelRes.json()) as {
+    items?: Array<{ contentDetails?: { relatedPlaylists?: { uploads?: string } } }>;
+  };
+  const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsPlaylistId) return [];
+
+  const itemsRes = await fetch(
+    `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${Math.min(maxResults, 50)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!itemsRes.ok) {
+    throw new Error(`Failed to list your uploads: ${itemsRes.status} ${await itemsRes.text()}`);
+  }
+  const itemsData = (await itemsRes.json()) as { items?: Array<{ contentDetails?: { videoId?: string } }> };
+  const videoIds = (itemsData.items ?? []).map((item) => item.contentDetails?.videoId).filter((id): id is string => Boolean(id));
+  if (videoIds.length === 0) return [];
+
+  const detailsRes = await fetch(
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!detailsRes.ok) {
+    throw new Error(`Failed to fetch your videos' details: ${detailsRes.status} ${await detailsRes.text()}`);
+  }
+  const detailsData = (await detailsRes.json()) as {
+    items?: Array<{
+      id: string;
+      snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+      contentDetails?: { duration?: string };
+    }>;
+  };
+
+  return (detailsData.items ?? []).map((item) => ({
+    videoId: item.id,
+    title: item.snippet?.title ?? '(untitled)',
+    thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+    publishedAt: item.snippet?.publishedAt ?? '',
+    durationSec: parseIsoDuration(item.contentDetails?.duration ?? 'PT0S'),
+    viewCount: Number(item.statistics?.viewCount ?? 0),
+    likeCount: Number(item.statistics?.likeCount ?? 0),
+    commentCount: Number(item.statistics?.commentCount ?? 0),
+    url: `https://www.youtube.com/watch?v=${item.id}`,
+  }));
+}
+
 export type VideoStats = { videoId: string; viewCount: number; likeCount: number; commentCount: number };
 
 /**

@@ -106,16 +106,29 @@ export type CalendarEntry = {
   outputFile?: string;
 };
 
-export type AnalyticsEntry = {
-  jobId: string;
-  clipId: string;
-  topic: string;
-  chosenHook: string;
-  url: string;
+/** A real video on the connected YouTube channel — every video actually on the channel, not just
+ * ones published from inside this app (topic/chosenHook/publishedFromApp are only set for the
+ * ones that were). */
+export type ChannelVideo = {
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  publishedAt: string;
+  durationSec: number;
   viewCount: number;
   likeCount: number;
   commentCount: number;
+  url: string;
+  topic?: string;
+  chosenHook?: string;
+  publishedFromApp: boolean;
 };
+
+/** A real, data-grounded observation about the channel's actual videos (see server's
+ * computeChannelInsights) — never a generic tip unrelated to this channel's own numbers. */
+export type ChannelInsight = { label: string; detail: string };
+
+export type YoutubeAnalytics = { videos: ChannelVideo[]; insights: ChannelInsight[] };
 
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 

@@ -17,7 +17,7 @@ import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
 import * as google from './google.js';
-import { getPublishedClips } from './analytics.js';
+import { getPublishedClips, computeChannelInsights } from './analytics.js';
 import { runMigrations } from './db.js';
 import {
   registerUser,
@@ -696,7 +696,8 @@ app.get('/youtube/status', requireAuth, async (req, res) => {
 // unchanged on the callback, which is how the callback recovers which account to attach the
 // connection to without any server-side session storage for the handshake.
 app.get('/oauth/youtube/connect-state', requireAuth, (req, res) => {
-  res.json({ state: signOAuthState(req.userId!) });
+  const { returnTo } = req.query as { returnTo?: string };
+  res.json({ state: signOAuthState(req.userId!, returnTo) });
 });
 
 app.get('/oauth/youtube/start', (req, res) => {
@@ -730,8 +731,9 @@ app.get('/oauth/youtube/callback', async (req, res) => {
   }
 
   let userId: string;
+  let returnTo: string | undefined;
   try {
-    userId = verifyOAuthState(state);
+    ({ userId, returnTo } = verifyOAuthState(state));
   } catch {
     res.status(400).send('This connection request has expired — go back to the app and try connecting again.');
     return;
@@ -739,7 +741,19 @@ app.get('/oauth/youtube/callback', async (req, res) => {
 
   try {
     await youtube.completeAuth(userId, code);
-    res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>');
+    // No new session token to hand back (unlike Google sign-in) — the app already refreshes its
+    // YouTube connection status on every screen focus, so the deep link just needs to bring Expo
+    // Go back to the foreground. Auto-navigates via a script tag (most reliable on iOS Safari,
+    // which will show its own "Open in Expo Go?" prompt) with the same tap-through link as a
+    // fallback for anyone who dismissed that prompt or is on a browser that blocks the auto-nav.
+    const html = returnTo
+      ? `<html><body style="font-family:sans-serif;padding:40px">
+           <h2>YouTube connected ✅</h2>
+           <p>Returning you to the app… if nothing happens, <a href="${returnTo}">tap here</a>.</p>
+           <script>window.location.href = ${JSON.stringify(returnTo)};</script>
+         </body></html>`
+      : '<html><body style="font-family:sans-serif;padding:40px"><h2>YouTube connected ✅</h2><p>You can close this tab and go back to the app.</p></body></html>';
+    res.send(html);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).send(`YouTube connection failed: ${message}`);
@@ -803,31 +817,27 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
     return;
   }
 
-  const entries = getPublishedClips(await listAllJobs(userId));
-  if (entries.length === 0) {
-    res.json([]);
-    return;
-  }
-
   try {
-    const stats = await youtube.getVideoStats(userId, entries.map((e) => e.videoId));
-    const statsByVideoId = new Map(stats.map((s) => [s.videoId, s]));
+    // The channel's real uploaded videos (most-recent-50) — everything actually on the channel,
+    // not just clips this app itself published (see getPublishedClips below, used only to enrich
+    // matching videos with this app's own topic/hook, not to filter the list down to them).
+    const videos = await youtube.getChannelVideos(userId);
+    const appPublished = getPublishedClips(await listAllJobs(userId));
+    const appEntryByVideoId = new Map(appPublished.map((e) => [e.videoId, e]));
 
-    res.json(
-      entries.map((entry) => {
-        const s = statsByVideoId.get(entry.videoId);
+    const enrichedVideos = videos
+      .map((v) => {
+        const appEntry = appEntryByVideoId.get(v.videoId);
         return {
-          jobId: entry.jobId,
-          clipId: entry.clip.id,
-          topic: entry.clip.topic,
-          chosenHook: entry.clip.chosenHook,
-          url: entry.clip.publishedYoutubeUrl,
-          viewCount: s?.viewCount ?? 0,
-          likeCount: s?.likeCount ?? 0,
-          commentCount: s?.commentCount ?? 0,
+          ...v,
+          topic: appEntry?.clip.topic,
+          chosenHook: appEntry?.clip.chosenHook,
+          publishedFromApp: Boolean(appEntry),
         };
       })
-    );
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+    res.json({ videos: enrichedVideos, insights: computeChannelInsights(videos) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
