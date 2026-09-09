@@ -17,7 +17,7 @@ import { getScheduledClips, getUnscheduledDoneClips, suggestScheduleDates } from
 import { getActivePersona, isPersonaName, listPersonas, setActivePersona } from './personas.js';
 import * as youtube from './youtube.js';
 import * as google from './google.js';
-import { getPublishedClips } from './analytics.js';
+import { getPublishedClips, computeChannelInsights } from './analytics.js';
 import { runMigrations } from './db.js';
 import {
   registerUser,
@@ -817,31 +817,27 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
     return;
   }
 
-  const entries = getPublishedClips(await listAllJobs(userId));
-  if (entries.length === 0) {
-    res.json([]);
-    return;
-  }
-
   try {
-    const stats = await youtube.getVideoStats(userId, entries.map((e) => e.videoId));
-    const statsByVideoId = new Map(stats.map((s) => [s.videoId, s]));
+    // The channel's real uploaded videos (most-recent-50) — everything actually on the channel,
+    // not just clips this app itself published (see getPublishedClips below, used only to enrich
+    // matching videos with this app's own topic/hook, not to filter the list down to them).
+    const videos = await youtube.getChannelVideos(userId);
+    const appPublished = getPublishedClips(await listAllJobs(userId));
+    const appEntryByVideoId = new Map(appPublished.map((e) => [e.videoId, e]));
 
-    res.json(
-      entries.map((entry) => {
-        const s = statsByVideoId.get(entry.videoId);
+    const enrichedVideos = videos
+      .map((v) => {
+        const appEntry = appEntryByVideoId.get(v.videoId);
         return {
-          jobId: entry.jobId,
-          clipId: entry.clip.id,
-          topic: entry.clip.topic,
-          chosenHook: entry.clip.chosenHook,
-          url: entry.clip.publishedYoutubeUrl,
-          viewCount: s?.viewCount ?? 0,
-          likeCount: s?.likeCount ?? 0,
-          commentCount: s?.commentCount ?? 0,
+          ...v,
+          topic: appEntry?.clip.topic,
+          chosenHook: appEntry?.clip.chosenHook,
+          publishedFromApp: Boolean(appEntry),
         };
       })
-    );
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+    res.json({ videos: enrichedVideos, insights: computeChannelInsights(videos) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

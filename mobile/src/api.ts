@@ -1,7 +1,7 @@
 import { API_BASE_URL } from './config';
 import { getToken } from './authStorage';
 import type {
-  AnalyticsEntry,
+  YoutubeAnalytics,
   AuthUser,
   BrandKit,
   CalendarEntry,
@@ -394,7 +394,7 @@ export async function publishToYoutube(
   return res.json();
 }
 
-export async function getYoutubeAnalytics(): Promise<AnalyticsEntry[]> {
+export async function getYoutubeAnalytics(): Promise<YoutubeAnalytics> {
   const res = await authFetch('/analytics/youtube');
   if (!res.ok) {
     throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
