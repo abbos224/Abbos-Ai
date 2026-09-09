@@ -221,7 +221,7 @@ async function queryAnalytics(
   userId: string,
   metrics: string[],
   days: number,
-  options: { dimensions?: string; sortByMetric?: string; maxResults?: number } = {},
+  options: { dimensions?: string; sortByMetric?: string; maxResults?: number; filters?: string } = {},
 ): Promise<{ headers: string[]; rows: (string | number)[][] }> {
   const accessToken = await getAccessToken(userId);
   const { startDate, endDate } = isoDateRange(days);
@@ -234,6 +234,7 @@ async function queryAnalytics(
   if (options.dimensions) params.set('dimensions', options.dimensions);
   if (options.sortByMetric) params.set('sort', `-${options.sortByMetric}`);
   if (options.maxResults) params.set('maxResults', String(options.maxResults));
+  if (options.filters) params.set('filters', options.filters);
 
   const res = await fetch(`https://youtubeanalytics.googleapis.com/v2/reports?${params.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -631,4 +632,67 @@ export async function getChannelPlaylists(userId: string, maxResults = 25): Prom
     privacyStatus: (item.status?.privacyStatus as PrivacyStatusValue) ?? 'public',
     url: `https://www.youtube.com/playlist?list=${item.id}`,
   }));
+}
+
+async function getVideoPublishedAt(userId: string, videoId: string): Promise<string | null> {
+  const accessToken = await getAccessToken(userId);
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Failed to look up video: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as { items?: Array<{ snippet?: { publishedAt?: string } }> };
+  return data.items?.[0]?.snippet?.publishedAt ?? null;
+}
+
+export type RetentionPoint = { elapsedRatio: number; audienceWatchRatio: number; relativeRetentionPerformance: number };
+
+export type VideoAnalytics = {
+  trend: DailyViews[];
+  retentionCurve: RetentionPoint[];
+  trafficSources: MetricBreakdownRow[];
+};
+
+/** Real per-video analytics — matches YouTube Studio's own per-video detail page (tap a video →
+ * see its own trend/retention/traffic sources, not just the channel-wide numbers). Queried over
+ * the video's real full lifetime (from its real publishedAt to today, capped at 1000 days so a
+ * very old video doesn't balloon into an absurd payload) rather than a fixed recent window, since
+ * a video's own meaningful activity is very often concentrated right after it was published —
+ * exactly what the earlier 90-day-window channel query missed for a >90-day-old video.
+ * retentionCurve uses the real elapsedVideoTimeRatio/audienceWatchRatio/relativeRetentionPerformance
+ * dimension+metrics (verified against the real connected account) — the actual mechanism behind
+ * Studio's retention drop-off graph. trend is NOT zero-filled (unlike the channel-wide trend) —
+ * a video's activity is usually a handful of real days out of a potentially very long lifetime, so
+ * padding every day with a zero would mostly just be noise. */
+export async function getVideoAnalytics(userId: string, videoId: string): Promise<VideoAnalytics> {
+  const publishedAt = await getVideoPublishedAt(userId, videoId);
+  const daysSincePublish = publishedAt
+    ? Math.min(1000, Math.max(1, Math.ceil((Date.now() - new Date(publishedAt).getTime()) / 86_400_000) + 1))
+    : 90;
+
+  const [retentionResult, trendResult, trafficSourcesResult] = await Promise.all([
+    queryAnalytics(userId, ['audienceWatchRatio', 'relativeRetentionPerformance'], daysSincePublish, {
+      dimensions: 'elapsedVideoTimeRatio',
+      filters: `video==${videoId}`,
+    }),
+    queryAnalytics(userId, ['views'], daysSincePublish, { dimensions: 'day', filters: `video==${videoId}` }),
+    queryAnalytics(userId, ['views'], daysSincePublish, {
+      dimensions: 'insightTrafficSourceType',
+      filters: `video==${videoId}`,
+      sortByMetric: 'views',
+      maxResults: 8,
+    }),
+  ]);
+
+  return {
+    trend: trendResult.rows.map(([date, views]) => ({ date: String(date), views: Number(views) })),
+    retentionCurve: retentionResult.rows.map(([elapsedRatio, audienceWatchRatio, relativeRetentionPerformance]) => ({
+      elapsedRatio: Number(elapsedRatio),
+      audienceWatchRatio: Number(audienceWatchRatio),
+      relativeRetentionPerformance: Number(relativeRetentionPerformance),
+    })),
+    trafficSources: trafficSourcesResult.rows.map(([code, views]) => ({
+      label: TRAFFIC_SOURCE_LABELS[String(code)] ?? String(code),
+      views: Number(views),
+    })),
+  };
 }

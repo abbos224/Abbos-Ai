@@ -16,6 +16,7 @@ import BrandKitScreen from './src/screens/BrandKitScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import PersonasScreen from './src/screens/PersonasScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import VideoAnalyticsScreen from './src/screens/VideoAnalyticsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import ProjectsScreen from './src/screens/ProjectsScreen';
@@ -86,6 +87,7 @@ function AnalyticsStack() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="VideoAnalytics" component={VideoAnalyticsScreen} options={{ title: 'Video Analytics' }} />
     </Stack.Navigator>
   );
 }

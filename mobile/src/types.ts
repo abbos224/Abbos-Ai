@@ -207,6 +207,22 @@ export type YoutubeAnalytics = {
   subscriberCount: number | null;
 };
 
+/** One point on a real per-video audience-retention curve (YouTube's own elapsedVideoTimeRatio
+ * dimension + audienceWatchRatio/relativeRetentionPerformance metrics) — elapsedRatio is 0-1
+ * (percent of the video's own length), relativeRetentionPerformance is 0-1 vs. similar-length
+ * YouTube videos (this is what Studio's retention graph actually plots), audienceWatchRatio can
+ * exceed 1 where a moment is commonly rewatched. */
+export type RetentionPoint = { elapsedRatio: number; audienceWatchRatio: number; relativeRetentionPerformance: number };
+
+/** Real per-video analytics — matches YouTube Studio's own per-video detail page. Queried over the
+ * video's real full lifetime, not a fixed recent window, so trend is NOT zero-filled (a video's
+ * real activity is usually a handful of days within a potentially long lifetime). */
+export type VideoAnalytics = {
+  trend: DailyViews[];
+  retentionCurve: RetentionPoint[];
+  trafficSources: BreakdownRow[];
+};
+
 export type JobStatus = 'uploaded' | 'transcribing' | 'analyzing' | 'rendering' | 'done' | 'failed';
 
 export type Job = {
@@ -292,6 +308,7 @@ export type RootStackParamList = {
   Calendar: undefined;
   Personas: undefined;
   Analytics: undefined;
+  VideoAnalytics: { video: ChannelVideo };
   Login: undefined;
   SignUp: undefined;
   ForgotPassword: undefined;
