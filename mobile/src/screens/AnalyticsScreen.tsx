@@ -11,6 +11,7 @@ import type {
   ChannelInsight,
   ChannelSummary,
   DailyViews,
+  DailySubscriberChange,
   TrendChange,
   ChannelBreakdown,
   BreakdownRow,
@@ -70,6 +71,45 @@ function StatTile({
       <Text style={styles.statTileValue}>{value}</Text>
       <Text style={styles.statTileLabel}>{label}</Text>
     </LinearGradient>
+  );
+}
+
+/** A prominent "latest upload" callout — matches YouTube Studio's own Home dashboard spotlight
+ * card. `videos` is already sorted most-recent-first by the server, so this is simply its first
+ * real entry; renders nothing for a channel with zero uploads. */
+function LatestVideoSpotlight({ video }: { video: ChannelVideo | undefined }) {
+  if (!video) return null;
+  return (
+    <TouchableOpacity onPress={() => Linking.openURL(video.url)} activeOpacity={0.85}>
+      <Card style={styles.spotlightCard} variant="highlight">
+        <Text style={styles.spotlightLabel}>Latest upload</Text>
+        <View style={styles.row}>
+          <View style={styles.spotlightThumbnailWrap}>
+            {video.thumbnailUrl ? (
+              <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} resizeMode="cover" />
+            ) : (
+              <View style={styles.thumbnail} />
+            )}
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {video.title}
+            </Text>
+            <Text style={styles.cardMeta}>{formatDate(video.publishedAt)}</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.stat}>
+                <Ionicons name="eye" size={14} color={colors.accent} />
+                <Text style={styles.statValue}>{formatCount(video.viewCount)}</Text>
+              </View>
+              <View style={styles.stat}>
+                <Ionicons name="heart" size={14} color={colors.accent} />
+                <Text style={styles.statValue}>{formatCount(video.likeCount)}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 }
 
@@ -183,6 +223,39 @@ function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }
 }
 
 const SPARKLINE_HEIGHT = 56;
+
+/** Real day-by-day net subscriber change — matches YouTube Studio's Home "Channel growth" chart.
+ * The public API only reports gained/lost per day (no historical absolute-count time series), so
+ * this honestly shows net change per day (colored green/red by sign) rather than implying it's
+ * plotting an absolute subscriber-count history it doesn't actually have. */
+function SubscriberGrowthChart({ trend }: { trend: DailySubscriberChange[] | null }) {
+  if (!trend || trend.length === 0) return null;
+  const netTotal = trend.reduce((sum, d) => sum + d.netChange, 0);
+  const maxAbs = Math.max(...trend.map((d) => Math.abs(d.netChange)), 1);
+  return (
+    <Card style={styles.trendCard}>
+      <Text style={styles.insightsTitle}>Channel growth — last {trend.length} days</Text>
+      <Text style={[styles.trendHeadlineValue, { color: netTotal >= 0 ? colors.success : colors.danger }]}>
+        {netTotal >= 0 ? '+' : ''}
+        {netTotal}
+      </Text>
+      <View style={styles.sparklineRow}>
+        {trend.map((d) => (
+          <View
+            key={d.date}
+            style={[
+              styles.sparklineBar,
+              {
+                height: Math.max(4, (Math.abs(d.netChange) / maxAbs) * SPARKLINE_HEIGHT),
+                backgroundColor: d.netChange >= 0 ? colors.success : colors.danger,
+              },
+            ]}
+          />
+        ))}
+      </View>
+    </Card>
+  );
+}
 
 /**
  * The real headline "views over time" chart YouTube Studio's own dashboard is built around — a
@@ -471,6 +544,7 @@ export default function AnalyticsScreen({}: Props) {
   const [summary, setSummary] = useState<ChannelSummary | null>(null);
   const [trend, setTrend] = useState<DailyViews[] | null>(null);
   const [trendChange, setTrendChange] = useState<TrendChange | null>(null);
+  const [subscriberTrend, setSubscriberTrend] = useState<DailySubscriberChange[] | null>(null);
   const [breakdown, setBreakdown] = useState<ChannelBreakdown | null>(null);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -491,6 +565,7 @@ export default function AnalyticsScreen({}: Props) {
         setSummary(data.summary);
         setTrend(data.trend);
         setTrendChange(data.trendChange);
+        setSubscriberTrend(data.subscriberTrend);
         setBreakdown(data.breakdown);
         setSubscriberCount(data.subscriberCount);
       })
@@ -566,6 +641,7 @@ export default function AnalyticsScreen({}: Props) {
         />
       ) : mainTab === 'overview' ? (
         <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}>
+          <LatestVideoSpotlight video={videos?.[0]} />
           <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
           {summary && (
             <View style={styles.statTileRow}>
@@ -626,6 +702,7 @@ export default function AnalyticsScreen({}: Props) {
             />
           )}
           {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
+          <SubscriberGrowthChart trend={subscriberTrend} />
           {insights.length > 0 && (
             <Card style={styles.insightsCard}>
               <Text style={styles.insightsTitle}>What your real numbers show</Text>
@@ -686,6 +763,9 @@ const styles = StyleSheet.create({
   statTile: { flex: 1, borderRadius: radius.lg, padding: spacing.sm, gap: 2 },
   statTileValue: { color: colors.onAccent, fontSize: 20, fontWeight: '800', marginTop: 4 },
   statTileLabel: { color: colors.onAccent, fontSize: 11, opacity: 0.85 },
+  spotlightCard: { marginBottom: spacing.md, gap: spacing.sm },
+  spotlightLabel: { color: colors.accent, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  spotlightThumbnailWrap: { width: 128, height: 72, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.surface },
   chartCard: { marginBottom: spacing.md, gap: spacing.sm },
   chartRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chartRowTitle: { width: 90, color: colors.textSecondary, fontSize: 11 },

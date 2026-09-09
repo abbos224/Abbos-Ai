@@ -852,6 +852,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
     // reconnect for the real YouTube-Studio-style breakdown specifically.
     let trend: { date: string; views: number }[] | null = null;
     let trendChange: ReturnType<typeof computeTrendChange> | null = null;
+    let subscriberTrend: youtube.DailySubscriberChange[] | null = null;
     let breakdown: {
       trafficSources: { label: string; views: number }[];
       topCountries: { label: string; views: number }[];
@@ -867,7 +868,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       // though it has real, recent-ish activity just outside that window. Still just a wider real
       // window, not cherry-picked data — every number is exactly what YouTube reports for it.
       const DAYS = 90;
-      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus] =
+      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus, fetchedSubscriberTrend] =
         await Promise.all([
           youtube.getViewsTrend(userId, DAYS),
           youtube.getTrafficSources(userId, DAYS),
@@ -876,10 +877,12 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
           youtube.getSubscriberChange(userId, DAYS),
           youtube.getDeviceBreakdown(userId, DAYS),
           youtube.getSubscribedStatusBreakdown(userId, DAYS),
+          youtube.getSubscriberTrend(userId, DAYS),
         ]);
       trend = fetchedTrend;
       trendChange = computeTrendChange(fetchedTrend);
       breakdown = { trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus };
+      subscriberTrend = fetchedSubscriberTrend;
     } catch (err) {
       console.log(`[analytics] YouTube Analytics data unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
     }
@@ -901,6 +904,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       summary: computeChannelSummary(videos),
       trend,
       trendChange,
+      subscriberTrend,
       breakdown,
       subscriberCount,
     });
