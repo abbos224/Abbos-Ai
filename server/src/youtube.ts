@@ -404,6 +404,34 @@ export async function getSubscribedStatusBreakdown(userId: string, days = 28): P
   return { subscribedViews, unsubscribedViews };
 }
 
+const GENDER_LABELS: Record<string, string> = { male: 'Male', female: 'Female', user_specified: 'Other' };
+const AGE_GROUP_LABELS: Record<string, string> = {
+  'age13-17': '13–17',
+  'age18-24': '18–24',
+  'age25-34': '25–34',
+  'age35-44': '35–44',
+  'age45-54': '45–54',
+  'age55-64': '55–64',
+  'age65-': '65+',
+};
+
+export type DemographicRow = { label: string; percentage: number };
+
+/** Real age/gender viewer breakdown — matches YouTube Studio's Audience > "Age and gender"
+ * report. Real, documented dimensions (ageGroup, gender) + metric (viewerPercentage), verified
+ * against the real connected account. YouTube only reports this once a channel has enough
+ * logged-in-viewer data — a small/new channel legitimately gets back an empty array, a real
+ * "not enough data yet" state, not an error. */
+export async function getDemographics(userId: string, days = 28): Promise<DemographicRow[]> {
+  const { rows } = await queryAnalytics(userId, ['viewerPercentage'], days, { dimensions: 'ageGroup,gender' });
+  return rows
+    .map(([ageGroup, gender, percentage]) => ({
+      label: `${GENDER_LABELS[String(gender)] ?? String(gender)}, ${AGE_GROUP_LABELS[String(ageGroup)] ?? String(ageGroup)}`,
+      percentage: Number(percentage),
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
 /** Real total subscriber count (a single lifetime number, distinct from getSubscriberChange's
  * gained/lost-over-a-window) — Data API's channels.list, so it works even for a connection that
  * predates the yt-analytics.readonly scope. YouTube lets a channel hide this count publicly; when

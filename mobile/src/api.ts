@@ -394,8 +394,8 @@ export async function publishToYoutube(
   return res.json();
 }
 
-export async function getYoutubeAnalytics(): Promise<YoutubeAnalytics> {
-  const res = await authFetch('/analytics/youtube');
+export async function getYoutubeAnalytics(days?: number): Promise<YoutubeAnalytics> {
+  const res = await authFetch(days ? `/analytics/youtube?days=${days}` : '/analytics/youtube');
   if (!res.ok) {
     throw new Error(`Failed to fetch analytics: ${res.status} ${await res.text()}`);
   }

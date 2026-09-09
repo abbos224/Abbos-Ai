@@ -860,28 +860,45 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
       subscribers: { gained: number; lost: number };
       deviceTypes: { label: string; views: number }[];
       subscribedStatus: { subscribedViews: number; unsubscribedViews: number };
+      demographics: { label: string; percentage: number }[];
     } | null = null;
+    // Matches YouTube Studio's own real time-range picker (7/28/90/365 days) — ?days= on the
+    // query string, restricted to these 4 exact values (never an arbitrary number, to keep this a
+    // small fixed set of pre-understood, cheap-enough report windows). Defaults to 90, not
+    // Studio's own 28-day default — see the comment below on why.
+    const ALLOWED_DAYS = [7, 28, 90, 365] as const;
+    const requestedDays = Number(req.query.days);
+    const DAYS = (ALLOWED_DAYS as readonly number[]).includes(requestedDays) ? requestedDays : 90;
     try {
-      // 90 days, not YouTube Studio's own 28-day default — a real, honest choice given this kind
-      // of app-managed channel realistically posts in bursts, not daily; a 28-day window would
+      // 90-day default, not YouTube Studio's own 28-day default — a real, honest choice given this
+      // kind of app-managed channel realistically posts in bursts, not daily; a 28-day window would
       // show a flat, empty-looking chart for any channel that hasn't posted in the last month even
       // though it has real, recent-ish activity just outside that window. Still just a wider real
       // window, not cherry-picked data — every number is exactly what YouTube reports for it.
-      const DAYS = 90;
-      const [fetchedTrend, trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus, fetchedSubscriberTrend] =
-        await Promise.all([
-          youtube.getViewsTrend(userId, DAYS),
-          youtube.getTrafficSources(userId, DAYS),
-          youtube.getTopCountries(userId, DAYS),
-          youtube.getWatchTimeSummary(userId, DAYS),
-          youtube.getSubscriberChange(userId, DAYS),
-          youtube.getDeviceBreakdown(userId, DAYS),
-          youtube.getSubscribedStatusBreakdown(userId, DAYS),
-          youtube.getSubscriberTrend(userId, DAYS),
-        ]);
+      const [
+        fetchedTrend,
+        trafficSources,
+        topCountries,
+        watchTime,
+        subscribers,
+        deviceTypes,
+        subscribedStatus,
+        fetchedSubscriberTrend,
+        demographics,
+      ] = await Promise.all([
+        youtube.getViewsTrend(userId, DAYS),
+        youtube.getTrafficSources(userId, DAYS),
+        youtube.getTopCountries(userId, DAYS),
+        youtube.getWatchTimeSummary(userId, DAYS),
+        youtube.getSubscriberChange(userId, DAYS),
+        youtube.getDeviceBreakdown(userId, DAYS),
+        youtube.getSubscribedStatusBreakdown(userId, DAYS),
+        youtube.getSubscriberTrend(userId, DAYS),
+        youtube.getDemographics(userId, DAYS),
+      ]);
       trend = fetchedTrend;
       trendChange = computeTrendChange(fetchedTrend);
-      breakdown = { trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus };
+      breakdown = { trafficSources, topCountries, watchTime, subscribers, deviceTypes, subscribedStatus, demographics };
       subscriberTrend = fetchedSubscriberTrend;
     } catch (err) {
       console.log(`[analytics] YouTube Analytics data unavailable for user ${userId}: ${err instanceof Error ? err.message : err}`);
@@ -900,6 +917,7 @@ app.get('/analytics/youtube', requireAuth, async (req, res) => {
     res.json({
       videos: enrichedVideos,
       playlists,
+      days: DAYS,
       insights: computeChannelInsights(videos),
       summary: computeChannelSummary(videos),
       trend,
