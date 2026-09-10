@@ -405,6 +405,12 @@ export const ru: Record<keyof typeof en, string> = {
   'results.filmingTips': 'Советы по съёмке',
   'results.audienceSegments': 'Сегменты аудитории',
   'results.adCopyVariants': 'Варианты рекламного текста',
+  'results.copyAll': 'Копировать всё',
+  'results.share': 'Поделиться',
+  'results.allCopied': 'Всё скопировано.',
+  'results.loadFailed': 'Не удалось загрузить результат.',
+  'results.retry': 'Повторить',
+  'results.empty': 'Здесь ничего не сгенерировано — попробуйте ещё раз в генераторе.',
 
   // Onboarding (first-run intro)
   'onboarding.skip': 'Пропустить',
