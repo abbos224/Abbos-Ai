@@ -62,9 +62,6 @@ function CreateStack() {
       <Stack.Screen name="IdeaResults" component={IdeaResultsScreen} options={{ title: t('nav.ideaResults') }} />
       <Stack.Screen name="ImageGenerator" component={ImageGeneratorScreen} options={{ title: t('nav.imageGenerator') }} />
       <Stack.Screen name="ImageResult" component={ImageResultScreen} options={{ title: t('nav.imageResult') }} />
-      {/* Also registered in MenuStack — reachable here from the Create tab's tools grid. */}
-      <Stack.Screen name="BrandKit" component={BrandKitScreen} options={{ title: t('nav.brandKit') }} />
-      <Stack.Screen name="Personas" component={PersonasScreen} options={{ title: t('nav.voice') }} />
     </Stack.Navigator>
   );
 }

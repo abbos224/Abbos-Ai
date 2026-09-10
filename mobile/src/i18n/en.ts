@@ -155,21 +155,6 @@ export const en = {
   'idea.status.failed': 'Failed',
   'idea.items': '{n} items',
 
-  // Tools grid (Create tab)
-  'tools.title': 'All tools',
-  'tools.brandKit': 'Brand Kit',
-  'tools.voice': 'Voice',
-  'tools.calendar': 'Calendar',
-  'tools.analytics': 'Analytics',
-  'tools.projects': 'Projects',
-
-  // Channel home card (top of Create tab, when YouTube is connected)
-  'home.subscribers': 'Subscribers',
-  'home.views': 'Views',
-  'home.videos': 'Videos',
-  'home.latestVideo': 'Latest video',
-  'home.subscribersHidden': 'Hidden',
-
   // Upload (Create home)
   'upload.eyebrow': 'New Reel',
   'upload.title': 'Create your first Reel',
