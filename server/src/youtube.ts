@@ -452,6 +452,98 @@ export async function getChannelSubscriberCount(userId: string): Promise<number 
   return Number(stats.subscriberCount ?? 0);
 }
 
+export type ChannelHomeSummary = {
+  channelTitle: string;
+  channelThumbnailUrl: string;
+  // null = the channel owner hides the count publicly (a real YouTube setting), not a fetch error.
+  subscriberCount: number | null;
+  totalViews: number;
+  totalVideos: number;
+  latestVideo: {
+    videoId: string;
+    title: string;
+    thumbnailUrl: string;
+    publishedAt: string;
+    viewCount: number;
+    url: string;
+  } | null;
+};
+
+/**
+ * A cheap channel-overview snapshot for the app's home screen — three Data API calls
+ * (channels.list → playlistItems.list(1) → videos.list(1)), NO YouTube Analytics API, so it's
+ * safe to hit on every visit to the Create tab without burning quota or adding latency the way
+ * the full /analytics/youtube route would.
+ */
+export async function getChannelHomeSummary(userId: string): Promise<ChannelHomeSummary> {
+  const accessToken = await getAccessToken(userId);
+  const auth = { headers: { Authorization: `Bearer ${accessToken}` } };
+
+  const channelRes = await fetch(
+    'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true',
+    auth,
+  );
+  if (!channelRes.ok) throw new Error(`Failed to fetch channel summary: ${channelRes.status} ${await channelRes.text()}`);
+  const channelData = (await channelRes.json()) as {
+    items?: Array<{
+      snippet?: { title?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+      statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean; viewCount?: string; videoCount?: string };
+      contentDetails?: { relatedPlaylists?: { uploads?: string } };
+    }>;
+  };
+  const channel = channelData.items?.[0];
+  const stats = channel?.statistics;
+
+  let latestVideo: ChannelHomeSummary['latestVideo'] = null;
+  const uploadsPlaylistId = channel?.contentDetails?.relatedPlaylists?.uploads;
+  if (uploadsPlaylistId) {
+    const itemsRes = await fetch(
+      `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=1`,
+      auth,
+    );
+    if (itemsRes.ok) {
+      const itemsData = (await itemsRes.json()) as { items?: Array<{ contentDetails?: { videoId?: string } }> };
+      const videoId = itemsData.items?.[0]?.contentDetails?.videoId;
+      if (videoId) {
+        const videoRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`,
+          auth,
+        );
+        if (videoRes.ok) {
+          const videoData = (await videoRes.json()) as {
+            items?: Array<{
+              id: string;
+              snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; default?: { url?: string } } };
+              statistics?: { viewCount?: string };
+            }>;
+          };
+          const v = videoData.items?.[0];
+          if (v) {
+            latestVideo = {
+              videoId: v.id,
+              title: v.snippet?.title ?? '(untitled)',
+              thumbnailUrl: v.snippet?.thumbnails?.medium?.url ?? v.snippet?.thumbnails?.default?.url ?? '',
+              publishedAt: v.snippet?.publishedAt ?? '',
+              viewCount: Number(v.statistics?.viewCount ?? 0),
+              url: `https://www.youtube.com/watch?v=${v.id}`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    channelTitle: channel?.snippet?.title ?? '',
+    channelThumbnailUrl:
+      channel?.snippet?.thumbnails?.medium?.url ?? channel?.snippet?.thumbnails?.default?.url ?? '',
+    subscriberCount: !stats || stats.hiddenSubscriberCount ? null : Number(stats.subscriberCount ?? 0),
+    totalViews: Number(stats?.viewCount ?? 0),
+    totalVideos: Number(stats?.videoCount ?? 0),
+    latestVideo,
+  };
+}
+
 export type PrivacyStatusValue = 'public' | 'unlisted' | 'private';
 
 // 'live'/'upcoming' come straight from YouTube's own snippet.liveBroadcastContent field — the same

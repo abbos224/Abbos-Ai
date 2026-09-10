@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,6 +11,7 @@ import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
+import ChannelHomeCard from '../components/ChannelHomeCard';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Upload'>;
@@ -73,7 +74,9 @@ export default function UploadScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ChannelHomeCard />
+
       <SectionHeader
         eyebrow={t('upload.eyebrow')}
         title={t('upload.title')}
@@ -146,12 +149,13 @@ export default function UploadScreen({ navigation }: Props) {
           <GradientButton label={t('upload.startProcessing')} onPress={startProcessing} loading={uploading} />
         </Card>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 70 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.lg, paddingTop: 70, paddingBottom: spacing.xl },
   actionCard: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
   actionText: { flex: 1, marginHorizontal: spacing.md },
   actionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },

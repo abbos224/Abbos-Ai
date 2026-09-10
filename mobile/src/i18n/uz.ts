@@ -145,6 +145,12 @@ export const uz: Record<keyof typeof en, string> = {
   'idea.status.failed': 'Xato',
   'idea.items': '{n} ta',
 
+  'home.subscribers': 'Obunachilar',
+  'home.views': 'Koʻrishlar',
+  'home.videos': 'Videolar',
+  'home.latestVideo': 'Soʻnggi video',
+  'home.subscribersHidden': 'Yashirin',
+
   'upload.eyebrow': 'Yangi Reel',
   'upload.title': 'Birinchi Reel’ingizni yarating',
   'upload.subtitle': 'Video yuklang yoki ILdan gʻoyalar oling — eʼtiborni tortadigan kontent yarating.',
