@@ -20,6 +20,7 @@ import {
   youtubeConnectUrl,
 } from '../api';
 import { saveRemoteFileToLibrary, shareRemoteFile } from '../utils/shareRemoteFile';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import { colors, getScoreColor, gradients, radius, spacing } from '../theme';
@@ -53,6 +54,7 @@ function formatScheduledDate(iso: string): string {
 
 export default function PreviewScreen({ route, navigation }: Props) {
   const { clip } = route.params;
+  const { t } = useI18n();
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [languages, setLanguages] = useState<Language[]>([]);
@@ -119,7 +121,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
       setActiveVariant('original');
       setActiveKey(language);
     } catch (err) {
-      Alert.alert('Translation failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.translationFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setTranslatingLang(null);
     }
@@ -138,7 +140,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
       setActiveKey(ORIGINAL_KEY);
       setActiveVariant(modifier);
     } catch (err) {
-      Alert.alert('Regenerate failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.regenerateFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setRegeneratingModifier(null);
     }
@@ -150,7 +152,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
       await scheduleClip(clip.jobId, clip.id, date);
       setScheduledFor(date ?? undefined);
     } catch (err) {
-      Alert.alert('Scheduling failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.schedulingFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setScheduling(false);
     }
@@ -162,7 +164,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
       const url = await youtubeConnectUrl(returnTo);
       await Linking.openURL(url);
     } catch (err) {
-      Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.connectFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -171,18 +173,18 @@ export default function PreviewScreen({ route, navigation }: Props) {
       await disconnectYoutube();
       setYoutubeStatus((prev) => (prev ? { ...prev, connected: false, channelTitle: undefined } : prev));
     } catch (err) {
-      Alert.alert('Failed to disconnect', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.disconnectFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
   function handlePublish() {
     Alert.alert(
-      'Publish to YouTube',
-      `Upload this clip to ${youtubeStatus?.channelTitle ?? 'your channel'} as a private video? You can make it public later from YouTube Studio.`,
+      t('preview.publishTitle'),
+      t('preview.publishBody', { channel: youtubeStatus?.channelTitle ?? t('preview.yourChannel') }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('preview.cancel'), style: 'cancel' },
         {
-          text: 'Publish',
+          text: t('preview.publishConfirm'),
           onPress: async () => {
             setPublishing(true);
             try {
@@ -193,7 +195,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
               });
               setPublishedUrl(url);
             } catch (err) {
-              Alert.alert('Publish failed', err instanceof Error ? err.message : String(err));
+              Alert.alert(t('preview.publishFailed'), err instanceof Error ? err.message : String(err));
             } finally {
               setPublishing(false);
             }
@@ -208,9 +210,9 @@ export default function PreviewScreen({ route, navigation }: Props) {
     setSaving(true);
     try {
       await saveRemoteFileToLibrary(videoUrl);
-      Alert.alert('Saved', 'Video saved to your photo library.');
+      Alert.alert(t('action.saved'), t('preview.savedBody'));
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -222,7 +224,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
     try {
       await shareRemoteFile(videoUrl);
     } catch (err) {
-      Alert.alert('Share failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.shareFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
     }
@@ -232,24 +234,24 @@ export default function PreviewScreen({ route, navigation }: Props) {
     if (!activeSocialCaption) return;
     const text = `${activeSocialCaption[captionLength]}\n\n${activeSocialCaption.hashtags.map((h) => `#${h}`).join(' ')}`;
     await Clipboard.setStringAsync(text);
-    Alert.alert('Copied', 'Caption + hashtags copied — paste it when posting to Instagram or TikTok.');
+    Alert.alert(t('results.copiedTitle'), t('preview.captionCopied'));
   }
 
   async function handleExportCover(coverUrl: string) {
     try {
       await shareRemoteFile(clipFileUrl(coverUrl));
     } catch (err) {
-      Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('preview.exportFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
   const scores: Array<[string, number]> = [
-    ['Hook', clip.scoreBreakdown.hook],
-    ['Retention', clip.scoreBreakdown.retention],
-    ['Emotion', clip.scoreBreakdown.emotion],
-    ['Clarity', clip.scoreBreakdown.clarity],
-    ['Shareability', clip.scoreBreakdown.shareability],
-    ['CTA', clip.scoreBreakdown.cta],
+    [t('preview.score.hook'), clip.scoreBreakdown.hook],
+    [t('preview.score.retention'), clip.scoreBreakdown.retention],
+    [t('preview.score.emotion'), clip.scoreBreakdown.emotion],
+    [t('preview.score.clarity'), clip.scoreBreakdown.clarity],
+    [t('preview.score.shareability'), clip.scoreBreakdown.shareability],
+    [t('preview.score.cta'), clip.scoreBreakdown.cta],
   ];
 
   return (
@@ -260,14 +262,14 @@ export default function PreviewScreen({ route, navigation }: Props) {
       <Text style={styles.hook}>&ldquo;{activeHook}&rdquo;</Text>
       {activeCta && (
         <View style={styles.ctaRow}>
-          <Text style={styles.ctaLabel}>CTA</Text>
+          <Text style={styles.ctaLabel}>{t('preview.ctaLabel')}</Text>
           <Text style={styles.ctaText}>{activeCta}</Text>
         </View>
       )}
 
       {activeCoverImages && activeCoverImages.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Cover</Text>
+          <Text style={styles.sectionLabel}>{t('preview.cover')}</Text>
           <View style={styles.coverRow}>
             {activeCoverImages.map((cover, i) => (
               <TouchableOpacity key={cover} onPress={() => handleExportCover(cover)}>
@@ -284,7 +286,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
       {activeSocialCaption && (
         <Card style={styles.captionCard}>
           <View style={styles.scoreHeader}>
-            <SectionLabel icon="chatbox-ellipses" label="Post caption" />
+            <SectionLabel icon="chatbox-ellipses" label={t('preview.postCaption')} />
           </View>
 
           <View style={styles.lengthRow}>
@@ -295,7 +297,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
                 onPress={() => setCaptionLength(len)}
               >
                 <Text style={[styles.lengthChipText, captionLength === len && styles.lengthChipTextActive]}>
-                  {len[0].toUpperCase() + len.slice(1)}
+                  {t(len === 'short' ? 'preview.captionShort' : len === 'medium' ? 'preview.captionMedium' : 'preview.captionLong')}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -313,7 +315,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
           <TouchableOpacity style={styles.copyButton} onPress={handleCopyCaption} activeOpacity={0.85}>
             <Ionicons name="copy-outline" size={14} color={colors.textPrimary} style={styles.copyIcon} />
-            <Text style={styles.copyButtonText}>Copy caption + hashtags</Text>
+            <Text style={styles.copyButtonText}>{t('preview.copyCaption')}</Text>
           </TouchableOpacity>
         </Card>
       )}
@@ -329,7 +331,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
               activeKey === ORIGINAL_KEY && activeVariant === 'original' && styles.languageChipTextActive,
             ]}
           >
-            Original
+            {t('preview.original')}
           </Text>
         </TouchableOpacity>
         {languages
@@ -364,7 +366,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
             onPress={() => setActiveVariant('original')}
           >
             <Text style={[styles.languageChipText, activeVariant === 'original' && styles.languageChipTextActive]}>
-              Original
+              {t('preview.original')}
             </Text>
           </TouchableOpacity>
           {regenerations
@@ -388,11 +390,9 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
       <Card style={styles.scheduleCard}>
         <View style={styles.scoreHeader}>
-          <SectionLabel icon="color-wand" label="Regenerate" />
+          <SectionLabel icon="color-wand" label={t('preview.regenerate')} />
         </View>
-        <Text style={styles.regenerateHint}>
-          Rewrite the hook, CTA, cover, and caption in a new voice — re-renders this clip as a new variant.
-        </Text>
+        <Text style={styles.regenerateHint}>{t('preview.regenerateHint')}</Text>
         <View style={styles.scheduleRow}>
           {modifiers.map((m) => (
             <TouchableOpacity
@@ -413,19 +413,17 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
       <Card style={styles.scheduleCard}>
         <View style={styles.scoreHeader}>
-          <SectionLabel icon="color-palette" label="Captions" />
+          <SectionLabel icon="color-palette" label={t('preview.captionsSection')} />
         </View>
-        <Text style={styles.regenerateHint}>
-          Pick any word and give it its own color, bold, italic, highlight, or size — re-renders this clip with your edits burned in.
-        </Text>
+        <Text style={styles.regenerateHint}>{t('preview.captionsHint')}</Text>
         <TouchableOpacity style={styles.scheduleChip} onPress={() => navigation.navigate('EditCaptions', { clip })}>
-          <Text style={styles.scheduleChipText}>Edit words</Text>
+          <Text style={styles.scheduleChipText}>{t('preview.editWords')}</Text>
         </TouchableOpacity>
       </Card>
 
       <Card style={styles.scoreCard}>
         <View style={styles.scoreHeader}>
-          <SectionLabel icon="flash" label="Viral score" />
+          <SectionLabel icon="flash" label={t('preview.viralScore')} />
           <Text style={[styles.scoreTotal, { color: getScoreColor(clip.score) }]}>{clip.score}/100</Text>
         </View>
         {scores.map(([label, value]) => (
@@ -442,29 +440,29 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
       <Card style={styles.scheduleCard}>
         <View style={styles.scoreHeader}>
-          <SectionLabel icon="calendar" label="Schedule" />
+          <SectionLabel icon="calendar" label={t('preview.schedule')} />
           <Text style={styles.scheduleCurrent}>
-            {scheduledFor ? formatScheduledDate(scheduledFor) : 'Not scheduled'}
+            {scheduledFor ? formatScheduledDate(scheduledFor) : t('preview.notScheduled')}
           </Text>
         </View>
         <View style={styles.scheduleRow}>
           {[
-            { label: 'Tomorrow', date: addDaysIso(1) },
-            { label: '+3 days', date: addDaysIso(3) },
-            { label: '+1 week', date: addDaysIso(7) },
+            { key: 'preview.tomorrow' as const, date: addDaysIso(1) },
+            { key: 'preview.plus3days' as const, date: addDaysIso(3) },
+            { key: 'preview.plus1week' as const, date: addDaysIso(7) },
           ].map((opt) => (
             <TouchableOpacity
-              key={opt.label}
+              key={opt.key}
               style={styles.scheduleChip}
               disabled={scheduling}
               onPress={() => handleSchedule(opt.date)}
             >
-              <Text style={styles.scheduleChipText}>{opt.label}</Text>
+              <Text style={styles.scheduleChipText}>{t(opt.key)}</Text>
             </TouchableOpacity>
           ))}
           {scheduledFor && (
             <TouchableOpacity style={styles.scheduleChip} disabled={scheduling} onPress={() => handleSchedule(null)}>
-              <Text style={styles.scheduleChipText}>Clear</Text>
+              <Text style={styles.scheduleChipText}>{t('preview.clear')}</Text>
             </TouchableOpacity>
           )}
           {scheduling && <ActivityIndicator size="small" color={colors.accent} />}
@@ -477,19 +475,19 @@ export default function PreviewScreen({ route, navigation }: Props) {
             <SectionLabel icon="logo-youtube" label="YouTube" />
             {youtubeStatus.connected && (
               <Text style={styles.scheduleCurrent} numberOfLines={1}>
-                {youtubeStatus.channelTitle ?? 'Connected'}
+                {youtubeStatus.channelTitle ?? t('preview.connected')}
               </Text>
             )}
           </View>
 
           {!youtubeStatus.connected ? (
             <TouchableOpacity style={styles.scheduleChip} onPress={handleConnectYoutube}>
-              <Text style={styles.scheduleChipText}>Connect YouTube</Text>
+              <Text style={styles.scheduleChipText}>{t('preview.connectYoutube')}</Text>
             </TouchableOpacity>
           ) : publishedUrl ? (
             <TouchableOpacity onPress={() => Linking.openURL(publishedUrl)}>
               <Text style={styles.publishedLink} numberOfLines={1}>
-                Published — view on YouTube ↗
+                {t('preview.publishedLink')}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -498,11 +496,11 @@ export default function PreviewScreen({ route, navigation }: Props) {
                 {publishing ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
-                  <Text style={styles.scheduleChipText}>Publish (private)</Text>
+                  <Text style={styles.scheduleChipText}>{t('preview.publishPrivate')}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDisconnectYoutube}>
-                <Text style={styles.disconnectLink}>Disconnect</Text>
+                <Text style={styles.disconnectLink}>{t('preview.disconnect')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -511,7 +509,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
 
       <View style={styles.exportRow}>
         <GradientButton
-          label="Save"
+          label={t('action.save')}
           icon="download-outline"
           gradient={gradients.brand}
           onPress={handleSaveVideo}
@@ -519,7 +517,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
           style={styles.exportButtonHalf}
         />
         <GradientButton
-          label="Share"
+          label={t('action.share')}
           icon="share-outline"
           gradient={gradients.brand}
           onPress={handleExport}
