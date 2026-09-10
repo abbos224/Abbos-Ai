@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { ImageJob, RootStackParamList } from '../types';
 import { clipFileUrl, getImageJob } from '../api';
 import { saveRemoteFileToLibrary, shareRemoteFile } from '../utils/shareRemoteFile';
+import { useI18n } from '../i18n/LanguageContext';
 import GradientButton from '../components/GradientButton';
 import { colors, gradients, radius, spacing } from '../theme';
 
@@ -12,6 +13,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ImageResult'>;
 
 export default function ImageResultScreen({ route, navigation }: Props) {
   const { imageJobId } = route.params;
+  const { t } = useI18n();
   const [job, setJob] = useState<ImageJob | null>(null);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -19,17 +21,17 @@ export default function ImageResultScreen({ route, navigation }: Props) {
   useEffect(() => {
     getImageJob(imageJobId)
       .then(setJob)
-      .catch((err) => Alert.alert('Failed to load image', err instanceof Error ? err.message : String(err)));
-  }, [imageJobId]);
+      .catch((err) => Alert.alert(t('imageResult.loadFailed'), err instanceof Error ? err.message : String(err)));
+  }, [imageJobId, t]);
 
   async function handleSave() {
     if (!job?.outputFile) return;
     setSaving(true);
     try {
       await saveRemoteFileToLibrary(clipFileUrl(job.outputFile));
-      Alert.alert('Saved', 'Image saved to your photo library.');
+      Alert.alert(t('action.saved'), t('imageResult.savedBody'));
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -41,7 +43,7 @@ export default function ImageResultScreen({ route, navigation }: Props) {
     try {
       await shareRemoteFile(clipFileUrl(job.outputFile));
     } catch (err) {
-      Alert.alert('Share failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.shareFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSharing(false);
     }
@@ -69,7 +71,7 @@ export default function ImageResultScreen({ route, navigation }: Props) {
           ) : (
             <>
               <Ionicons name="download-outline" size={18} color={colors.accentAI} style={styles.actionIcon} />
-              <Text style={styles.actionButtonText}>Save</Text>
+              <Text style={styles.actionButtonText}>{t('action.save')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -79,14 +81,14 @@ export default function ImageResultScreen({ route, navigation }: Props) {
           ) : (
             <>
               <Ionicons name="share-outline" size={18} color={colors.accentAI} style={styles.actionIcon} />
-              <Text style={styles.actionButtonText}>Share</Text>
+              <Text style={styles.actionButtonText}>{t('action.share')}</Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
       <GradientButton
-        label="Continue editing"
+        label={t('imageResult.continueEditing')}
         icon="color-wand"
         gradient={gradients.ai}
         onPress={() => navigation.navigate('ImageGenerator', { continueFromJobId: job.id })}

@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { ImageJobSummary, ImageQuota, RootStackParamList } from '../types';
 import { clipFileUrl, generateOrEditImage, getAllImageJobs, getImageJob, getImageQuota } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -24,10 +26,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const STATUS_LABELS: Record<ImageJobSummary['status'], string> = {
-  generating: 'Generating…',
-  done: 'Done',
-  failed: 'Failed',
+const STATUS_KEYS: Record<ImageJobSummary['status'], TranslationKey> = {
+  generating: 'imageGen.status.generating',
+  done: 'imageGen.status.done',
+  failed: 'imageGen.status.failed',
 };
 
 // expo-image-picker's `mimeType` is frequently missing (notably for HEIC photos, the default
@@ -55,6 +57,7 @@ function guessMimeType(asset: ImagePicker.ImagePickerAsset): string {
 type EditSource = { type: 'upload'; uri: string; fileName: string; mimeType: string } | { type: 'continue'; jobId: string };
 
 export default function ImageGeneratorScreen({ navigation, route }: Props) {
+  const { t } = useI18n();
   const [prompt, setPrompt] = useState('');
   const [source, setSource] = useState<EditSource | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -84,9 +87,9 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
     setLoadingPast(true);
     getAllImageJobs()
       .then(setPastImages)
-      .catch((err) => Alert.alert('Failed to load past images', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('imageGen.loadPastFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoadingPast(false));
-  }, []);
+  }, [t]);
 
   useFocusEffect(loadPastImages);
   useFocusEffect(useCallback(() => {
@@ -96,7 +99,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
   async function pickPhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access to attach a photo to edit.');
+      Alert.alert(t('imageGen.permissionTitle'), t('imageGen.permissionBody'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
@@ -125,21 +128,21 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
       if (job.status === 'failed') {
         setGenerating(false);
         loadPastImages();
-        Alert.alert('Generation failed', job.error ?? 'Something went wrong.');
+        Alert.alert(t('imageGen.generationFailed'), job.error ?? t('imageGen.somethingWrong'));
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
     if (!cancelledRef.current) {
       setGenerating(false);
-      Alert.alert('Still working', 'This is taking longer than usual — check Past Images in a bit.');
+      Alert.alert(t('imageGen.stillWorkingTitle'), t('imageGen.stillWorkingBody'));
     }
   }
 
   async function handleGenerate() {
     const trimmed = prompt.trim();
     if (!trimmed) {
-      Alert.alert('Missing prompt', 'Describe the image you want first.');
+      Alert.alert(t('imageGen.missingPromptTitle'), t('imageGen.missingPromptBody'));
       return;
     }
     setGenerating(true);
@@ -157,7 +160,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
       await pollUntilDone(imageJobId);
     } catch (err) {
       setGenerating(false);
-      Alert.alert('Failed to start', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('imageGen.startFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -166,17 +169,16 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <SectionHeader
-        eyebrow="AI Image"
-        title="Generate or edit an image"
-        highlight="edit an image"
+        eyebrow={t('imageGen.eyebrow')}
+        title={t('imageGen.title')}
         highlightColor={colors.accentAI}
-        subtitle="Describe what you want, or attach a photo and describe the edit."
+        subtitle={t('imageGen.subtitle')}
       />
 
       <Card style={styles.inputCard}>
         <TextInput
           style={styles.input}
-          placeholder="e.g. a cozy coffee shop interior, warm lighting"
+          placeholder={t('imageGen.placeholder')}
           placeholderTextColor={colors.textMuted}
           value={prompt}
           onChangeText={(text) => setPrompt(text.slice(0, MAX_PROMPT_LENGTH))}
@@ -192,7 +194,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
         <View style={styles.attachedRow}>
           <Image source={{ uri: source.uri }} style={styles.attachedThumb} />
           <Text style={styles.attachedLabel} numberOfLines={1}>
-            Editing this photo
+            {t('imageGen.editingThisPhoto')}
           </Text>
           <TouchableOpacity onPress={clearSource} disabled={generating}>
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
@@ -202,7 +204,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
         <View style={styles.attachedRow}>
           <Ionicons name="color-wand" size={20} color={colors.accentAI} style={styles.continueIcon} />
           <Text style={styles.attachedLabel} numberOfLines={1}>
-            Continuing from a previous image
+            {t('imageGen.continuingFrom')}
           </Text>
           <TouchableOpacity onPress={clearSource} disabled={generating}>
             <Ionicons name="close-circle" size={22} color={colors.textMuted} />
@@ -211,21 +213,19 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
       ) : (
         <TouchableOpacity style={styles.attachButton} onPress={pickPhoto} disabled={generating} activeOpacity={0.85}>
           <Ionicons name="image-outline" size={18} color={colors.accentAI} style={styles.attachIcon} />
-          <Text style={styles.attachButtonText}>Attach a photo to edit</Text>
+          <Text style={styles.attachButtonText}>{t('imageGen.attachPhoto')}</Text>
         </TouchableOpacity>
       )}
 
       {quota && quota.remaining <= 0 ? (
         <View style={styles.limitCard}>
           <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
-          <Text style={styles.limitText}>
-            You&rsquo;ve used all {quota.limit} free AI image generations. Paid plans are coming soon.
-          </Text>
+          <Text style={styles.limitText}>{t('imageGen.limitReached', { limit: quota.limit })}</Text>
         </View>
       ) : (
         <>
           <GradientButton
-            label={isEditing ? 'Edit photo' : 'Generate'}
+            label={isEditing ? t('imageGen.editPhoto') : t('imageGen.generate')}
             icon={isEditing ? 'color-wand' : 'sparkles'}
             gradient={gradients.ai}
             onPress={handleGenerate}
@@ -233,22 +233,16 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
             style={styles.generateButton}
           />
           {quota && (
-            <Text style={styles.quotaText}>
-              {quota.remaining} of {quota.limit} free generations left
-            </Text>
+            <Text style={styles.quotaText}>{t('imageGen.quotaLeft', { remaining: quota.remaining, limit: quota.limit })}</Text>
           )}
         </>
       )}
 
-      <Text style={styles.sectionTitle}>Past images</Text>
+      <Text style={styles.sectionTitle}>{t('imageGen.pastImages')}</Text>
       {pastImages === null ? (
         <ActivityIndicator color={colors.accentAI} style={styles.pastLoading} />
       ) : pastImages.length === 0 ? (
-        <EmptyState
-          icon="image"
-          title="No images yet"
-          body="Your generated and edited images will appear here."
-        />
+        <EmptyState icon="image" title={t('imageGen.emptyTitle')} body={t('imageGen.emptyBody')} />
       ) : (
         <FlatList
           style={styles.list}
@@ -276,10 +270,10 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
                       {item.prompt}
                     </Text>
                     <View style={styles.cardFooter}>
-                      <Text style={styles.cardMeta}>{item.mode === 'edit' ? 'Edit' : 'Generated'}</Text>
+                      <Text style={styles.cardMeta}>{item.mode === 'edit' ? t('imageGen.modeEdit') : t('imageGen.modeGenerated')}</Text>
                       <Text style={styles.cardMeta}>{formatDate(item.createdAt)}</Text>
                       <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
-                        {STATUS_LABELS[item.status]}
+                        {t(STATUS_KEYS[item.status])}
                       </Text>
                     </View>
                   </View>

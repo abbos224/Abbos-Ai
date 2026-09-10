@@ -5,12 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, VideoAnalytics } from '../types';
 import { getVideoAnalytics } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import BreakdownBarList from '../components/BreakdownBarList';
 import { colors, spacing, radius } from '../theme';
 import { formatCount, formatDuration, formatDate } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoAnalytics'>;
+type T = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
 const RETENTION_HEIGHT = 64;
 
@@ -22,12 +25,12 @@ const RETENTION_HEIGHT = 64;
  * honestly comparable. A video with too few views for YouTube to compute this gets a real
  * "not enough data yet" empty state, not a flat fake line.
  */
-function RetentionChart({ points }: { points: VideoAnalytics['retentionCurve'] }) {
+function RetentionChart({ points, t }: { points: VideoAnalytics['retentionCurve']; t: T }) {
   if (points.length === 0) {
     return (
       <Card style={styles.card}>
-        <Text style={styles.cardTitle}>Audience retention</Text>
-        <Text style={styles.emptyText}>Not enough views yet for YouTube to compute a retention curve.</Text>
+        <Text style={styles.cardTitle}>{t('videoAnalytics.retentionTitle')}</Text>
+        <Text style={styles.emptyText}>{t('videoAnalytics.retentionEmpty')}</Text>
       </Card>
     );
   }
@@ -35,9 +38,9 @@ function RetentionChart({ points }: { points: VideoAnalytics['retentionCurve'] }
   const avgRelative = points.reduce((sum, p) => sum + p.relativeRetentionPerformance, 0) / points.length;
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Audience retention</Text>
+      <Text style={styles.cardTitle}>{t('videoAnalytics.retentionTitle')}</Text>
       <Text style={styles.retentionHeadline}>{(avgRelative * 100).toFixed(0)}%</Text>
-      <Text style={styles.retentionSubtext}>average retention vs. similar-length YouTube videos</Text>
+      <Text style={styles.retentionSubtext}>{t('videoAnalytics.retentionSubtext')}</Text>
       <View style={styles.retentionRow}>
         {points.map((p) => (
           <View
@@ -61,15 +64,17 @@ function RetentionChart({ points }: { points: VideoAnalytics['retentionCurve'] }
  * days are usually a handful spread across a potentially long lifetime; rendering that as evenly
  * spaced adjacent bars would falsely imply those days were consecutive.
  */
-function VideoTrendList({ trend }: { trend: VideoAnalytics['trend'] }) {
+function VideoTrendList({ trend, t }: { trend: VideoAnalytics['trend']; t: T }) {
   if (trend.length === 0) return null;
   return (
     <Card style={styles.card}>
-      <Text style={styles.cardTitle}>Views by day</Text>
+      <Text style={styles.cardTitle}>{t('videoAnalytics.viewsByDay')}</Text>
       {trend.map((d) => (
         <View key={d.date} style={styles.trendRow}>
           <Text style={styles.trendDate}>{formatDate(d.date)}</Text>
-          <Text style={styles.trendViews}>{formatCount(d.views)} views</Text>
+          <Text style={styles.trendViews}>
+            {formatCount(d.views)} {t('videoAnalytics.viewsSuffix')}
+          </Text>
         </View>
       ))}
     </Card>
@@ -78,6 +83,7 @@ function VideoTrendList({ trend }: { trend: VideoAnalytics['trend'] }) {
 
 export default function VideoAnalyticsScreen({ route }: Props) {
   const { video } = route.params;
+  const { t } = useI18n();
   const [data, setData] = useState<VideoAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -85,9 +91,9 @@ export default function VideoAnalyticsScreen({ route }: Props) {
     setLoading(true);
     getVideoAnalytics(video.videoId)
       .then(setData)
-      .catch((err) => Alert.alert('Failed to load video analytics', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('videoAnalytics.loadFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, [video.videoId]);
+  }, [video.videoId, t]);
 
   useFocusEffect(load);
 
@@ -139,13 +145,13 @@ export default function VideoAnalyticsScreen({ route }: Props) {
         </View>
       ) : data ? (
         <>
-          <RetentionChart points={data.retentionCurve} />
+          <RetentionChart points={data.retentionCurve} t={t} />
           <BreakdownBarList
-            title="Traffic sources"
+            title={t('analytics.trafficSources')}
             rows={data.trafficSources}
-            emptyText="No traffic-source data for this video yet."
+            emptyText={t('analytics.trafficSourcesEmptyVideo')}
           />
-          <VideoTrendList trend={data.trend} />
+          <VideoTrendList trend={data.trend} t={t} />
         </>
       ) : null}
     </ScrollView>

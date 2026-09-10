@@ -19,6 +19,8 @@ import type {
   RootStackParamList,
 } from '../types';
 import { getYoutubeAnalytics, getYoutubeStatus, youtubeConnectUrl } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -27,6 +29,7 @@ import { colors, gradients, spacing, radius } from '../theme';
 import { formatCount, formatDuration, formatDate } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Analytics'>;
+type T = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
 // One icon per real insight label (server's computeChannelInsights) — purely cosmetic, matches
 // this app's established "icon + short label + detail" pattern for informational cards elsewhere.
@@ -61,12 +64,20 @@ function StatTile({
 /** A prominent "latest upload" callout — matches YouTube Studio's own Home dashboard spotlight
  * card. `videos` is already sorted most-recent-first by the server, so this is simply its first
  * real entry; renders nothing for a channel with zero uploads. */
-function LatestVideoSpotlight({ video, onOpen }: { video: ChannelVideo | undefined; onOpen: (video: ChannelVideo) => void }) {
+function LatestVideoSpotlight({
+  video,
+  onOpen,
+  t,
+}: {
+  video: ChannelVideo | undefined;
+  onOpen: (video: ChannelVideo) => void;
+  t: T;
+}) {
   if (!video) return null;
   return (
     <TouchableOpacity onPress={() => onOpen(video)} activeOpacity={0.85}>
       <Card style={styles.spotlightCard} variant="highlight">
-        <Text style={styles.spotlightLabel}>Latest upload</Text>
+        <Text style={styles.spotlightLabel}>{t('analytics.latestUpload')}</Text>
         <View style={styles.row}>
           <View style={styles.spotlightThumbnailWrap}>
             {video.thumbnailUrl ? (
@@ -100,14 +111,14 @@ function LatestVideoSpotlight({ video, onOpen }: { video: ChannelVideo | undefin
 /** A real horizontal bar chart of the channel's own top 5 videos by view count — bar widths are
  * plain percentage-of-max View widths (no charting library needed, no new dependency), gradient-
  * filled to match this app's established visual language. Every bar's length is a real number. */
-function TopVideosChart({ videos }: { videos: ChannelVideo[] }) {
+function TopVideosChart({ videos, t }: { videos: ChannelVideo[]; t: T }) {
   const top = [...videos].sort((a, b) => b.viewCount - a.viewCount).slice(0, 5);
   const maxViews = Math.max(...top.map((v) => v.viewCount), 1);
   if (top.length < 2 || maxViews === 0) return null;
 
   return (
     <Card style={styles.chartCard}>
-      <Text style={styles.insightsTitle}>Top videos by views</Text>
+      <Text style={styles.insightsTitle}>{t('analytics.topVideos')}</Text>
       {top.map((v) => (
         <View key={v.videoId} style={styles.chartRow}>
           <Text style={styles.chartRowTitle} numberOfLines={1}>
@@ -136,13 +147,13 @@ function formatMinutes(minutes: number): string {
 /** A real two-segment stacked bar (subscribed vs. non-subscribed views) — matches YouTube
  * Studio's Audience "Views by subscription status" chart, just as a bar instead of a pie (no
  * charting library in this app). Honest empty state when the window has zero views at all. */
-function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }) {
+function SubscribedStatusChart({ status, t }: { status: SubscribedStatusBreakdown; t: T }) {
   const total = status.subscribedViews + status.unsubscribedViews;
   return (
     <Card style={styles.chartCard}>
-      <Text style={styles.insightsTitle}>Views by subscription status</Text>
+      <Text style={styles.insightsTitle}>{t('analytics.subStatusTitle')}</Text>
       {total === 0 ? (
-        <Text style={styles.breakdownEmptyText}>No views to break down for this period yet.</Text>
+        <Text style={styles.breakdownEmptyText}>{t('analytics.subStatusEmpty')}</Text>
       ) : (
         <>
           <View style={styles.subStatusTrack}>
@@ -153,13 +164,15 @@ function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }
             <View style={styles.subStatusLegendItem}>
               <View style={[styles.subStatusDot, { backgroundColor: colors.accent }]} />
               <Text style={styles.subStatusLegendText}>
-                Subscribers · {formatCount(status.subscribedViews)} ({((status.subscribedViews / total) * 100).toFixed(0)}%)
+                {t('analytics.subscribers')} · {formatCount(status.subscribedViews)} (
+                {((status.subscribedViews / total) * 100).toFixed(0)}%)
               </Text>
             </View>
             <View style={styles.subStatusLegendItem}>
               <View style={[styles.subStatusDot, { backgroundColor: colors.accentAI }]} />
               <Text style={styles.subStatusLegendText}>
-                Non-subscribers · {formatCount(status.unsubscribedViews)} ({((status.unsubscribedViews / total) * 100).toFixed(0)}%)
+                {t('analytics.nonSubscribers')} · {formatCount(status.unsubscribedViews)} (
+                {((status.unsubscribedViews / total) * 100).toFixed(0)}%)
               </Text>
             </View>
           </View>
@@ -173,12 +186,12 @@ function SubscribedStatusChart({ status }: { status: SubscribedStatusBreakdown }
  * Bar widths are the real reported percentage directly (not relative to a max, since these values
  * are already percentages of the same whole). YouTube only reports this once a channel has enough
  * logged-in-viewer data — an honestly empty list for a small/new channel, not an error. */
-function DemographicsChart({ rows }: { rows: DemographicRow[] }) {
+function DemographicsChart({ rows, t }: { rows: DemographicRow[]; t: T }) {
   return (
     <Card style={styles.chartCard}>
-      <Text style={styles.insightsTitle}>Age &amp; gender</Text>
+      <Text style={styles.insightsTitle}>{t('analytics.ageGender')}</Text>
       {rows.length === 0 ? (
-        <Text style={styles.breakdownEmptyText}>Not enough viewer data yet to break this down.</Text>
+        <Text style={styles.breakdownEmptyText}>{t('analytics.ageGenderEmpty')}</Text>
       ) : (
         rows.map((r) => (
           <View key={r.label} style={styles.chartRow}>
@@ -207,13 +220,13 @@ const SPARKLINE_HEIGHT = 56;
  * The public API only reports gained/lost per day (no historical absolute-count time series), so
  * this honestly shows net change per day (colored green/red by sign) rather than implying it's
  * plotting an absolute subscriber-count history it doesn't actually have. */
-function SubscriberGrowthChart({ trend }: { trend: DailySubscriberChange[] | null }) {
+function SubscriberGrowthChart({ trend, t }: { trend: DailySubscriberChange[] | null; t: T }) {
   if (!trend || trend.length === 0) return null;
   const netTotal = trend.reduce((sum, d) => sum + d.netChange, 0);
   const maxAbs = Math.max(...trend.map((d) => Math.abs(d.netChange)), 1);
   return (
     <Card style={styles.trendCard}>
-      <Text style={styles.insightsTitle}>Channel growth — last {trend.length} days</Text>
+      <Text style={styles.insightsTitle}>{t('analytics.channelGrowth', { n: trend.length })}</Text>
       <Text style={[styles.trendHeadlineValue, { color: netTotal >= 0 ? colors.success : colors.danger }]}>
         {netTotal >= 0 ? '+' : ''}
         {netTotal}
@@ -247,10 +260,12 @@ function ViewsTrendChart({
   trend,
   trendChange,
   onReconnect,
+  t,
 }: {
   trend: DailyViews[] | null;
   trendChange: TrendChange | null;
   onReconnect: () => void;
+  t: T;
 }) {
   // `trend` is null only when the connected account predates the yt-analytics.readonly scope —
   // once zero-filled server-side, a connected account's trend is never a true empty array again,
@@ -262,11 +277,11 @@ function ViewsTrendChart({
         <View style={styles.trendReconnectRow}>
           <Ionicons name="analytics-outline" size={22} color={colors.accent} />
           <View style={styles.trendReconnectTextWrap}>
-            <Text style={styles.trendReconnectTitle}>See your daily views trend</Text>
-            <Text style={styles.trendReconnectBody}>Reconnect YouTube to unlock the real day-by-day chart.</Text>
+            <Text style={styles.trendReconnectTitle}>{t('analytics.trendReconnectTitle')}</Text>
+            <Text style={styles.trendReconnectBody}>{t('analytics.trendReconnectBody')}</Text>
           </View>
           <TouchableOpacity onPress={onReconnect} style={styles.trendReconnectButton}>
-            <Text style={styles.trendReconnectButtonText}>Reconnect</Text>
+            <Text style={styles.trendReconnectButtonText}>{t('analytics.reconnect')}</Text>
           </TouchableOpacity>
         </View>
       </Card>
@@ -279,7 +294,7 @@ function ViewsTrendChart({
 
   return (
     <Card style={styles.trendCard}>
-      <Text style={styles.insightsTitle}>Views — last {trend.length} days</Text>
+      <Text style={styles.insightsTitle}>{t('analytics.viewsLastNDays', { n: trend.length })}</Text>
       <View style={styles.trendHeadlineRow}>
         <Text style={styles.trendHeadlineValue}>{formatCount(trendChange?.currentPeriodViews ?? 0)}</Text>
         {changePercent !== null && (
@@ -291,7 +306,7 @@ function ViewsTrendChart({
           >
             <Ionicons name={isUp ? 'trending-up' : 'trending-down'} size={12} color={isUp ? colors.success : colors.danger} />
             <Text style={[styles.trendChangeText, { color: isUp ? colors.success : colors.danger }]}>
-              {Math.abs(changePercent).toFixed(0)}% vs. previous period
+              {t('analytics.vsPreviousPeriod', { percent: Math.abs(changePercent).toFixed(0) })}
             </Text>
           </View>
         )}
@@ -314,6 +329,8 @@ function ViewsTrendChart({
 /** A real video/short/live card — extracted so both the Content tab's Videos/Shorts/Live lists
  * share exactly one card renderer instead of three near-copies. */
 function VideoCard({ item, onOpen }: { item: ChannelVideo; onOpen: (video: ChannelVideo) => void }) {
+  // 'LIVE'/'UPCOMING' and 'via this app' stay literal — the first two are YouTube's own on-screen
+  // labels, and the privacy badge shows YouTube's own status string.
   return (
     <TouchableOpacity onPress={() => onOpen(item)} activeOpacity={0.85}>
       <Card style={styles.card}>
@@ -381,11 +398,11 @@ function VideoCard({ item, onOpen }: { item: ChannelVideo; onOpen: (video: Chann
 type ContentSubTab = 'videos' | 'shorts' | 'live' | 'playlists';
 type SortBy = 'recent' | 'views';
 
-const CONTENT_SUB_TABS: { key: ContentSubTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'videos', label: 'Videos', icon: 'videocam' },
-  { key: 'shorts', label: 'Shorts', icon: 'flash' },
-  { key: 'live', label: 'Live', icon: 'radio' },
-  { key: 'playlists', label: 'Playlists', icon: 'list' },
+const CONTENT_SUB_TABS: { key: ContentSubTab; labelKey: TranslationKey; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'videos', labelKey: 'analytics.content.videos', icon: 'videocam' },
+  { key: 'shorts', labelKey: 'analytics.content.shorts', icon: 'flash' },
+  { key: 'live', labelKey: 'analytics.content.live', icon: 'radio' },
+  { key: 'playlists', labelKey: 'analytics.content.playlists', icon: 'list' },
 ];
 
 /**
@@ -401,12 +418,14 @@ function ContentTabView({
   loading,
   onRefresh,
   onOpenVideo,
+  t,
 }: {
   videos: ChannelVideo[];
   playlists: ChannelPlaylist[];
   loading: boolean;
   onRefresh: () => void;
   onOpenVideo: (video: ChannelVideo) => void;
+  t: T;
 }) {
   const [subTab, setSubTab] = useState<ContentSubTab>('videos');
   const [sortBy, setSortBy] = useState<SortBy>('recent');
@@ -425,25 +444,25 @@ function ContentTabView({
   return (
     <View style={styles.contentTabWrap}>
       <View style={styles.subTabRow}>
-        {CONTENT_SUB_TABS.map((t) => (
+        {CONTENT_SUB_TABS.map((tab) => (
           <TouchableOpacity
-            key={t.key}
-            onPress={() => setSubTab(t.key)}
-            style={[styles.subTabChip, subTab === t.key && styles.subTabChipActive]}
+            key={tab.key}
+            onPress={() => setSubTab(tab.key)}
+            style={[styles.subTabChip, subTab === tab.key && styles.subTabChipActive]}
           >
-            <Ionicons name={t.icon} size={13} color={subTab === t.key ? colors.onAccent : colors.textSecondary} />
-            <Text style={[styles.subTabText, subTab === t.key && styles.subTabTextActive]}>{t.label}</Text>
+            <Ionicons name={tab.icon} size={13} color={subTab === tab.key ? colors.onAccent : colors.textSecondary} />
+            <Text style={[styles.subTabText, subTab === tab.key && styles.subTabTextActive]}>{t(tab.labelKey)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {subTab !== 'playlists' && (
         <View style={styles.sortRow}>
-          <Text style={styles.sortLabel}>Sort:</Text>
+          <Text style={styles.sortLabel}>{t('analytics.sort')}</Text>
           {(['recent', 'views'] as const).map((s) => (
             <TouchableOpacity key={s} onPress={() => setSortBy(s)} style={[styles.sortChip, sortBy === s && styles.sortChipActive]}>
               <Text style={[styles.sortChipText, sortBy === s && styles.sortChipTextActive]}>
-                {s === 'recent' ? 'Most recent' : 'Views'}
+                {s === 'recent' ? t('analytics.sortRecent') : t('analytics.sortViews')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -452,7 +471,7 @@ function ContentTabView({
 
       {subTab === 'playlists' ? (
         playlists.length === 0 ? (
-          <EmptyState icon="list" title="No playlists yet" body="Playlists on this channel will show up here." />
+          <EmptyState icon="list" title={t('analytics.noPlaylistsTitle')} body={t('analytics.noPlaylistsBody')} />
         ) : (
           <FlatList
             data={playlists}
@@ -475,9 +494,7 @@ function ContentTabView({
                         {item.title}
                       </Text>
                       <View style={styles.metaRow}>
-                        <Text style={styles.cardMeta}>
-                          {item.itemCount} video{item.itemCount === 1 ? '' : 's'}
-                        </Text>
+                        <Text style={styles.cardMeta}>{t('projects.clips', { n: item.itemCount })}</Text>
                         {item.privacyStatus !== 'public' && (
                           <View style={styles.privacyBadge}>
                             <Text style={styles.privacyBadgeText}>{item.privacyStatus}</Text>
@@ -494,12 +511,8 @@ function ContentTabView({
       ) : sortedVideos.length === 0 ? (
         <EmptyState
           icon={subTab === 'live' ? 'radio' : 'film'}
-          title={subTab === 'live' ? 'No live activity' : `No ${subTab} yet`}
-          body={
-            subTab === 'live'
-              ? 'Live and upcoming broadcasts on this channel will show up here.'
-              : 'Nothing here yet — upload something and it will show up.'
-          }
+          title={subTab === 'live' ? t('analytics.noLiveTitle') : t('analytics.noContentTitle')}
+          body={subTab === 'live' ? t('analytics.noLiveBody') : t('analytics.noContentBody')}
         />
       ) : (
         <FlatList
@@ -521,6 +534,7 @@ const DAY_RANGE_OPTIONS = [7, 28, 90, 365] as const;
 type MainTab = 'overview' | 'content';
 
 export default function AnalyticsScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const handleOpenVideo = useCallback(
     (video: ChannelVideo) => navigation.navigate('VideoAnalytics', { video }),
     [navigation],
@@ -559,9 +573,9 @@ export default function AnalyticsScreen({ navigation }: Props) {
         setBreakdown(data.breakdown);
         setSubscriberCount(data.subscriberCount);
       })
-      .catch((err) => Alert.alert('Failed to load analytics', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('analytics.loadFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [days, t]);
 
   useFocusEffect(load);
 
@@ -571,7 +585,7 @@ export default function AnalyticsScreen({ navigation }: Props) {
       const url = await youtubeConnectUrl(returnTo);
       await Linking.openURL(url);
     } catch (err) {
-      Alert.alert('Failed to start YouTube connection', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('analytics.connectFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -588,9 +602,9 @@ export default function AnalyticsScreen({ navigation }: Props) {
       <View style={styles.center}>
         <EmptyState
           icon="logo-youtube"
-          title="YouTube not connected"
-          body="Connect your channel to see real view/like/comment stats for everything on it."
-          ctaLabel="Connect YouTube"
+          title={t('analytics.notConnectedTitle')}
+          body={t('analytics.notConnectedBody')}
+          ctaLabel={t('analytics.connectYoutube')}
           onPressCta={handleConnectYoutube}
         />
       </View>
@@ -602,22 +616,24 @@ export default function AnalyticsScreen({ navigation }: Props) {
       <View style={styles.headerRow}>
         <IconBadge icon="stats-chart" color={colors.accent} size={40} />
         <View style={styles.headerTextWrap}>
-          <Text style={styles.title}>YouTube Performance</Text>
+          <Text style={styles.title}>{t('analytics.header')}</Text>
           {subscriberCount !== null && (
-            <Text style={styles.subscriberCountText}>{formatCount(subscriberCount)} subscribers</Text>
+            <Text style={styles.subscriberCountText}>
+              {formatCount(subscriberCount)} {t('analytics.subscribersSuffix')}
+            </Text>
           )}
         </View>
       </View>
 
       <View style={styles.mainTabRow}>
-        {(['overview', 'content'] as const).map((t) => (
+        {(['overview', 'content'] as const).map((tab) => (
           <TouchableOpacity
-            key={t}
-            onPress={() => setMainTab(t)}
-            style={[styles.mainTabButton, mainTab === t && styles.mainTabButtonActive]}
+            key={tab}
+            onPress={() => setMainTab(tab)}
+            style={[styles.mainTabButton, mainTab === tab && styles.mainTabButtonActive]}
           >
-            <Text style={[styles.mainTabText, mainTab === t && styles.mainTabTextActive]}>
-              {t === 'overview' ? 'Overview' : 'Content'}
+            <Text style={[styles.mainTabText, mainTab === tab && styles.mainTabTextActive]}>
+              {tab === 'overview' ? t('analytics.tab.overview') : t('analytics.tab.content')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -626,12 +642,12 @@ export default function AnalyticsScreen({ navigation }: Props) {
       {videos && videos.length === 0 ? (
         <EmptyState
           icon="trending-up"
-          title="Nothing uploaded yet"
-          body="Upload something to your channel and its real stats will show up here."
+          title={t('analytics.nothingUploadedTitle')}
+          body={t('analytics.nothingUploadedBody')}
         />
       ) : mainTab === 'overview' ? (
         <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}>
-          <LatestVideoSpotlight video={videos?.[0]} onOpen={handleOpenVideo} />
+          <LatestVideoSpotlight video={videos?.[0]} onOpen={handleOpenVideo} t={t} />
           <View style={styles.dayRangeRow}>
             {DAY_RANGE_OPTIONS.map((d) => (
               <TouchableOpacity key={d} onPress={() => setDays(d)} style={[styles.dayRangeChip, days === d && styles.dayRangeChipActive]}>
@@ -641,14 +657,14 @@ export default function AnalyticsScreen({ navigation }: Props) {
               </TouchableOpacity>
             ))}
           </View>
-          <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} />
+          <ViewsTrendChart trend={trend} trendChange={trendChange} onReconnect={handleConnectYoutube} t={t} />
           {summary && (
             <View style={styles.statTileRow}>
-              <StatTile icon="eye" label="Total views" value={formatCount(summary.totalViews)} gradient={gradients.ai} />
-              <StatTile icon="film" label="Videos" value={String(summary.totalVideos)} gradient={gradients.brand} />
+              <StatTile icon="eye" label={t('analytics.statTotalViews')} value={formatCount(summary.totalViews)} gradient={gradients.ai} />
+              <StatTile icon="film" label={t('analytics.statVideos')} value={String(summary.totalVideos)} gradient={gradients.brand} />
               <StatTile
                 icon="heart"
-                label="Engagement"
+                label={t('analytics.statEngagement')}
                 value={`${(summary.avgEngagementRate * 100).toFixed(1)}%`}
                 gradient={gradients.ai}
               />
@@ -658,19 +674,19 @@ export default function AnalyticsScreen({ navigation }: Props) {
             <View style={styles.statTileRow}>
               <StatTile
                 icon="time"
-                label="Watch time"
+                label={t('analytics.statWatchTime')}
                 value={formatMinutes(breakdown.watchTime.estimatedMinutesWatched)}
                 gradient={gradients.brand}
               />
               <StatTile
                 icon="hourglass"
-                label="Avg duration"
+                label={t('analytics.statAvgDuration')}
                 value={formatDuration(breakdown.watchTime.averageViewDurationSec) || '0:00'}
                 gradient={gradients.ai}
               />
               <StatTile
                 icon="person-add"
-                label="Net subs"
+                label={t('analytics.statNetSubs')}
                 value={`${breakdown.subscribers.gained - breakdown.subscribers.lost >= 0 ? '+' : ''}${
                   breakdown.subscribers.gained - breakdown.subscribers.lost
                 }`}
@@ -678,34 +694,34 @@ export default function AnalyticsScreen({ navigation }: Props) {
               />
             </View>
           )}
-          {videos && <TopVideosChart videos={videos} />}
+          {videos && <TopVideosChart videos={videos} t={t} />}
           {breakdown && (
             <BreakdownBarList
-              title="Traffic sources"
+              title={t('analytics.trafficSources')}
               rows={breakdown.trafficSources}
-              emptyText="No traffic-source data for this period yet."
+              emptyText={t('analytics.trafficSourcesEmpty')}
             />
           )}
           {breakdown && (
             <BreakdownBarList
-              title="Top countries"
+              title={t('analytics.topCountries')}
               rows={breakdown.topCountries}
-              emptyText="No geography data for this period yet."
+              emptyText={t('analytics.topCountriesEmpty')}
             />
           )}
           {breakdown && (
             <BreakdownBarList
-              title="Device type"
+              title={t('analytics.deviceType')}
               rows={breakdown.deviceTypes}
-              emptyText="No device data for this period yet."
+              emptyText={t('analytics.deviceTypeEmpty')}
             />
           )}
-          {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} />}
-          {breakdown && <DemographicsChart rows={breakdown.demographics} />}
-          <SubscriberGrowthChart trend={subscriberTrend} />
+          {breakdown && <SubscribedStatusChart status={breakdown.subscribedStatus} t={t} />}
+          {breakdown && <DemographicsChart rows={breakdown.demographics} t={t} />}
+          <SubscriberGrowthChart trend={subscriberTrend} t={t} />
           {insights.length > 0 && (
             <Card style={styles.insightsCard}>
-              <Text style={styles.insightsTitle}>What your real numbers show</Text>
+              <Text style={styles.insightsTitle}>{t('analytics.whatNumbersShow')}</Text>
               {insights.map((insight) => (
                 <View key={insight.label} style={styles.insightRow}>
                   <Ionicons name={INSIGHT_ICONS[insight.label] ?? 'analytics'} size={16} color={colors.accent} />
@@ -716,7 +732,14 @@ export default function AnalyticsScreen({ navigation }: Props) {
           )}
         </ScrollView>
       ) : (
-        <ContentTabView videos={videos ?? []} playlists={playlists} loading={loading} onRefresh={load} onOpenVideo={handleOpenVideo} />
+        <ContentTabView
+          videos={videos ?? []}
+          playlists={playlists}
+          loading={loading}
+          onRefresh={load}
+          onOpenVideo={handleOpenVideo}
+          t={t}
+        />
       )}
     </View>
   );

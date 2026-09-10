@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JobSummary, RootStackParamList } from '../types';
 import { getAllJobs } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -16,16 +18,17 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const STATUS_LABELS: Record<JobSummary['status'], string> = {
-  uploaded: 'Uploaded',
-  transcribing: 'Transcribing…',
-  analyzing: 'Analyzing…',
-  rendering: 'Rendering…',
-  done: 'Done',
-  failed: 'Failed',
+const STATUS_KEYS: Record<JobSummary['status'], TranslationKey> = {
+  uploaded: 'jobStatus.uploaded',
+  transcribing: 'jobStatus.transcribing',
+  analyzing: 'jobStatus.analyzing',
+  rendering: 'jobStatus.rendering',
+  done: 'jobStatus.done',
+  failed: 'jobStatus.failed',
 };
 
 export default function ProjectsScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const [jobs, setJobs] = useState<JobSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,9 +36,9 @@ export default function ProjectsScreen({ navigation }: Props) {
     setLoading(true);
     getAllJobs()
       .then(setJobs)
-      .catch((err) => Alert.alert('Failed to load projects', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('projects.loadFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useFocusEffect(load);
 
@@ -59,8 +62,8 @@ export default function ProjectsScreen({ navigation }: Props) {
       <View style={styles.headerRow}>
         <IconBadge icon="folder" color={colors.accent} size={40} />
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>Projects</Text>
-          <Text style={styles.headerSubtitle}>All your AI-generated Reels in one place.</Text>
+          <Text style={styles.headerTitle}>{t('projects.title')}</Text>
+          <Text style={styles.headerSubtitle}>{t('projects.subtitle')}</Text>
         </View>
         <TouchableOpacity onPress={goToCreate} style={[styles.addButton, glowShadow(colors.accent)]}>
           <Ionicons name="add" size={22} color={colors.accent} />
@@ -71,9 +74,9 @@ export default function ProjectsScreen({ navigation }: Props) {
         <Card variant="highlight" style={styles.emptyCard}>
           <EmptyState
             icon="folder"
-            title="No projects yet"
-            body="Create your first AI-powered Reel and it will appear here."
-            ctaLabel="Create your first Reel"
+            title={t('projects.emptyTitle')}
+            body={t('projects.emptyBody')}
+            ctaLabel={t('projects.emptyCta')}
             onPressCta={goToCreate}
           />
         </Card>
@@ -101,11 +104,9 @@ export default function ProjectsScreen({ navigation }: Props) {
                     <View style={styles.cardFooter}>
                       <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
                       <Text style={styles.cardMeta}>{formatDate(item.createdAt)}</Text>
-                      <Text style={styles.cardMeta}>
-                        {item.clipCount} clip{item.clipCount === 1 ? '' : 's'}
-                      </Text>
+                      <Text style={styles.cardMeta}>{t('projects.clips', { n: item.clipCount })}</Text>
                       <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
-                        {STATUS_LABELS[item.status]}
+                        {t(STATUS_KEYS[item.status])}
                       </Text>
                     </View>
                   </View>
