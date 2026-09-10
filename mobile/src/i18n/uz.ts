@@ -405,6 +405,12 @@ export const uz: Record<keyof typeof en, string> = {
   'results.filmingTips': 'Suratga olish maslahatlari',
   'results.audienceSegments': 'Auditoriya segmentlari',
   'results.adCopyVariants': 'Reklama matni variantlari',
+  'results.copyAll': 'Hammasini nusxalash',
+  'results.share': 'Ulashish',
+  'results.allCopied': 'Hammasi nusxalandi.',
+  'results.loadFailed': 'Natijani yuklab boʻlmadi.',
+  'results.retry': 'Qayta urinish',
+  'results.empty': 'Bu yerda hech narsa yaratilmadi — generatorda qaytadan urinib koʻring.',
 
   // Onboarding (first-run intro)
   'onboarding.skip': 'Oʻtkazib yuborish',

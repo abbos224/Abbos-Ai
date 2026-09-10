@@ -434,6 +434,12 @@ export const en = {
   'results.filmingTips': 'Filming tips',
   'results.audienceSegments': 'Audience segments',
   'results.adCopyVariants': 'Ad copy variants',
+  'results.copyAll': 'Copy all',
+  'results.share': 'Share',
+  'results.allCopied': 'Everything copied.',
+  'results.loadFailed': "Couldn't load this result.",
+  'results.retry': 'Retry',
+  'results.empty': 'Nothing was generated here — try again from the generator.',
 
   // Onboarding (first-run intro)
   'onboarding.skip': 'Skip',

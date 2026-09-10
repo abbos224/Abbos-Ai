@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -193,6 +193,83 @@ function TargetingView({ targeting, t }: { targeting: TargetingBrief; t: T }) {
   );
 }
 
+// The whole result as one plain-text block, for "Copy all" / the OS share sheet — handy for
+// pasting a full script or content plan into notes, a doc, or a message.
+function buildFullText(job: IdeaJob): string {
+  switch (job.mode) {
+    case 'topics':
+      return job.ideas
+        .map((i, n) => `${n + 1}. ${i.hook}\n${i.script}\nCTA: ${i.cta}`)
+        .join('\n\n');
+    case 'script':
+      return job.scripts
+        .map(
+          (s) =>
+            `${s.title} (~${s.estimatedDurationSec}s)\n${s.angle}\n\n` +
+            s.sections
+              .map((sec) => `[${sec.label}]\n${sec.script}${sec.visualNotes ? `\n(${sec.visualNotes})` : ''}`)
+              .join('\n\n') +
+            `\n\nCTA: ${s.cta}`,
+        )
+        .join('\n\n———\n\n');
+    case 'contentPlan':
+      return [...job.contentPlan]
+        .sort((a, b) => a.day - b.day)
+        .map(
+          (e) =>
+            `Day ${e.day} — ${e.format}\n${e.title}\n${e.captionShort}\n${e.hashtags.map((h) => `#${h}`).join(' ')}`,
+        )
+        .join('\n\n');
+    case 'shotList':
+      if (!job.shotList) return '';
+      return (
+        job.shotList.items
+          .map(
+            (it) =>
+              `${it.shotNumber}. ${it.shotType} (~${it.durationEstimateSec}s)\n${it.description}${it.gearNotes ? `\nGear: ${it.gearNotes}` : ''}`,
+          )
+          .join('\n\n') +
+        (job.shotList.overallTips.length
+          ? `\n\nTips:\n${job.shotList.overallTips.map((x) => `- ${x}`).join('\n')}`
+          : '')
+      );
+    case 'targeting':
+      if (!job.targeting) return '';
+      return (
+        'AUDIENCE SEGMENTS\n' +
+        job.targeting.audienceSegments
+          .map((s) => `${s.name} (${s.ageRange})\n${s.interests.join(', ')}\n${s.rationale}`)
+          .join('\n\n') +
+        '\n\nAD COPY\n' +
+        job.targeting.adCopyVariants.map((a) => `${a.headline}\n${a.primaryText}\n[${a.cta}]`).join('\n\n')
+      );
+  }
+}
+
+function ResultActions({ text, t }: { text: string; t: T }) {
+  if (!text) return null;
+  return (
+    <View style={styles.actionsRow}>
+      <TouchableOpacity
+        style={styles.actionChip}
+        onPress={() => copyAndNotify(t, text, t('results.allCopied'))}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="copy-outline" size={15} color={colors.accentAI} />
+        <Text style={styles.actionChipText}>{t('results.copyAll')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.actionChip}
+        onPress={() => Share.share({ message: text }).catch(() => {})}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="share-outline" size={15} color={colors.accentAI} />
+        <Text style={styles.actionChipText}>{t('results.share')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function titleFor(job: IdeaJob, t: T): string {
   switch (job.mode) {
     case 'topics':
@@ -212,10 +289,30 @@ export default function IdeaResultsScreen({ route }: Props) {
   const { ideaJobId } = route.params;
   const { t } = useI18n();
   const [job, setJob] = useState<IdeaJob | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    setFailed(false);
+    setJob(null);
+    getIdeaJob(ideaJobId)
+      .then(setJob)
+      .catch(() => setFailed(true));
+  }, [ideaJobId]);
 
   useEffect(() => {
-    getIdeaJob(ideaJobId).then(setJob);
-  }, [ideaJobId]);
+    load();
+  }, [load]);
+
+  if (failed) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{t('results.loadFailed')}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={load} activeOpacity={0.85}>
+          <Text style={styles.retryText}>{t('results.retry')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (!job) {
     return (
@@ -225,22 +322,58 @@ export default function IdeaResultsScreen({ route }: Props) {
     );
   }
 
+  const hasContent =
+    (job.mode === 'topics' && job.ideas.length > 0) ||
+    (job.mode === 'script' && job.scripts.length > 0) ||
+    (job.mode === 'contentPlan' && job.contentPlan.length > 0) ||
+    (job.mode === 'shotList' && !!job.shotList && job.shotList.items.length > 0) ||
+    (job.mode === 'targeting' && !!job.targeting && job.targeting.audienceSegments.length > 0);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{titleFor(job, t)}</Text>
-      {job.mode === 'topics' && <TopicsView ideas={job.ideas} t={t} />}
-      {job.mode === 'script' && <ScriptView scripts={job.scripts} t={t} />}
-      {job.mode === 'contentPlan' && <ContentPlanView entries={job.contentPlan} t={t} />}
-      {job.mode === 'shotList' && job.shotList && <ShotListView shotList={job.shotList} t={t} />}
-      {job.mode === 'targeting' && job.targeting && <TargetingView targeting={job.targeting} t={t} />}
+      {hasContent ? (
+        <>
+          <ResultActions text={buildFullText(job)} t={t} />
+          {job.mode === 'topics' && <TopicsView ideas={job.ideas} t={t} />}
+          {job.mode === 'script' && <ScriptView scripts={job.scripts} t={t} />}
+          {job.mode === 'contentPlan' && <ContentPlanView entries={job.contentPlan} t={t} />}
+          {job.mode === 'shotList' && job.shotList && <ShotListView shotList={job.shotList} t={t} />}
+          {job.mode === 'targeting' && job.targeting && <TargetingView targeting={job.targeting} t={t} />}
+        </>
+      ) : (
+        <Text style={styles.emptyText}>{t('results.empty')}</Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
-  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600', marginBottom: spacing.md },
+  errorText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: spacing.md },
+  retryButton: {
+    borderWidth: 1,
+    borderColor: colors.accentAI,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.lg,
+  },
+  retryText: { color: colors.accentAI, fontSize: 13, fontWeight: '600' },
+  emptyText: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.md },
+  actionsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  actionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+  },
+  actionChipText: { color: colors.accentAI, fontSize: 12, fontWeight: '600' },
   card: { marginBottom: spacing.sm },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   numberBadge: {
