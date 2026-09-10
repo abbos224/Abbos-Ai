@@ -21,6 +21,7 @@ import {
 } from '../api';
 import { saveRemoteFileToLibrary, shareRemoteFile } from '../utils/shareRemoteFile';
 import { useI18n } from '../i18n/LanguageContext';
+import { formatDayLabel } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import { colors, getScoreColor, gradients, radius, spacing } from '../theme';
@@ -42,14 +43,6 @@ function addDaysIso(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
-}
-
-function formatScheduledDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 export default function PreviewScreen({ route, navigation }: Props) {
@@ -442,7 +435,7 @@ export default function PreviewScreen({ route, navigation }: Props) {
         <View style={styles.scoreHeader}>
           <SectionLabel icon="calendar" label={t('preview.schedule')} />
           <Text style={styles.scheduleCurrent}>
-            {scheduledFor ? formatScheduledDate(scheduledFor) : t('preview.notScheduled')}
+            {scheduledFor ? formatDayLabel(scheduledFor) : t('preview.notScheduled')}
           </Text>
         </View>
         <View style={styles.scheduleRow}>

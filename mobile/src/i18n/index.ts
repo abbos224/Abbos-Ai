@@ -13,6 +13,11 @@ export const LANGUAGES: { code: Language; label: string }[] = [
 // The app ships Russian-first per the product decision; a viewer switches from Menu (or Login).
 export const DEFAULT_LANGUAGE: Language = 'ru';
 
+/** BCP-47 tag for date/number formatting (Intl / toLocaleDateString) in the given app language. */
+export function localeTag(language: Language): string {
+  return language === 'ru' ? 'ru-RU' : language === 'uz' ? 'uz-Latn-UZ' : 'en-US';
+}
+
 /** Every user-facing key. `en` is the source of truth for the key set; `ru`/`uz` are checked
  * against it at type level so a missing/typo'd key fails `tsc`, not silently at runtime. */
 export type TranslationKey = keyof typeof en;

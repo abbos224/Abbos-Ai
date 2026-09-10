@@ -8,6 +8,7 @@ import type { ImageJobSummary, ImageQuota, RootStackParamList } from '../types';
 import { clipFileUrl, generateOrEditImage, getAllImageJobs, getImageJob, getImageQuota } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -22,9 +23,6 @@ const MAX_POLL_ATTEMPTS = 150; // 5 minutes — a wedged job shouldn't spin this
 // other client-side length cap in this app (mobile and server don't share a package).
 const MAX_PROMPT_LENGTH = 2000;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 const STATUS_KEYS: Record<ImageJobSummary['status'], TranslationKey> = {
   generating: 'imageGen.status.generating',

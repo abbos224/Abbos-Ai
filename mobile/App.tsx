@@ -48,62 +48,67 @@ const stackScreenOptions: NativeStackNavigationOptions = {
 // so no shared/composite param-list typing is needed beyond the single existing RootStackParamList.
 
 function CreateStack() {
+  const { t } = useI18n();
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Upload" component={UploadScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: 'Processing' }} />
-      <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
-      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
-      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
-      <Stack.Screen name="IdeaGenerator" component={IdeaGeneratorScreen} options={{ title: 'Idea Generator' }} />
-      <Stack.Screen name="IdeaResults" component={IdeaResultsScreen} options={{ title: 'Ideas' }} />
-      <Stack.Screen name="ImageGenerator" component={ImageGeneratorScreen} options={{ title: 'AI Image' }} />
-      <Stack.Screen name="ImageResult" component={ImageResultScreen} options={{ title: 'Image' }} />
+      <Stack.Screen name="Upload" component={UploadScreen} options={{ headerShown: false, title: t('nav.upload') }} />
+      <Stack.Screen name="Processing" component={ProcessingScreen} options={{ title: t('nav.processing') }} />
+      <Stack.Screen name="Results" component={ResultsScreen} options={{ title: t('nav.results') }} />
+      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: t('nav.preview') }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: t('nav.editCaptions') }} />
+      <Stack.Screen name="IdeaGenerator" component={IdeaGeneratorScreen} options={{ title: t('nav.ideaGenerator') }} />
+      <Stack.Screen name="IdeaResults" component={IdeaResultsScreen} options={{ title: t('nav.ideaResults') }} />
+      <Stack.Screen name="ImageGenerator" component={ImageGeneratorScreen} options={{ title: t('nav.imageGenerator') }} />
+      <Stack.Screen name="ImageResult" component={ImageResultScreen} options={{ title: t('nav.imageResult') }} />
     </Stack.Navigator>
   );
 }
 
 function ProjectsStack() {
+  const { t } = useI18n();
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Projects" component={ProjectsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Your Content' }} />
-      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
-      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
+      <Stack.Screen name="Projects" component={ProjectsScreen} options={{ headerShown: false, title: t('tab.projects') }} />
+      <Stack.Screen name="Results" component={ResultsScreen} options={{ title: t('nav.results') }} />
+      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: t('nav.preview') }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: t('nav.editCaptions') }} />
     </Stack.Navigator>
   );
 }
 
 function CalendarStack() {
+  const { t } = useI18n();
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: 'Preview' }} />
-      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: 'Edit Captions' }} />
+      <Stack.Screen name="Calendar" component={CalendarScreen} options={{ headerShown: false, title: t('calendar.title') }} />
+      <Stack.Screen name="Preview" component={PreviewScreen} options={{ title: t('nav.preview') }} />
+      <Stack.Screen name="EditCaptions" component={EditCaptionsScreen} options={{ title: t('nav.editCaptions') }} />
     </Stack.Navigator>
   );
 }
 
 function AnalyticsStack() {
+  const { t } = useI18n();
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="VideoAnalytics" component={VideoAnalyticsScreen} options={{ title: 'Video Analytics' }} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ headerShown: false, title: t('tab.analytics') }} />
+      <Stack.Screen name="VideoAnalytics" component={VideoAnalyticsScreen} options={{ title: t('nav.videoAnalytics') }} />
     </Stack.Navigator>
   );
 }
 
 function MenuStack() {
+  const { t } = useI18n();
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Menu" component={MenuScreen} options={{ title: 'Menu' }} />
-      <Stack.Screen name="BrandKit" component={BrandKitScreen} options={{ title: 'Brand Kit' }} />
-      <Stack.Screen name="Personas" component={PersonasScreen} options={{ title: 'Voice' }} />
+      <Stack.Screen name="Menu" component={MenuScreen} options={{ title: t('nav.menu') }} />
+      <Stack.Screen name="BrandKit" component={BrandKitScreen} options={{ title: t('nav.brandKit') }} />
+      <Stack.Screen name="Personas" component={PersonasScreen} options={{ title: t('nav.voice') }} />
       {/* Login/SignUp stay registered here too as a defensive fallback for MenuScreen's
           post-signOut instant, though the AuthStack below is what's actually shown while logged
           out — see AppShell. */}
-      <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Log In' }} />
-      <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Sign Up' }} />
+      <Stack.Screen name="Login" component={LoginScreen} options={{ title: t('nav.login') }} />
+      <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: t('nav.signUp') }} />
     </Stack.Navigator>
   );
 }

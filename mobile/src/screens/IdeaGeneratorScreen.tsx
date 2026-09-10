@@ -7,6 +7,7 @@ import type { IdeaJobSummary, IdeaJobMode, RootStackParamList } from '../types';
 import { generateIdeas, getAllIdeaJobs, getIdeaJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -53,9 +54,6 @@ const STATUS_KEYS: Record<IdeaJobSummary['status'], TranslationKey> = {
   failed: 'idea.status.failed',
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 export default function IdeaGeneratorScreen({ navigation }: Props) {
   const { t } = useI18n();
