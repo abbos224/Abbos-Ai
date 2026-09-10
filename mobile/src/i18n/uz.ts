@@ -176,6 +176,24 @@ export const uz: Record<keyof typeof en, string> = {
   'projects.loadFailed': 'Loyihalarni yuklab boʻlmadi',
   'projects.clips': '{n} ta klip',
 
+  'analytics.trafficSources': 'Trafik manbalari',
+  'analytics.trafficSourcesEmpty': 'Bu davr uchun trafik manbalari maʼlumoti hali yoʻq.',
+  'analytics.trafficSourcesEmptyVideo': 'Bu video uchun trafik manbalari maʼlumoti hali yoʻq.',
+
+  'videoAnalytics.retentionTitle': 'Auditoriya ushlanishi',
+  'videoAnalytics.retentionEmpty': 'YouTube ushlanish egri chizigʻini hisoblashi uchun koʻrishlar hali yetarli emas.',
+  'videoAnalytics.retentionSubtext': 'oxshash uzunlikdagi YouTube videolariga nisbatan oʻrtacha ushlanish',
+  'videoAnalytics.viewsByDay': 'Kunlar boʻyicha koʻrishlar',
+  'videoAnalytics.viewsSuffix': 'koʻrish',
+  'videoAnalytics.loadFailed': 'Video analitikasini yuklab boʻlmadi',
+
+  'editCaptions.hint': 'Soʻzni (yoki bir nechtasini) tanlash uchun bosing, keyin quyida format qoʻllang. Tanlovni bekor qilish uchun yana bosing.',
+  'editCaptions.selectPrompt': 'Formatlash uchun yuqoridagi soʻz(lar)ni tanlang',
+  'editCaptions.selectedCount': '{n} ta soʻz tanlandi',
+  'editCaptions.clear': 'Tozalash',
+  'editCaptions.saveRerender': 'Saqlash va qayta render',
+  'editCaptions.saveFailed': 'Saqlab boʻlmadi',
+
   'clips.title': '{n} ta Reels yaratildi',
   'clips.ctaLabel': 'CTA:',
   'clipStatus.pending': 'navbatda',

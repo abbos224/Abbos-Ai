@@ -189,6 +189,27 @@ export const en = {
   'projects.loadFailed': 'Failed to load projects',
   'projects.clips': '{n} clips',
 
+  // Analytics — shared breakdown labels (channel + per-video)
+  'analytics.trafficSources': 'Traffic sources',
+  'analytics.trafficSourcesEmpty': 'No traffic-source data for this period yet.',
+  'analytics.trafficSourcesEmptyVideo': 'No traffic-source data for this video yet.',
+
+  // Video Analytics
+  'videoAnalytics.retentionTitle': 'Audience retention',
+  'videoAnalytics.retentionEmpty': 'Not enough views yet for YouTube to compute a retention curve.',
+  'videoAnalytics.retentionSubtext': 'average retention vs. similar-length YouTube videos',
+  'videoAnalytics.viewsByDay': 'Views by day',
+  'videoAnalytics.viewsSuffix': 'views',
+  'videoAnalytics.loadFailed': 'Failed to load video analytics',
+
+  // Edit Captions
+  'editCaptions.hint': 'Tap a word (or several) to select it, then apply a format below. Select again to deselect.',
+  'editCaptions.selectPrompt': 'Select word(s) above to format them',
+  'editCaptions.selectedCount': '{n} word(s) selected',
+  'editCaptions.clear': 'Clear',
+  'editCaptions.saveRerender': 'Save & Re-render',
+  'editCaptions.saveFailed': 'Save failed',
+
   // Results (generated clips)
   'clips.title': '{n} Reels generated',
   'clips.ctaLabel': 'CTA:',

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Scr
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CaptionWord, RootStackParamList, WordFormatOverride } from '../types';
 import { getCaptionWords, saveCaptionEdits } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import IconBadge from '../components/IconBadge';
@@ -25,6 +26,7 @@ const EMPTY_PATCH: Partial<WordFormatOverride> = {
 
 export default function EditCaptionsScreen({ route, navigation }: Props) {
   const { clip } = route.params;
+  const { t } = useI18n();
   const [words, setWords] = useState<CaptionWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export default function EditCaptionsScreen({ route, navigation }: Props) {
         clip: { ...clip, captionOverrides: overrides, outputFile: `${outputFile}?t=${Date.now()}` },
       });
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('editCaptions.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -103,10 +105,7 @@ export default function EditCaptionsScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.hint}>
-        Tap a word (or several) to select it, then apply a format below. Select again to
-        deselect.
-      </Text>
+      <Text style={styles.hint}>{t('editCaptions.hint')}</Text>
 
       <Card style={styles.wordCard}>
         <View style={styles.wordWrap}>
@@ -141,7 +140,7 @@ export default function EditCaptionsScreen({ route, navigation }: Props) {
 
       <Card style={styles.toolbarCard}>
         <Text style={styles.toolbarLabel}>
-          {selected.size === 0 ? 'Select word(s) above to format them' : `${selected.size} word(s) selected`}
+          {selected.size === 0 ? t('editCaptions.selectPrompt') : t('editCaptions.selectedCount', { n: selected.size })}
         </Text>
 
         <View style={styles.toolbarRow}>
@@ -164,7 +163,7 @@ export default function EditCaptionsScreen({ route, navigation }: Props) {
             disabled={selected.size === 0}
             onPress={() => applyToSelection(EMPTY_PATCH)}
           >
-            <Text style={styles.toggleChipText}>Clear</Text>
+            <Text style={styles.toggleChipText}>{t('editCaptions.clear')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -208,7 +207,7 @@ export default function EditCaptionsScreen({ route, navigation }: Props) {
       </Card>
 
       <GradientButton
-        label="Save & Re-render"
+        label={t('editCaptions.saveRerender')}
         icon="checkmark-circle-outline"
         loading={saving}
         onPress={handleSave}
