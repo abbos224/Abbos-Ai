@@ -16,6 +16,7 @@ import { getIdeaJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
+import LoadError from '../components/LoadError';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'IdeaResults'>;
@@ -303,16 +304,7 @@ export default function IdeaResultsScreen({ route }: Props) {
     load();
   }, [load]);
 
-  if (failed) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{t('results.loadFailed')}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={load} activeOpacity={0.85}>
-          <Text style={styles.retryText}>{t('results.retry')}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (failed) return <LoadError onRetry={load} accent={colors.accentAI} />;
 
   if (!job) {
     return (
@@ -352,15 +344,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600', marginBottom: spacing.md },
-  errorText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: spacing.md },
-  retryButton: {
-    borderWidth: 1,
-    borderColor: colors.accentAI,
-    borderRadius: radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.lg,
-  },
-  retryText: { color: colors.accentAI, fontSize: 13, fontWeight: '600' },
   emptyText: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.md },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   actionChip: {

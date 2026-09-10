@@ -3,6 +3,8 @@ import type { en } from './en';
 /** Uzbek (Latin script). */
 export const uz: Record<keyof typeof en, string> = {
   'common.or': 'yoki',
+  'common.retry': 'Qayta urinish',
+  'common.loadFailed': 'Yuklab boʻlmadi — aloqani tekshiring va qaytadan urinib koʻring.',
   'common.somethingWrong': 'Nimadir xato ketdi',
   'common.back': 'Orqaga',
 
@@ -369,7 +371,6 @@ export const uz: Record<keyof typeof en, string> = {
   'action.saveFailed': 'Saqlab boʻlmadi',
   'action.shareFailed': 'Ulashib boʻlmadi',
 
-  'imageResult.loadFailed': 'Rasmni yuklab boʻlmadi',
   'imageResult.savedBody': 'Rasm galereyaga saqlandi.',
   'imageResult.continueEditing': 'Tahrirni davom ettirish',
 
@@ -395,8 +396,6 @@ export const uz: Record<keyof typeof en, string> = {
   'results.copyAll': 'Hammasini nusxalash',
   'results.share': 'Ulashish',
   'results.allCopied': 'Hammasi nusxalandi.',
-  'results.loadFailed': 'Natijani yuklab boʻlmadi.',
-  'results.retry': 'Qayta urinish',
   'results.empty': 'Bu yerda hech narsa yaratilmadi — generatorda qaytadan urinib koʻring.',
 
   // Onboarding (first-run intro)

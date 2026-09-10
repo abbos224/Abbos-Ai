@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Clip, ClipStatus, RootStackParamList } from '../types';
 import { getJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import LoadError from '../components/LoadError';
 import { colors, getScoreColor, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
@@ -20,10 +21,21 @@ export default function ResultsScreen({ route, navigation }: Props) {
   const { jobId } = route.params;
   const { t } = useI18n();
   const [clips, setClips] = useState<Clip[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    setFailed(false);
+    setClips(null);
+    getJob(jobId)
+      .then((job) => setClips(job.clips))
+      .catch(() => setFailed(true));
+  }, [jobId]);
 
   useEffect(() => {
-    getJob(jobId).then((job) => setClips(job.clips));
-  }, [jobId]);
+    load();
+  }, [load]);
+
+  if (failed) return <LoadError onRetry={load} />;
 
   if (!clips) {
     return (
