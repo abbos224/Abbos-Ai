@@ -8,6 +8,7 @@ import { generateIdeas, getAllIdeaJobs, getIdeaJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
 import { ensureNotificationPermission, notifyIfBackgrounded } from '../notifications';
+import { useDraft } from '../useDraft';
 import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
@@ -63,7 +64,7 @@ export default function IdeaGeneratorScreen({ navigation, route }: Props) {
   const [days, setDays] = useState<(typeof CONTENT_PLAN_DAY_OPTIONS)[number]>(
     CONTENT_PLAN_DAY_OPTIONS.find((d) => d === prefill?.prefillDays) ?? 7,
   );
-  const [topic, setTopic] = useState(prefill?.prefillTopic ?? '');
+  const [topic, setTopic, clearTopicDraft] = useDraft('ideaTopic', prefill?.prefillTopic ?? '');
   const [generating, setGenerating] = useState(false);
   const [pastIdeas, setPastIdeas] = useState<IdeaJobSummary[] | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);
@@ -118,7 +119,7 @@ export default function IdeaGeneratorScreen({ navigation, route }: Props) {
     ensureNotificationPermission().catch(() => {});
     try {
       const { ideaJobId } = await generateIdeas(trimmed, mode, mode === 'contentPlan' ? days : undefined);
-      setTopic('');
+      clearTopicDraft();
       await pollUntilDone(ideaJobId);
     } catch (err) {
       setGenerating(false);

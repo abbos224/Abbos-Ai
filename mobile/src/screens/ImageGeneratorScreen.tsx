@@ -14,6 +14,7 @@ import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
 import EmptyState from '../components/EmptyState';
+import { useDraft } from '../useDraft';
 import { colors, gradients, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImageGenerator'>;
@@ -57,7 +58,7 @@ type EditSource = { type: 'upload'; uri: string; fileName: string; mimeType: str
 
 export default function ImageGeneratorScreen({ navigation, route }: Props) {
   const { t } = useI18n();
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt, clearPromptDraft] = useDraft('imagePrompt');
   const [source, setSource] = useState<EditSource | null>(null);
   const [generating, setGenerating] = useState(false);
   const [pastImages, setPastImages] = useState<ImageJobSummary[] | null>(null);
@@ -156,7 +157,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
             ? { sourceImageJobId: source.jobId }
             : undefined;
       const { imageJobId, quota: newQuota } = await generateOrEditImage(trimmed, requestSource);
-      setPrompt('');
+      clearPromptDraft();
       setSource(null);
       setQuota(newQuota); // the server already knows the updated count — no extra round-trip needed
       await pollUntilDone(imageJobId);
