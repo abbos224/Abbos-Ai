@@ -18,13 +18,20 @@ import {
 
 /** `days` only matters for 'contentPlan' mode; ignored otherwise (see index.ts's route, which
  * only forwards it when mode is 'contentPlan'). */
-export async function processIdeaJob(userId: string, ideaJobId: string, topic: string, mode: IdeaJobMode, days?: number): Promise<void> {
+export async function processIdeaJob(
+  userId: string,
+  ideaJobId: string,
+  topic: string,
+  mode: IdeaJobMode,
+  days?: number,
+  appLanguage?: string,
+): Promise<void> {
   try {
     const persona = await getActivePersona(userId);
 
     switch (mode) {
       case 'topics': {
-        const candidates = await generateIdeas(topic, persona);
+        const candidates = await generateIdeas(topic, persona, appLanguage);
         const ideas: Idea[] = candidates.map((c) => ({
           id: uuid(),
           hook: c.hook,
@@ -36,7 +43,7 @@ export async function processIdeaJob(userId: string, ideaJobId: string, topic: s
         break;
       }
       case 'script': {
-        const candidates = await generateProfessionalScripts(topic, persona);
+        const candidates = await generateProfessionalScripts(topic, persona, appLanguage);
         const scripts: ProfessionalScript[] = candidates.map((c) => ({
           id: uuid(),
           title: c.title,
@@ -49,7 +56,7 @@ export async function processIdeaJob(userId: string, ideaJobId: string, topic: s
         break;
       }
       case 'contentPlan': {
-        const candidates = await generateContentPlan(topic, days ?? 7, persona);
+        const candidates = await generateContentPlan(topic, days ?? 7, persona, appLanguage);
         const contentPlan: ContentPlanEntry[] = candidates.map((c) => ({
           id: uuid(),
           day: c.day,
@@ -62,7 +69,7 @@ export async function processIdeaJob(userId: string, ideaJobId: string, topic: s
         break;
       }
       case 'shotList': {
-        const candidate = await generateShotList(topic, persona);
+        const candidate = await generateShotList(topic, persona, appLanguage);
         const shotList: ShotList = {
           items: candidate.items.map((i) => ({
             id: uuid(),
@@ -78,7 +85,7 @@ export async function processIdeaJob(userId: string, ideaJobId: string, topic: s
         break;
       }
       case 'targeting': {
-        const candidate = await generateTargetingBrief(topic, persona);
+        const candidate = await generateTargetingBrief(topic, persona, appLanguage);
         await updateIdeaJob(userId, ideaJobId, {
           status: 'done',
           targeting: {

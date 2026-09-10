@@ -1,6 +1,6 @@
 import { getAnthropicClient } from './anthropicClient.js';
 import { getPersonaVoiceGuidance, type PersonaName } from './personas.js';
-import { ANTI_CLICHE_GUARDRAIL } from './promptGuardrails.js';
+import { ANTI_CLICHE_GUARDRAIL, languageDirective } from './promptGuardrails.js';
 
 export type IdeaCandidate = {
   hook: string;
@@ -59,8 +59,8 @@ Return exactly 5 ideas.
 
 ${ANTI_CLICHE_GUARDRAIL}`;
 
-export async function generateIdeas(topic: string, persona?: PersonaName): Promise<IdeaCandidate[]> {
-  const parsed = await callClaude<{ ideas: IdeaCandidate[] }>(TOPICS_SYSTEM_PROMPT, topic, persona);
+export async function generateIdeas(topic: string, persona?: PersonaName, appLanguage?: string): Promise<IdeaCandidate[]> {
+  const parsed = await callClaude<{ ideas: IdeaCandidate[] }>(TOPICS_SYSTEM_PROMPT, topic, persona, 4096, appLanguage);
   return parsed.ideas;
 }
 
@@ -102,9 +102,19 @@ Return exactly 3 scripts. Do not invent specific facts, statistics, or claims th
 
 ${ANTI_CLICHE_GUARDRAIL}`;
 
-export async function generateProfessionalScripts(topic: string, persona?: PersonaName): Promise<ProfessionalScriptCandidate[]> {
+export async function generateProfessionalScripts(
+  topic: string,
+  persona?: PersonaName,
+  appLanguage?: string,
+): Promise<ProfessionalScriptCandidate[]> {
   // 3 full multi-section scripts run noticeably longer than the other modes' output.
-  const parsed = await callClaude<{ scripts: ProfessionalScriptCandidate[] }>(SCRIPT_SYSTEM_PROMPT, topic, persona, 8192);
+  const parsed = await callClaude<{ scripts: ProfessionalScriptCandidate[] }>(
+    SCRIPT_SYSTEM_PROMPT,
+    topic,
+    persona,
+    8192,
+    appLanguage,
+  );
   return parsed.scripts;
 }
 
@@ -140,10 +150,21 @@ Do not invent specific facts, statistics, or claims that could be false.
 ${ANTI_CLICHE_GUARDRAIL}`;
 }
 
-export async function generateContentPlan(topic: string, days: number, persona?: PersonaName): Promise<ContentPlanEntryCandidate[]> {
+export async function generateContentPlan(
+  topic: string,
+  days: number,
+  persona?: PersonaName,
+  appLanguage?: string,
+): Promise<ContentPlanEntryCandidate[]> {
   // Scales with `days` — a 30-day plan is meaningfully more JSON than a 7-day one.
   const maxTokens = Math.min(8192, 1536 + days * 180);
-  const parsed = await callClaude<{ entries: ContentPlanEntryCandidate[] }>(contentPlanSystemPrompt(days), topic, persona, maxTokens);
+  const parsed = await callClaude<{ entries: ContentPlanEntryCandidate[] }>(
+    contentPlanSystemPrompt(days),
+    topic,
+    persona,
+    maxTokens,
+    appLanguage,
+  );
   return parsed.entries;
 }
 
@@ -180,8 +201,8 @@ Produce 5-10 shots total, enough to cover a real 30-90 second video.
 
 ${ANTI_CLICHE_GUARDRAIL}`;
 
-export async function generateShotList(topic: string, persona?: PersonaName): Promise<ShotListCandidate> {
-  return callClaude<ShotListCandidate>(SHOT_LIST_SYSTEM_PROMPT, topic, persona);
+export async function generateShotList(topic: string, persona?: PersonaName, appLanguage?: string): Promise<ShotListCandidate> {
+  return callClaude<ShotListCandidate>(SHOT_LIST_SYSTEM_PROMPT, topic, persona, 4096, appLanguage);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -216,8 +237,12 @@ Do not invent specific facts, statistics, or claims that could be false.
 
 ${ANTI_CLICHE_GUARDRAIL}`;
 
-export async function generateTargetingBrief(topic: string, persona?: PersonaName): Promise<TargetingBriefCandidate> {
-  return callClaude<TargetingBriefCandidate>(TARGETING_SYSTEM_PROMPT, topic, persona);
+export async function generateTargetingBrief(
+  topic: string,
+  persona?: PersonaName,
+  appLanguage?: string,
+): Promise<TargetingBriefCandidate> {
+  return callClaude<TargetingBriefCandidate>(TARGETING_SYSTEM_PROMPT, topic, persona, 4096, appLanguage);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -226,10 +251,17 @@ export async function generateTargetingBrief(topic: string, persona?: PersonaNam
 // lives in one place.
 // ---------------------------------------------------------------------------------------------
 
-async function callClaude<T>(systemPrompt: string, topic: string, persona?: PersonaName, maxTokens = 4096): Promise<T> {
-  const system = persona
+async function callClaude<T>(
+  systemPrompt: string,
+  topic: string,
+  persona?: PersonaName,
+  maxTokens = 4096,
+  appLanguage?: string,
+): Promise<T> {
+  const withPersona = persona
     ? `${systemPrompt}\n\nVoice for any written/spoken copy: ${getPersonaVoiceGuidance(persona)}`
     : systemPrompt;
+  const system = `${withPersona}${languageDirective(appLanguage)}`;
 
   const message = await getAnthropicClient().messages.create({
     model: 'claude-sonnet-5',
