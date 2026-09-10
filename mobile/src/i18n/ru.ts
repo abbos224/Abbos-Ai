@@ -426,4 +426,18 @@ export const ru: Record<keyof typeof en, string> = {
   'onboarding.tourIdeas': 'Сгенерируйте идеи по теме',
   'onboarding.tourImage': 'Создавайте и редактируйте изображения с ИИ',
   'onboarding.tourYoutube': 'Подключите YouTube-канал в разделе «Меню», чтобы публиковать ролики и видеть аналитику.',
+
+  // Local notifications (fired when a job finishes while the app is backgrounded)
+  'notify.clipsReadyTitle': 'Клипы готовы',
+  'notify.clipsReadyBody': 'Нажмите, чтобы открыть результаты.',
+  'notify.videoFailedTitle': 'Не удалось обработать видео',
+  'notify.videoFailedBody': 'Откройте приложение, чтобы узнать причину.',
+  'notify.ideasReadyTitle': 'Идеи готовы',
+  'notify.ideasReadyBody': 'Нажмите, чтобы открыть их.',
+  'notify.ideasFailedTitle': 'Не удалось сгенерировать идеи',
+  'notify.ideasFailedBody': 'Откройте приложение, чтобы попробовать ещё раз.',
+  'notify.imageReadyTitle': 'Изображение готово',
+  'notify.imageReadyBody': 'Нажмите, чтобы открыть его.',
+  'notify.imageFailedTitle': 'Не удалось создать изображение',
+  'notify.imageFailedBody': 'Откройте приложение, чтобы попробовать ещё раз.',
 };

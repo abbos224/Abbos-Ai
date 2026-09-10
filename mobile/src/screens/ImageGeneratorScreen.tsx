@@ -8,6 +8,7 @@ import type { ImageJobSummary, ImageQuota, RootStackParamList } from '../types';
 import { clipFileUrl, generateOrEditImage, getAllImageJobs, getImageJob, getImageQuota } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { ensureNotificationPermission, notifyIfBackgrounded } from '../notifications';
 import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
@@ -120,12 +121,14 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
       if (job.status === 'done') {
         setGenerating(false);
         loadPastImages();
+        notifyIfBackgrounded(t('notify.imageReadyTitle'), t('notify.imageReadyBody'));
         navigation.navigate('ImageResult', { imageJobId });
         return;
       }
       if (job.status === 'failed') {
         setGenerating(false);
         loadPastImages();
+        notifyIfBackgrounded(t('notify.imageFailedTitle'), t('notify.imageFailedBody'));
         Alert.alert(t('imageGen.generationFailed'), job.error ?? t('imageGen.somethingWrong'));
         return;
       }
@@ -144,6 +147,7 @@ export default function ImageGeneratorScreen({ navigation, route }: Props) {
       return;
     }
     setGenerating(true);
+    ensureNotificationPermission().catch(() => {});
     try {
       const requestSource =
         source?.type === 'upload'

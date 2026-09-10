@@ -426,4 +426,18 @@ export const uz: Record<keyof typeof en, string> = {
   'onboarding.tourIdeas': 'Mavzu boʻyicha gʻoyalar yarating',
   'onboarding.tourImage': 'SI bilan rasm yarating yoki tahrirlang',
   'onboarding.tourYoutube': 'Eʼlon qilish va tahlilni koʻrish uchun «Menyu» boʻlimida YouTube kanalingizni ulang.',
+
+  // Local notifications (fired when a job finishes while the app is backgrounded)
+  'notify.clipsReadyTitle': 'Kliplar tayyor',
+  'notify.clipsReadyBody': 'Natijalarni ochish uchun bosing.',
+  'notify.videoFailedTitle': 'Videoni qayta ishlab boʻlmadi',
+  'notify.videoFailedBody': 'Sababini koʻrish uchun ilovani oching.',
+  'notify.ideasReadyTitle': 'Gʻoyalar tayyor',
+  'notify.ideasReadyBody': 'Ularni ochish uchun bosing.',
+  'notify.ideasFailedTitle': 'Gʻoyalarni yaratib boʻlmadi',
+  'notify.ideasFailedBody': 'Qayta urinish uchun ilovani oching.',
+  'notify.imageReadyTitle': 'Rasm tayyor',
+  'notify.imageReadyBody': 'Uni ochish uchun bosing.',
+  'notify.imageFailedTitle': 'Rasmni yaratib boʻlmadi',
+  'notify.imageFailedBody': 'Qayta urinish uchun ilovani oching.',
 };

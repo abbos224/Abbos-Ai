@@ -7,6 +7,7 @@ import type { IdeaJobSummary, IdeaJobMode, RootStackParamList } from '../types';
 import { generateIdeas, getAllIdeaJobs, getIdeaJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { ensureNotificationPermission, notifyIfBackgrounded } from '../notifications';
 import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
@@ -89,12 +90,14 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       if (job.status === 'done') {
         setGenerating(false);
         loadPastIdeas();
+        notifyIfBackgrounded(t('notify.ideasReadyTitle'), t('notify.ideasReadyBody'));
         navigation.navigate('IdeaResults', { ideaJobId });
         return;
       }
       if (job.status === 'failed') {
         setGenerating(false);
         loadPastIdeas();
+        notifyIfBackgrounded(t('notify.ideasFailedTitle'), t('notify.ideasFailedBody'));
         Alert.alert(t('idea.generationFailed'), job.error ?? t('idea.somethingWrong'));
         return;
       }
@@ -109,6 +112,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       return;
     }
     setGenerating(true);
+    ensureNotificationPermission().catch(() => {});
     try {
       const { ideaJobId } = await generateIdeas(trimmed, mode, mode === 'contentPlan' ? days : undefined);
       setTopic('');
