@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Persona, PersonaName, RootStackParamList } from '../types';
 import { getPersonas, setActivePersona } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import { colors, spacing } from '../theme';
 
@@ -18,6 +19,7 @@ const PERSONA_ICONS: Record<PersonaName, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function PersonasScreen({}: Props) {
+  const { t } = useI18n();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [activePersona, setActive] = useState<PersonaName | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,9 +31,9 @@ export default function PersonasScreen({}: Props) {
         setPersonas(personas);
         setActive(activePersona);
       })
-      .catch((err) => Alert.alert('Failed to load personas', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('personas.loadFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   async function pick(name: PersonaName | null) {
     setSaving(name ?? 'none');
@@ -39,7 +41,7 @@ export default function PersonasScreen({}: Props) {
       const { activePersona } = await setActivePersona(name);
       setActive(activePersona);
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(null);
     }
@@ -55,11 +57,8 @@ export default function PersonasScreen({}: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>Voice</Text>
-      <Text style={styles.sectionHint}>
-        Steers the tone of every hook, CTA, and cover title Claude writes for your next uploads. Doesn't
-        change clips you've already generated.
-      </Text>
+      <Text style={styles.sectionTitle}>{t('personas.title')}</Text>
+      <Text style={styles.sectionHint}>{t('personas.hint')}</Text>
 
       <TouchableOpacity onPress={() => pick(null)} disabled={saving !== null} activeOpacity={0.85}>
         <Card variant={activePersona === null ? 'highlight' : 'default'} style={styles.card}>
@@ -67,11 +66,11 @@ export default function PersonasScreen({}: Props) {
             <View style={[styles.iconCircle, activePersona === null && styles.iconCircleActive]}>
               <Ionicons name="radio-button-off" size={16} color={activePersona === null ? colors.onAccent : colors.textMuted} />
             </View>
-            <Text style={[styles.cardLabel, activePersona === null && styles.cardLabelActive]}>Default</Text>
+            <Text style={[styles.cardLabel, activePersona === null && styles.cardLabelActive]}>{t('personas.default')}</Text>
             {saving === 'none' && <ActivityIndicator size="small" color={colors.accent} />}
           </View>
           <Text style={[styles.cardDescription, activePersona === null && styles.cardDescriptionActive]}>
-            No persona override — Claude's neutral, general-purpose voice.
+            {t('personas.defaultDesc')}
           </Text>
         </Card>
       </TouchableOpacity>

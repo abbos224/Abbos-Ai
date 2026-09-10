@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CalendarEntry, RootStackParamList } from '../types';
 import { autoScheduleCalendar, getCalendar, getJob } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -32,6 +33,7 @@ function groupByDate(entries: CalendarEntry[]): Section[] {
 }
 
 export default function CalendarScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const [entries, setEntries] = useState<CalendarEntry[] | null>(null);
   const [autoScheduling, setAutoScheduling] = useState(false);
   const [openingClip, setOpeningClip] = useState<string | null>(null);
@@ -39,8 +41,8 @@ export default function CalendarScreen({ navigation }: Props) {
   const load = useCallback(() => {
     getCalendar()
       .then(setEntries)
-      .catch((err) => Alert.alert('Failed to load calendar', err instanceof Error ? err.message : String(err)));
-  }, []);
+      .catch((err) => Alert.alert(t('calendar.loadFailed'), err instanceof Error ? err.message : String(err)));
+  }, [t]);
 
   useFocusEffect(load);
 
@@ -50,7 +52,7 @@ export default function CalendarScreen({ navigation }: Props) {
       await autoScheduleCalendar();
       load();
     } catch (err) {
-      Alert.alert('Auto-schedule failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('calendar.autoScheduleFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setAutoScheduling(false);
     }
@@ -62,12 +64,12 @@ export default function CalendarScreen({ navigation }: Props) {
       const job = await getJob(entry.jobId);
       const clip = job.clips.find((c) => c.id === entry.clipId);
       if (!clip) {
-        Alert.alert('Clip not found', 'This clip no longer exists.');
+        Alert.alert(t('calendar.clipNotFoundTitle'), t('calendar.clipNotFoundBody'));
         return;
       }
       navigation.navigate('Preview', { clip });
     } catch (err) {
-      Alert.alert('Failed to open clip', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('calendar.openClipFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setOpeningClip(null);
     }
@@ -85,14 +87,14 @@ export default function CalendarScreen({ navigation }: Props) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <IconBadge icon="calendar" color={colors.accent} size={40} />
-        <Text style={styles.title}>Content Calendar</Text>
+        <Text style={styles.title}>{t('calendar.title')}</Text>
         <TouchableOpacity onPress={handleAutoSchedule} disabled={autoScheduling} style={styles.autoScheduleButton}>
           {autoScheduling ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
             <>
               <Ionicons name="sparkles" size={14} color={colors.accent} />
-              <Text style={styles.autoScheduleLink}>Auto-schedule</Text>
+              <Text style={styles.autoScheduleLink}>{t('calendar.autoSchedule')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -102,8 +104,8 @@ export default function CalendarScreen({ navigation }: Props) {
         <Card variant="highlight" style={styles.emptyCard}>
           <EmptyState
             icon="calendar-outline"
-            title="Nothing scheduled yet"
-            body="Schedule a rendered clip from its preview screen, or tap Auto-schedule to space out everything you have ready."
+            title={t('calendar.emptyTitle')}
+            body={t('calendar.emptyBody')}
           />
         </Card>
       ) : (
