@@ -14,6 +14,7 @@ import {
   getSoundEffectsStyles,
   setSoundEffectsStyle,
 } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import { colors, radius, spacing } from '../theme';
@@ -50,6 +51,7 @@ function SectionCard({
 }
 
 export default function BrandKitScreen({}: Props) {
+  const { t } = useI18n();
   const [logoUrl, setLogoUrl] = useState<string | undefined>();
   const [accentColor, setAccentColor] = useState<string | undefined>();
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -77,7 +79,7 @@ export default function BrandKitScreen({}: Props) {
   async function pickLogo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Нужен доступ', 'Разрешите доступ к галерее, чтобы выбрать логотип.');
+      Alert.alert(t('upload.permissionTitle'), t('brandKit.permissionBody'));
       return;
     }
 
@@ -90,7 +92,7 @@ export default function BrandKitScreen({}: Props) {
       const kit = await uploadBrandLogo(asset.uri, asset.fileName ?? 'logo.png');
       setLogoUrl(kit.logoUrl);
     } catch (err) {
-      Alert.alert('Upload failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('brandKit.uploadFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setUploadingLogo(false);
     }
@@ -102,7 +104,7 @@ export default function BrandKitScreen({}: Props) {
       await setBrandAccentColor(color);
       setAccentColor(color);
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSavingColor(null);
     }
@@ -114,7 +116,7 @@ export default function BrandKitScreen({}: Props) {
       await setCaptionStyle(style);
       setActiveStyle(style);
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSavingStyle(null);
     }
@@ -126,7 +128,7 @@ export default function BrandKitScreen({}: Props) {
       await setSoundEffectsStyle(style);
       setActiveEffectsStyle(style);
     } catch (err) {
-      Alert.alert('Save failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('action.saveFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSavingEffectsStyle(null);
     }
@@ -134,19 +136,19 @@ export default function BrandKitScreen({}: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <SectionCard icon="image" title="Logo" hint="Appears in the top-right corner of every Reel you export.">
+      <SectionCard icon="image" title={t('brandKit.logoTitle')} hint={t('brandKit.logoHint')}>
         <TouchableOpacity style={styles.logoBox} onPress={pickLogo} disabled={uploadingLogo}>
           {uploadingLogo ? (
             <ActivityIndicator color={colors.accent} />
           ) : logoUrl ? (
             <Image source={{ uri: clipFileUrl(logoUrl) }} style={styles.logoPreview} resizeMode="contain" />
           ) : (
-            <Text style={styles.logoBoxText}>Upload logo</Text>
+            <Text style={styles.logoBoxText}>{t('brandKit.uploadLogo')}</Text>
           )}
         </TouchableOpacity>
       </SectionCard>
 
-      <SectionCard icon="color-palette" title="Brand color" hint="Used as the caption outline color across your Reels.">
+      <SectionCard icon="color-palette" title={t('brandKit.colorTitle')} hint={t('brandKit.colorHint')}>
         <View style={styles.colorRow}>
           {PRESET_COLORS.map((color) => (
             <TouchableOpacity
@@ -161,11 +163,7 @@ export default function BrandKitScreen({}: Props) {
         </View>
       </SectionCard>
 
-      <SectionCard
-        icon="text"
-        title="Caption style"
-        hint="How every hook and caption is set — from a quiet minimal look to a full kinetic pop. Karaoke and WordPop are motion styles: words animate in sync as they're spoken."
-      >
+      <SectionCard icon="text" title={t('brandKit.captionStyleTitle')} hint={t('brandKit.captionStyleHint')}>
         <View style={styles.styleGrid}>
           {captionStyles.map((style) => {
             const isMotion = style === 'karaoke' || style === 'wordPop' || style === 'highlightBox' || style === 'emphasisWord';
@@ -190,11 +188,7 @@ export default function BrandKitScreen({}: Props) {
         </View>
       </SectionCard>
 
-      <SectionCard
-        icon="musical-notes"
-        title="Sound effects"
-        hint="Professional keeps Reels quiet; Minimal adds a subtle whoosh on zoom; Dynamic also dings on numbers/prices and alerts on warning words."
-      >
+      <SectionCard icon="musical-notes" title={t('brandKit.soundTitle')} hint={t('brandKit.soundHint')}>
         <View style={styles.styleGrid}>
           {effectsStyles.map((style) => (
             <TouchableOpacity
