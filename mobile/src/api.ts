@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config';
 import { getToken } from './authStorage';
+import type { Language as AppLanguage } from './i18n';
 import type {
   YoutubeAnalytics,
   VideoAnalytics,
@@ -27,6 +28,14 @@ import type {
   YoutubeStatus,
 } from './types';
 
+// The app's current UI language, kept in sync by LanguageContext. Sent on every request as
+// X-App-Language so server-side AI generation (ideas, clip analysis, regeneration) can produce
+// output in the language the user is actually reading the app in.
+let appLanguage: AppLanguage = 'ru';
+export function setAppLanguage(language: AppLanguage): void {
+  appLanguage = language;
+}
+
 // Jobs/clips (and the routes derived from them — translate, regenerate, schedule, calendar,
 // YouTube publish/analytics) require a logged-in user server-side; every other function below
 // still hits an anonymous route and is untouched.
@@ -34,7 +43,11 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
   const token = await getToken();
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: { ...options.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...options.headers,
+      'X-App-Language': appLanguage,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
 }
 

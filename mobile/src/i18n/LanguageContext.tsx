@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getSavedLanguage, saveLanguage } from '../languageStorage';
 import { setDateLocale } from '../utils/format';
+import { setAppLanguage } from '../api';
 import { DEFAULT_LANGUAGE, localeTag, translate, type Language, type TranslationKey } from './index';
 
 type LanguageContextValue = {
@@ -15,9 +16,11 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
 
-  // Keep the shared date-format locale in sync with the app language (see utils/format.ts).
+  // Keep the shared date-format locale (utils/format.ts) and the API request language header
+  // (api.ts — drives what language server-side AI generation replies in) in sync with the app.
   useEffect(() => {
     setDateLocale(localeTag(language));
+    setAppLanguage(language);
   }, [language]);
 
   useEffect(() => {

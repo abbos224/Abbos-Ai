@@ -60,6 +60,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+/** The mobile app's current UI language, sent on every request as `X-App-Language`. Used to make
+ * server-side AI generation reply in the language the user is actually reading the app in. */
+function appLanguageOf(req: express.Request): string | undefined {
+  const value = req.header('x-app-language');
+  return value === 'ru' || value === 'uz' || value === 'en' ? value : undefined;
+}
+
 const uploadsDir = path.join(env.storageDir, 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
@@ -196,7 +203,7 @@ app.post('/ideas', requireAuth, async (req, res) => {
   };
   await createIdeaJob(userId, ideaJob);
 
-  processIdeaJob(userId, ideaJobId, trimmed, resolvedMode, resolvedDays).catch((err) => {
+  processIdeaJob(userId, ideaJobId, trimmed, resolvedMode, resolvedDays, appLanguageOf(req)).catch((err) => {
     console.error(`Idea job ${ideaJobId} crashed:`, err);
   });
 
