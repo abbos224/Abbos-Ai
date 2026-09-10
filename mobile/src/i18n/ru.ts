@@ -145,19 +145,6 @@ export const ru: Record<keyof typeof en, string> = {
   'idea.status.failed': 'Ошибка',
   'idea.items': '{n} эл.',
 
-  'tools.title': 'Все инструменты',
-  'tools.brandKit': 'Бренд-кит',
-  'tools.voice': 'Голос',
-  'tools.calendar': 'Календарь',
-  'tools.analytics': 'Аналитика',
-  'tools.projects': 'Проекты',
-
-  'home.subscribers': 'Подписчики',
-  'home.views': 'Просмотры',
-  'home.videos': 'Видео',
-  'home.latestVideo': 'Последнее видео',
-  'home.subscribersHidden': 'Скрыто',
-
   'upload.eyebrow': 'Новый Reel',
   'upload.title': 'Создайте свой первый Reel',
   'upload.subtitle': 'Загрузите видео или получите идеи от ИИ, чтобы делать контент, который не пролистывают.',

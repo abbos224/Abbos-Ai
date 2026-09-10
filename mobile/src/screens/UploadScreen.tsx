@@ -10,7 +10,6 @@ import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
-import ToolsGrid from '../components/ToolsGrid';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Upload'>;
@@ -113,8 +112,6 @@ export default function UploadScreen({ navigation }: Props) {
           <Ionicons name="arrow-forward-circle-outline" size={26} color={colors.accentAI} />
         </Card>
       </TouchableOpacity>
-
-      <ToolsGrid navigation={navigation} />
 
       {picked && (
         <Card style={styles.pickedCard}>
