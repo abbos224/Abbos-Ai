@@ -423,6 +423,7 @@ export const en = {
   'results.copyAll': 'Copy all',
   'results.share': 'Share',
   'results.allCopied': 'Everything copied.',
+  'results.generateAgain': 'Generate again',
   'results.empty': 'Nothing was generated here — try again from the generator.',
 
   // Onboarding (first-run intro)

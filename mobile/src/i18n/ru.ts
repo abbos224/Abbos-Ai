@@ -396,6 +396,7 @@ export const ru: Record<keyof typeof en, string> = {
   'results.copyAll': 'Копировать всё',
   'results.share': 'Поделиться',
   'results.allCopied': 'Всё скопировано.',
+  'results.generateAgain': 'Сгенерировать ещё раз',
   'results.empty': 'Здесь ничего не сгенерировано — попробуйте ещё раз в генераторе.',
 
   // Onboarding (first-run intro)

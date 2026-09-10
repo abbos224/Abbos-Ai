@@ -396,6 +396,7 @@ export const uz: Record<keyof typeof en, string> = {
   'results.copyAll': 'Hammasini nusxalash',
   'results.share': 'Ulashish',
   'results.allCopied': 'Hammasi nusxalandi.',
+  'results.generateAgain': 'Yana yaratish',
   'results.empty': 'Bu yerda hech narsa yaratilmadi — generatorda qaytadan urinib koʻring.',
 
   // Onboarding (first-run intro)

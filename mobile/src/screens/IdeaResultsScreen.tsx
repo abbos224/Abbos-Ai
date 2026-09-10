@@ -286,7 +286,7 @@ function titleFor(job: IdeaJob, t: T): string {
   }
 }
 
-export default function IdeaResultsScreen({ route }: Props) {
+export default function IdeaResultsScreen({ route, navigation }: Props) {
   const { ideaJobId } = route.params;
   const { t } = useI18n();
   const [job, setJob] = useState<IdeaJob | null>(null);
@@ -321,9 +321,21 @@ export default function IdeaResultsScreen({ route }: Props) {
     (job.mode === 'shotList' && !!job.shotList && job.shotList.items.length > 0) ||
     (job.mode === 'targeting' && !!job.targeting && job.targeting.audienceSegments.length > 0);
 
+  function generateAgain() {
+    navigation.navigate('IdeaGenerator', {
+      prefillTopic: job!.topic,
+      prefillMode: job!.mode,
+      prefillDays: job!.mode === 'contentPlan' ? job!.contentPlan.length : undefined,
+    });
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{titleFor(job, t)}</Text>
+      <TouchableOpacity style={styles.regenButton} onPress={generateAgain} activeOpacity={0.85}>
+        <Ionicons name="refresh" size={15} color={colors.accentAI} />
+        <Text style={styles.regenButtonText}>{t('results.generateAgain')}</Text>
+      </TouchableOpacity>
       {hasContent ? (
         <>
           <ResultActions text={buildFullText(job)} t={t} />
@@ -345,6 +357,19 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   title: { color: colors.textPrimary, fontSize: 20, fontWeight: '600', marginBottom: spacing.md },
   emptyText: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.md },
+  regenButton: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.accentAI,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  regenButtonText: { color: colors.accentAI, fontSize: 12, fontWeight: '600' },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   actionChip: {
     flexDirection: 'row',
