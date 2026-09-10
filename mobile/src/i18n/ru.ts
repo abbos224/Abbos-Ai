@@ -176,6 +176,24 @@ export const ru: Record<keyof typeof en, string> = {
   'projects.loadFailed': 'Не удалось загрузить проекты',
   'projects.clips': '{n} клипов',
 
+  'analytics.trafficSources': 'Источники трафика',
+  'analytics.trafficSourcesEmpty': 'Пока нет данных об источниках трафика за этот период.',
+  'analytics.trafficSourcesEmptyVideo': 'Пока нет данных об источниках трафика для этого видео.',
+
+  'videoAnalytics.retentionTitle': 'Удержание аудитории',
+  'videoAnalytics.retentionEmpty': 'Пока мало просмотров, чтобы YouTube построил кривую удержания.',
+  'videoAnalytics.retentionSubtext': 'среднее удержание относительно видео YouTube похожей длины',
+  'videoAnalytics.viewsByDay': 'Просмотры по дням',
+  'videoAnalytics.viewsSuffix': 'просм.',
+  'videoAnalytics.loadFailed': 'Не удалось загрузить аналитику видео',
+
+  'editCaptions.hint': 'Нажмите на слово (или несколько), чтобы выбрать, затем примените формат ниже. Нажмите ещё раз, чтобы снять выбор.',
+  'editCaptions.selectPrompt': 'Выберите слово(а) выше, чтобы отформатировать',
+  'editCaptions.selectedCount': 'Выбрано слов: {n}',
+  'editCaptions.clear': 'Сбросить',
+  'editCaptions.saveRerender': 'Сохранить и перерендерить',
+  'editCaptions.saveFailed': 'Не удалось сохранить',
+
   'clips.title': 'Сгенерировано Reels: {n}',
   'clips.ctaLabel': 'Призыв:',
   'clipStatus.pending': 'в очереди',
