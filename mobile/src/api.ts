@@ -26,7 +26,6 @@ import type {
   Translation,
   WordFormatOverride,
   YoutubeStatus,
-  ChannelHomeSummary,
 } from './types';
 
 // The app's current UI language, kept in sync by LanguageContext. Sent on every request as
@@ -366,14 +365,6 @@ export async function getYoutubeStatus(): Promise<YoutubeStatus> {
   const res = await authFetch('/youtube/status');
   if (!res.ok) {
     throw new Error(`Failed to fetch YouTube status: ${res.status}`);
-  }
-  return res.json();
-}
-
-export async function getChannelHome(): Promise<ChannelHomeSummary> {
-  const res = await authFetch('/analytics/youtube/home');
-  if (!res.ok) {
-    throw new Error(`Failed to fetch channel summary: ${res.status}`);
   }
   return res.json();
 }

@@ -10,7 +10,6 @@ import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
-import ChannelHomeCard from '../components/ChannelHomeCard';
 import ToolsGrid from '../components/ToolsGrid';
 import { colors, spacing } from '../theme';
 
@@ -68,8 +67,6 @@ export default function UploadScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <ChannelHomeCard />
-
       <SectionHeader
         eyebrow={t('upload.eyebrow')}
         title={t('upload.title')}

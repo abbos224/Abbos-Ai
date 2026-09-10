@@ -97,23 +97,6 @@ export type CaptionWord = {
 
 export type YoutubeStatus = { configured: boolean; connected: boolean; channelTitle?: string };
 
-/** A cheap channel-overview snapshot for the app's home screen (Data API only). */
-export type ChannelHomeSummary = {
-  channelTitle: string;
-  channelThumbnailUrl: string;
-  subscriberCount: number | null;
-  totalViews: number;
-  totalVideos: number;
-  latestVideo: {
-    videoId: string;
-    title: string;
-    thumbnailUrl: string;
-    publishedAt: string;
-    viewCount: number;
-    url: string;
-  } | null;
-};
-
 export type CalendarEntry = {
   jobId: string;
   clipId: string;
