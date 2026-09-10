@@ -5,6 +5,7 @@ import type { JobStatus, RootStackParamList } from '../types';
 import { getJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { ensureNotificationPermission, notifyIfBackgrounded } from '../notifications';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
@@ -26,6 +27,9 @@ export default function ProcessingScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    // Ask now, while the user is still on this screen, so the ping can actually fire later if they
+    // background the app during the (often multi-minute) render.
+    ensureNotificationPermission().catch(() => {});
 
     async function poll() {
       try {
@@ -33,8 +37,10 @@ export default function ProcessingScreen({ route, navigation }: Props) {
         if (cancelled) return;
         setStatus(job.status);
         if (job.status === 'done') {
+          notifyIfBackgrounded(t('notify.clipsReadyTitle'), t('notify.clipsReadyBody'));
           navigation.replace('Results', { jobId });
         } else if (job.status === 'failed') {
+          notifyIfBackgrounded(t('notify.videoFailedTitle'), t('notify.videoFailedBody'));
           setError(job.error ?? t('processing.unknownError'));
         }
       } catch {

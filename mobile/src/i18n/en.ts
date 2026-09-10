@@ -455,4 +455,18 @@ export const en = {
   'onboarding.tourIdeas': 'Generate ideas from a topic',
   'onboarding.tourImage': 'Generate or edit images with AI',
   'onboarding.tourYoutube': 'Connect your YouTube channel from the Menu to publish and see analytics.',
+
+  // Local notifications (fired when a job finishes while the app is backgrounded)
+  'notify.clipsReadyTitle': 'Your clips are ready',
+  'notify.clipsReadyBody': 'Tap to open the results.',
+  'notify.videoFailedTitle': "Couldn't process your video",
+  'notify.videoFailedBody': 'Open the app to see what went wrong.',
+  'notify.ideasReadyTitle': 'Your ideas are ready',
+  'notify.ideasReadyBody': 'Tap to open them.',
+  'notify.ideasFailedTitle': "Couldn't generate ideas",
+  'notify.ideasFailedBody': 'Open the app to try again.',
+  'notify.imageReadyTitle': 'Your image is ready',
+  'notify.imageReadyBody': 'Tap to open it.',
+  'notify.imageFailedTitle': "Couldn't create the image",
+  'notify.imageFailedBody': 'Open the app to try again.',
 } as const;
