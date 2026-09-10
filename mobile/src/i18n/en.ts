@@ -138,6 +138,69 @@ export const en = {
   'idea.status.failed': 'Failed',
   'idea.items': '{n} items',
 
+  // Upload (Create home)
+  'upload.eyebrow': 'New Reel',
+  'upload.title': 'Create your first Reel',
+  'upload.subtitle': 'Upload a video or get AI-powered ideas to create scroll-stopping content.',
+  'upload.uploadVideo': 'Upload video',
+  'upload.uploadVideoSub': 'Select a video from your device',
+  'upload.generateIdeas': 'Or generate ideas from a topic',
+  'upload.generateIdeasSub': 'Tell AI your topic and get unique content ideas',
+  'upload.generateImage': 'Generate or edit an image with AI',
+  'upload.generateImageSub': 'Describe an image, or edit a photo with a prompt',
+  'upload.feature.aiTitle': 'AI Powered',
+  'upload.feature.aiBody': 'Smart ideas that convert',
+  'upload.feature.youTitle': 'Built for You',
+  'upload.feature.youBody': 'Your brand, your voice',
+  'upload.feature.impactTitle': 'High Impact',
+  'upload.feature.impactBody': 'Designed to get more views',
+  'upload.feature.timeTitle': 'Saves Time',
+  'upload.feature.timeBody': 'Create more in less time',
+  'upload.permissionTitle': 'Access needed',
+  'upload.permissionBody': 'Allow gallery access to pick a video.',
+  'upload.uploadFailedTitle': 'Upload failed',
+  'upload.startProcessing': 'Start processing',
+
+  // Job status (Projects list)
+  'jobStatus.uploaded': 'Uploaded',
+  'jobStatus.transcribing': 'Transcribing…',
+  'jobStatus.analyzing': 'Analyzing…',
+  'jobStatus.rendering': 'Rendering…',
+  'jobStatus.done': 'Done',
+  'jobStatus.failed': 'Failed',
+
+  // Processing screen (step labels)
+  'processing.step.uploaded': 'Uploaded, starting up…',
+  'processing.step.transcribing': 'Transcribing speech…',
+  'processing.step.analyzing': 'Finding the best moments…',
+  'processing.step.rendering': 'Editing your Reels…',
+  'processing.step.done': 'Done!',
+  'processing.step.failed': 'Something went wrong',
+  'processing.failedTitle': 'Processing failed',
+  'processing.tryAnother': 'Try another video',
+  'processing.unknownError': 'Unknown error',
+
+  // Projects
+  'projects.title': 'Projects',
+  'projects.subtitle': 'All your AI-generated Reels in one place.',
+  'projects.emptyTitle': 'No projects yet',
+  'projects.emptyBody': 'Create your first AI-powered Reel and it will appear here.',
+  'projects.emptyCta': 'Create your first Reel',
+  'projects.loadFailed': 'Failed to load projects',
+  'projects.clips': '{n} clips',
+
+  // Shared media actions
+  'action.save': 'Save',
+  'action.share': 'Share',
+  'action.saved': 'Saved',
+  'action.saveFailed': 'Save failed',
+  'action.shareFailed': 'Share failed',
+
+  // Image Result
+  'imageResult.loadFailed': 'Failed to load image',
+  'imageResult.savedBody': 'Image saved to your photo library.',
+  'imageResult.continueEditing': 'Continue editing',
+
   // Idea Results
   'results.ideasTitle': '{n} ideas for “{topic}”',
   'results.scriptsTitle': '{n} scripts for “{topic}”',
