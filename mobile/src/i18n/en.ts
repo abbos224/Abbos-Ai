@@ -155,6 +155,14 @@ export const en = {
   'idea.status.failed': 'Failed',
   'idea.items': '{n} items',
 
+  // Tools grid (Create tab)
+  'tools.title': 'All tools',
+  'tools.brandKit': 'Brand Kit',
+  'tools.voice': 'Voice',
+  'tools.calendar': 'Calendar',
+  'tools.analytics': 'Analytics',
+  'tools.projects': 'Projects',
+
   // Channel home card (top of Create tab, when YouTube is connected)
   'home.subscribers': 'Subscribers',
   'home.views': 'Views',
@@ -172,14 +180,6 @@ export const en = {
   'upload.generateIdeasSub': 'Tell AI your topic and get unique content ideas',
   'upload.generateImage': 'Generate or edit an image with AI',
   'upload.generateImageSub': 'Describe an image, or edit a photo with a prompt',
-  'upload.feature.aiTitle': 'AI Powered',
-  'upload.feature.aiBody': 'Smart ideas that convert',
-  'upload.feature.youTitle': 'Built for You',
-  'upload.feature.youBody': 'Your brand, your voice',
-  'upload.feature.impactTitle': 'High Impact',
-  'upload.feature.impactBody': 'Designed to get more views',
-  'upload.feature.timeTitle': 'Saves Time',
-  'upload.feature.timeBody': 'Create more in less time',
   'upload.permissionTitle': 'Access needed',
   'upload.permissionBody': 'Allow gallery access to pick a video.',
   'upload.uploadFailedTitle': 'Upload failed',
