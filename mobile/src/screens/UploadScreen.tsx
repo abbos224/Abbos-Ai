@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { uploadVideo } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
@@ -21,21 +23,22 @@ type PickedVideo = {
   height: number;
 };
 
-const FEATURES: Array<{ icon: keyof typeof Ionicons.glyphMap; title: string; body: string; color: string }> = [
-  { icon: 'flash-outline', title: 'AI Powered', body: 'Smart ideas that convert', color: colors.accentAI },
-  { icon: 'ribbon-outline', title: 'Built for You', body: 'Your brand, your voice', color: colors.accentAI },
-  { icon: 'trending-up-outline', title: 'High Impact', body: 'Designed to get more views', color: colors.accent },
-  { icon: 'time-outline', title: 'Saves Time', body: 'Create more in less time', color: colors.accentAI },
+const FEATURES: Array<{ icon: keyof typeof Ionicons.glyphMap; titleKey: TranslationKey; bodyKey: TranslationKey; color: string }> = [
+  { icon: 'flash-outline', titleKey: 'upload.feature.aiTitle', bodyKey: 'upload.feature.aiBody', color: colors.accentAI },
+  { icon: 'ribbon-outline', titleKey: 'upload.feature.youTitle', bodyKey: 'upload.feature.youBody', color: colors.accentAI },
+  { icon: 'trending-up-outline', titleKey: 'upload.feature.impactTitle', bodyKey: 'upload.feature.impactBody', color: colors.accent },
+  { icon: 'time-outline', titleKey: 'upload.feature.timeTitle', bodyKey: 'upload.feature.timeBody', color: colors.accentAI },
 ];
 
 export default function UploadScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const [picked, setPicked] = useState<PickedVideo | null>(null);
   const [uploading, setUploading] = useState(false);
 
   async function pickVideo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Нужен доступ', 'Разрешите доступ к галерее, чтобы выбрать видео.');
+      Alert.alert(t('upload.permissionTitle'), t('upload.permissionBody'));
       return;
     }
 
@@ -63,7 +66,7 @@ export default function UploadScreen({ navigation }: Props) {
       navigation.navigate('Processing', { jobId });
       setPicked(null);
     } catch (err) {
-      Alert.alert('Ошибка загрузки', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('upload.uploadFailedTitle'), err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
     }
@@ -72,18 +75,17 @@ export default function UploadScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <SectionHeader
-        eyebrow="New Reel"
-        title="Create your first Reel"
-        highlight="Reel"
-        subtitle="Upload a video or get AI-powered ideas to create scroll-stopping content."
+        eyebrow={t('upload.eyebrow')}
+        title={t('upload.title')}
+        subtitle={t('upload.subtitle')}
       />
 
       <TouchableOpacity onPress={pickVideo} disabled={uploading} activeOpacity={0.85}>
         <Card style={styles.actionCard}>
           <IconBadge icon="cloud-upload" color={colors.accent} />
           <View style={styles.actionText}>
-            <Text style={styles.actionTitle}>Upload video</Text>
-            <Text style={styles.actionSubtitle}>Select a video from your device</Text>
+            <Text style={styles.actionTitle}>{t('upload.uploadVideo')}</Text>
+            <Text style={styles.actionSubtitle}>{t('upload.uploadVideoSub')}</Text>
           </View>
           <Ionicons name="arrow-forward-circle-outline" size={26} color={colors.accent} />
         </Card>
@@ -97,8 +99,8 @@ export default function UploadScreen({ navigation }: Props) {
         <Card style={styles.actionCard}>
           <IconBadge icon="sparkles" color={colors.accentAI} />
           <View style={styles.actionText}>
-            <Text style={styles.actionTitle}>Or generate ideas from a topic</Text>
-            <Text style={styles.actionSubtitle}>Tell AI your topic and get unique content ideas</Text>
+            <Text style={styles.actionTitle}>{t('upload.generateIdeas')}</Text>
+            <Text style={styles.actionSubtitle}>{t('upload.generateIdeasSub')}</Text>
           </View>
           <Ionicons name="arrow-forward-circle-outline" size={26} color={colors.accentAI} />
         </Card>
@@ -112,8 +114,8 @@ export default function UploadScreen({ navigation }: Props) {
         <Card style={styles.actionCard}>
           <IconBadge icon="image" color={colors.accentAI} />
           <View style={styles.actionText}>
-            <Text style={styles.actionTitle}>Generate or edit an image with AI</Text>
-            <Text style={styles.actionSubtitle}>Describe an image, or edit a photo with a prompt</Text>
+            <Text style={styles.actionTitle}>{t('upload.generateImage')}</Text>
+            <Text style={styles.actionSubtitle}>{t('upload.generateImageSub')}</Text>
           </View>
           <Ionicons name="arrow-forward-circle-outline" size={26} color={colors.accentAI} />
         </Card>
@@ -121,10 +123,10 @@ export default function UploadScreen({ navigation }: Props) {
 
       <View style={styles.featureGrid}>
         {FEATURES.map((f) => (
-          <View key={f.title} style={styles.featureTile}>
+          <View key={f.titleKey} style={styles.featureTile}>
             <Ionicons name={f.icon} size={20} color={f.color} />
-            <Text style={styles.featureTitle}>{f.title}</Text>
-            <Text style={styles.featureBody}>{f.body}</Text>
+            <Text style={styles.featureTitle}>{t(f.titleKey)}</Text>
+            <Text style={styles.featureBody}>{t(f.bodyKey)}</Text>
           </View>
         ))}
       </View>
@@ -141,7 +143,7 @@ export default function UploadScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <GradientButton label="Start processing" onPress={startProcessing} loading={uploading} />
+          <GradientButton label={t('upload.startProcessing')} onPress={startProcessing} loading={uploading} />
         </Card>
       )}
     </View>
