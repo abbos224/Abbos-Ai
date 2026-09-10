@@ -56,11 +56,14 @@ const STATUS_KEYS: Record<IdeaJobSummary['status'], TranslationKey> = {
 };
 
 
-export default function IdeaGeneratorScreen({ navigation }: Props) {
+export default function IdeaGeneratorScreen({ navigation, route }: Props) {
   const { t } = useI18n();
-  const [mode, setMode] = useState<IdeaJobMode>('topics');
-  const [days, setDays] = useState<(typeof CONTENT_PLAN_DAY_OPTIONS)[number]>(7);
-  const [topic, setTopic] = useState('');
+  const prefill = route.params;
+  const [mode, setMode] = useState<IdeaJobMode>(prefill?.prefillMode ?? 'topics');
+  const [days, setDays] = useState<(typeof CONTENT_PLAN_DAY_OPTIONS)[number]>(
+    CONTENT_PLAN_DAY_OPTIONS.find((d) => d === prefill?.prefillDays) ?? 7,
+  );
+  const [topic, setTopic] = useState(prefill?.prefillTopic ?? '');
   const [generating, setGenerating] = useState(false);
   const [pastIdeas, setPastIdeas] = useState<IdeaJobSummary[] | null>(null);
   const [loadingPast, setLoadingPast] = useState(false);

@@ -365,7 +365,9 @@ export type RootStackParamList = {
   ResetPassword: { email: string };
   Projects: undefined;
   Menu: undefined;
-  IdeaGenerator: undefined;
+  // Prefill lets "Generate again" on the results screen reopen the generator with the same
+  // topic/mode/length already filled in (the user can tweak before re-running).
+  IdeaGenerator: { prefillTopic?: string; prefillMode?: IdeaJobMode; prefillDays?: number } | undefined;
   IdeaResults: { ideaJobId: string };
   ImageGenerator: { continueFromJobId?: string } | undefined;
   ImageResult: { imageJobId: string };
