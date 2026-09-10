@@ -834,22 +834,6 @@ app.post('/jobs/:jobId/clips/:clipId/publish/youtube', requireAuth, async (req, 
   }
 });
 
-// A cheap channel snapshot for the app's home screen (Create tab) — Data API only, no Analytics
-// API, so it's safe to poll on every visit. Separate from /analytics/youtube (which does ~10
-// Analytics API calls and is only worth it on the Analytics tab).
-app.get('/analytics/youtube/home', requireAuth, async (req, res) => {
-  const userId = req.userId!;
-  if (!(await youtube.getConnectionStatus(userId)).connected) {
-    res.status(400).json({ error: 'YouTube is not connected.' });
-    return;
-  }
-  try {
-    res.json(await youtube.getChannelHomeSummary(userId));
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
 app.get('/analytics/youtube', requireAuth, async (req, res) => {
   const userId = req.userId!;
   if (!(await youtube.getConnectionStatus(userId)).connected) {

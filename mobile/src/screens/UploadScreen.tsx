@@ -6,12 +6,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { uploadVideo } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
-import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
-import ChannelHomeCard from '../components/ChannelHomeCard';
+import ToolsGrid from '../components/ToolsGrid';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Upload'>;
@@ -23,13 +22,6 @@ type PickedVideo = {
   width: number;
   height: number;
 };
-
-const FEATURES: Array<{ icon: keyof typeof Ionicons.glyphMap; titleKey: TranslationKey; bodyKey: TranslationKey; color: string }> = [
-  { icon: 'flash-outline', titleKey: 'upload.feature.aiTitle', bodyKey: 'upload.feature.aiBody', color: colors.accentAI },
-  { icon: 'ribbon-outline', titleKey: 'upload.feature.youTitle', bodyKey: 'upload.feature.youBody', color: colors.accentAI },
-  { icon: 'trending-up-outline', titleKey: 'upload.feature.impactTitle', bodyKey: 'upload.feature.impactBody', color: colors.accent },
-  { icon: 'time-outline', titleKey: 'upload.feature.timeTitle', bodyKey: 'upload.feature.timeBody', color: colors.accentAI },
-];
 
 export default function UploadScreen({ navigation }: Props) {
   const { t } = useI18n();
@@ -75,8 +67,6 @@ export default function UploadScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <ChannelHomeCard />
-
       <SectionHeader
         eyebrow={t('upload.eyebrow')}
         title={t('upload.title')}
@@ -124,15 +114,7 @@ export default function UploadScreen({ navigation }: Props) {
         </Card>
       </TouchableOpacity>
 
-      <View style={styles.featureGrid}>
-        {FEATURES.map((f) => (
-          <View key={f.titleKey} style={styles.featureTile}>
-            <Ionicons name={f.icon} size={20} color={f.color} />
-            <Text style={styles.featureTitle}>{t(f.titleKey)}</Text>
-            <Text style={styles.featureBody}>{t(f.bodyKey)}</Text>
-          </View>
-        ))}
-      </View>
+      <ToolsGrid navigation={navigation} />
 
       {picked && (
         <Card style={styles.pickedCard}>
@@ -160,19 +142,6 @@ const styles = StyleSheet.create({
   actionText: { flex: 1, marginHorizontal: spacing.md },
   actionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
   actionSubtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  featureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  featureTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-  },
-  featureTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', marginTop: spacing.sm },
-  featureBody: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   pickedCard: { marginTop: spacing.xs },
   cardLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   metaRow: { flexDirection: 'row', gap: 16, marginBottom: spacing.md },
