@@ -3,21 +3,24 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JobStatus, RootStackParamList } from '../types';
 import { getJob } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
 
-const STEP_LABELS: Record<JobStatus, string> = {
-  uploaded: 'Uploaded, starting up…',
-  transcribing: 'Transcribing speech…',
-  analyzing: 'Finding the best moments…',
-  rendering: 'Editing your Reels…',
-  done: 'Done!',
-  failed: 'Something went wrong',
+const STEP_KEYS: Record<JobStatus, TranslationKey> = {
+  uploaded: 'processing.step.uploaded',
+  transcribing: 'processing.step.transcribing',
+  analyzing: 'processing.step.analyzing',
+  rendering: 'processing.step.rendering',
+  done: 'processing.step.done',
+  failed: 'processing.step.failed',
 };
 
 export default function ProcessingScreen({ route, navigation }: Props) {
   const { jobId } = route.params;
+  const { t } = useI18n();
   const [status, setStatus] = useState<JobStatus>('uploaded');
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +35,7 @@ export default function ProcessingScreen({ route, navigation }: Props) {
         if (job.status === 'done') {
           navigation.replace('Results', { jobId });
         } else if (job.status === 'failed') {
-          setError(job.error ?? 'Unknown error');
+          setError(job.error ?? t('processing.unknownError'));
         }
       } catch {
         // transient network hiccup — keep polling
@@ -45,22 +48,22 @@ export default function ProcessingScreen({ route, navigation }: Props) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [jobId, navigation]);
+  }, [jobId, navigation, t]);
 
   return (
     <View style={styles.container}>
       {error ? (
         <>
-          <Text style={styles.errorTitle}>Processing failed</Text>
+          <Text style={styles.errorTitle}>{t('processing.failedTitle')}</Text>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.replace('Upload')}>
-            <Text style={styles.backButtonText}>Try another video</Text>
+            <Text style={styles.backButtonText}>{t('processing.tryAnother')}</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
           <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.statusText}>{STEP_LABELS[status]}</Text>
+          <Text style={styles.statusText}>{t(STEP_KEYS[status])}</Text>
         </>
       )}
     </View>

@@ -1,14 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { Clip, RootStackParamList } from '../types';
+import type { Clip, ClipStatus, RootStackParamList } from '../types';
 import { getJob } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import { colors, getScoreColor, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
+const CLIP_STATUS_KEYS: Record<ClipStatus, TranslationKey> = {
+  pending: 'clipStatus.pending',
+  rendering: 'clipStatus.rendering',
+  done: 'clipStatus.done',
+  failed: 'clipStatus.failed',
+};
+
 export default function ResultsScreen({ route, navigation }: Props) {
   const { jobId } = route.params;
+  const { t } = useI18n();
   const [clips, setClips] = useState<Clip[] | null>(null);
 
   useEffect(() => {
@@ -25,7 +35,7 @@ export default function ResultsScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{clips.length} Reels generated</Text>
+      <Text style={styles.title}>{t('clips.title', { n: clips.length })}</Text>
       <FlatList
         data={[...clips].sort((a, b) => b.score - a.score)}
         keyExtractor={(clip) => clip.id}
@@ -48,7 +58,7 @@ export default function ResultsScreen({ route, navigation }: Props) {
             </Text>
             {item.cta && (
               <Text style={styles.cardCta} numberOfLines={1}>
-                CTA: {item.cta}
+                {t('clips.ctaLabel')} {item.cta}
               </Text>
             )}
             <View style={styles.cardFooter}>
@@ -56,7 +66,7 @@ export default function ResultsScreen({ route, navigation }: Props) {
                 {(item.endTime - item.startTime).toFixed(0)}s
               </Text>
               <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
-                {item.status}
+                {t(CLIP_STATUS_KEYS[item.status])}
               </Text>
             </View>
           </TouchableOpacity>
