@@ -5,6 +5,8 @@ export const ru: Record<keyof typeof en, string> = {
   'common.or': 'или',
   'common.somethingWrong': 'Что-то пошло не так',
   'common.back': 'Назад',
+  'common.retry': 'Повторить',
+  'common.loadFailed': 'Не удалось загрузить — проверьте соединение и попробуйте ещё раз.',
 
   'auth.emailPlaceholder': 'Эл. почта',
   'auth.passwordPlaceholder': 'Пароль',
@@ -369,7 +371,6 @@ export const ru: Record<keyof typeof en, string> = {
   'action.saveFailed': 'Не удалось сохранить',
   'action.shareFailed': 'Не удалось поделиться',
 
-  'imageResult.loadFailed': 'Не удалось загрузить изображение',
   'imageResult.savedBody': 'Изображение сохранено в галерею.',
   'imageResult.continueEditing': 'Продолжить редактирование',
 
@@ -395,8 +396,6 @@ export const ru: Record<keyof typeof en, string> = {
   'results.copyAll': 'Копировать всё',
   'results.share': 'Поделиться',
   'results.allCopied': 'Всё скопировано.',
-  'results.loadFailed': 'Не удалось загрузить результат.',
-  'results.retry': 'Повторить',
   'results.empty': 'Здесь ничего не сгенерировано — попробуйте ещё раз в генераторе.',
 
   // Onboarding (first-run intro)

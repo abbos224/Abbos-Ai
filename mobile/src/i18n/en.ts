@@ -5,6 +5,8 @@ export const en = {
   'common.or': 'or',
   'common.somethingWrong': 'Something went wrong',
   'common.back': 'Back',
+  'common.retry': 'Retry',
+  'common.loadFailed': "Couldn't load this — check your connection and try again.",
 
   // Auth (shared across Login / SignUp)
   'auth.emailPlaceholder': 'Email',
@@ -395,7 +397,6 @@ export const en = {
   'action.shareFailed': 'Share failed',
 
   // Image Result
-  'imageResult.loadFailed': 'Failed to load image',
   'imageResult.savedBody': 'Image saved to your photo library.',
   'imageResult.continueEditing': 'Continue editing',
 
@@ -422,8 +423,6 @@ export const en = {
   'results.copyAll': 'Copy all',
   'results.share': 'Share',
   'results.allCopied': 'Everything copied.',
-  'results.loadFailed': "Couldn't load this result.",
-  'results.retry': 'Retry',
   'results.empty': 'Nothing was generated here — try again from the generator.',
 
   // Onboarding (first-run intro)

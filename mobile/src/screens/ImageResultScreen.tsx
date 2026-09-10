@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import { clipFileUrl, getImageJob } from '../api';
 import { saveRemoteFileToLibrary, shareRemoteFile } from '../utils/shareRemoteFile';
 import { useI18n } from '../i18n/LanguageContext';
 import GradientButton from '../components/GradientButton';
+import LoadError from '../components/LoadError';
 import { colors, gradients, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImageResult'>;
@@ -15,14 +16,21 @@ export default function ImageResultScreen({ route, navigation }: Props) {
   const { imageJobId } = route.params;
   const { t } = useI18n();
   const [job, setJob] = useState<ImageJob | null>(null);
+  const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
+    setJob(null);
     getImageJob(imageJobId)
       .then(setJob)
-      .catch((err) => Alert.alert(t('imageResult.loadFailed'), err instanceof Error ? err.message : String(err)));
-  }, [imageJobId, t]);
+      .catch(() => setFailed(true));
+  }, [imageJobId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleSave() {
     if (!job?.outputFile) return;
@@ -47,6 +55,16 @@ export default function ImageResultScreen({ route, navigation }: Props) {
     } finally {
       setSharing(false);
     }
+  }
+
+  if (failed) return <LoadError onRetry={load} accent={colors.accentAI} />;
+
+  if (job && job.status === 'failed') {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.failedText}>{job.error ?? t('imageGen.somethingWrong')}</Text>
+      </View>
+    );
   }
 
   if (!job || !job.outputFile) {
@@ -100,7 +118,8 @@ export default function ImageResultScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, padding: spacing.lg, paddingTop: 60 },
-  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  failedText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center' },
   image: { width: '100%', aspectRatio: 1, borderRadius: radius.lg, backgroundColor: colors.surface },
   prompt: {
     color: colors.textSecondary,
