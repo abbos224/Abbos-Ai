@@ -21,20 +21,56 @@ const MAX_TOPIC_LENGTH = 200;
 const CONTENT_PLAN_DAY_OPTIONS = [7, 14, 30] as const;
 
 // One generator, five switchable output shapes — a real mode per specialist, not five separate
-// screens. Each mode's `buttonLabel`/`placeholder` reflect what it actually produces so the same
-// topic input doesn't read as generic across modes.
+// screens. Each mode's `buttonLabel`/`placeholder`/`description` reflect what it actually produces
+// so a first-time user can tell the modes apart without trying each one.
 const MODES: {
   key: IdeaJobMode;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   buttonLabel: string;
   placeholder: string;
+  description: string;
 }[] = [
-  { key: 'topics', label: 'Topics', icon: 'bulb', buttonLabel: 'Generate ideas', placeholder: 'e.g. first-time homebuyer mistakes' },
-  { key: 'script', label: 'Script', icon: 'document-text', buttonLabel: 'Generate scripts', placeholder: 'e.g. morning skincare routine for oily skin' },
-  { key: 'contentPlan', label: 'Content Plan', icon: 'calendar', buttonLabel: 'Generate content plan', placeholder: 'e.g. home coffee brewing tips' },
-  { key: 'shotList', label: 'Shot List', icon: 'videocam', buttonLabel: 'Generate shot list', placeholder: 'e.g. 5-minute desk stretches' },
-  { key: 'targeting', label: 'Targeting', icon: 'megaphone', buttonLabel: 'Generate targeting brief', placeholder: 'e.g. eco-friendly cleaning products' },
+  {
+    key: 'topics',
+    label: 'Topics',
+    icon: 'bulb',
+    buttonLabel: 'Generate ideas',
+    placeholder: 'e.g. first-time homebuyer mistakes',
+    description: '5 short video ideas — each with a hook, a 30-60s spoken script, a CTA, and a ready caption. Pick one and record it.',
+  },
+  {
+    key: 'script',
+    label: 'Script',
+    icon: 'document-text',
+    buttonLabel: 'Generate scripts',
+    placeholder: 'e.g. morning skincare routine for oily skin',
+    description: '3 full scripts broken into sections (hook, setup, payoff) with per-shot visual notes and a length estimate. For when you already have the topic.',
+  },
+  {
+    key: 'contentPlan',
+    label: 'Content Plan',
+    icon: 'calendar',
+    buttonLabel: 'Generate content plan',
+    placeholder: 'e.g. home coffee brewing tips',
+    description: 'A day-by-day posting calendar — format (Reel/Story/Post…), title, caption and hashtags for each day. For running a social account.',
+  },
+  {
+    key: 'shotList',
+    label: 'Shot List',
+    icon: 'videocam',
+    buttonLabel: 'Generate shot list',
+    placeholder: 'e.g. 5-minute desk stretches',
+    description: 'A numbered list of shots to film on a phone — shot type, what’s in frame, length, and lighting/gear tips. What to point the camera at.',
+  },
+  {
+    key: 'targeting',
+    label: 'Targeting',
+    icon: 'megaphone',
+    buttonLabel: 'Generate targeting brief',
+    placeholder: 'e.g. eco-friendly cleaning products',
+    description: '3 audience segments (age, real ad-platform interests) plus 3 ad copy variants. For running paid ads on this topic.',
+  },
 ];
 
 const MODE_BADGE_LABELS: Record<IdeaJobMode, string> = {
@@ -144,6 +180,8 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
         ))}
       </View>
 
+      <Text style={styles.modeDescription}>{activeMode.description}</Text>
+
       {mode === 'contentPlan' && (
         <View style={styles.dayRow}>
           <Text style={styles.dayLabel}>Plan length:</Text>
@@ -250,6 +288,7 @@ const styles = StyleSheet.create({
   modeChipActive: { backgroundColor: colors.accentAI, borderColor: colors.accentAI },
   modeChipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
   modeChipTextActive: { color: colors.onAccent },
+  modeDescription: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, marginBottom: spacing.md },
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.sm },
   dayLabel: { color: colors.textMuted, fontSize: 11 },
   dayChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, backgroundColor: colors.surface },
