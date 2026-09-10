@@ -7,6 +7,7 @@ import type { JobSummary, RootStackParamList } from '../types';
 import { getAllJobs } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
 import type { TranslationKey } from '../i18n';
+import { formatDate } from '../utils/format';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -14,9 +15,6 @@ import { colors, glowShadow, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 const STATUS_KEYS: Record<JobSummary['status'], TranslationKey> = {
   uploaded: 'jobStatus.uploaded',

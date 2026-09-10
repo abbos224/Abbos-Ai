@@ -92,6 +92,23 @@ export const en = {
   'tab.analytics': 'Analytics',
   'tab.menu': 'Menu',
 
+  // Navigation header titles (App.tsx stack screens)
+  'nav.upload': 'Upload',
+  'nav.processing': 'Processing',
+  'nav.results': 'Your Content',
+  'nav.preview': 'Preview',
+  'nav.editCaptions': 'Edit Captions',
+  'nav.ideaGenerator': 'Idea Generator',
+  'nav.ideaResults': 'Ideas',
+  'nav.imageGenerator': 'AI Image',
+  'nav.imageResult': 'Image',
+  'nav.videoAnalytics': 'Video Analytics',
+  'nav.menu': 'Menu',
+  'nav.brandKit': 'Brand Kit',
+  'nav.voice': 'Voice',
+  'nav.login': 'Log In',
+  'nav.signUp': 'Sign Up',
+
   // Idea Generator
   'idea.eyebrow': 'Idea Generator',
   'idea.title': 'Turn a topic into content ideas',

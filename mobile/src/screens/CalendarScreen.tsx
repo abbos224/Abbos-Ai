@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CalendarEntry, RootStackParamList } from '../types';
 import { autoScheduleCalendar, getCalendar, getJob } from '../api';
 import { useI18n } from '../i18n/LanguageContext';
+import { formatDayLabel } from '../utils/format';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
 import EmptyState from '../components/EmptyState';
@@ -14,11 +15,6 @@ import { colors, radius, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Calendar'>;
 
 type Section = { title: string; data: CalendarEntry[] };
-
-function formatDateLabel(iso: string): string {
-  const date = new Date(`${iso}T00:00:00`);
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function groupByDate(entries: CalendarEntry[]): Section[] {
   const byDate = new Map<string, CalendarEntry[]>();
@@ -29,7 +25,7 @@ function groupByDate(entries: CalendarEntry[]): Section[] {
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([date, data]) => ({ title: formatDateLabel(date), data }));
+    .map(([date, data]) => ({ title: formatDayLabel(date), data }));
 }
 
 export default function CalendarScreen({ navigation }: Props) {
