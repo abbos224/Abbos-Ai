@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import { resendVerificationEmail, verifyEmail } from '../api';
 import { useAuth } from '../AuthContext';
+import { useI18n } from '../i18n/LanguageContext';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -10,13 +11,14 @@ import { colors, gradients, radius, spacing } from '../theme';
 
 export default function VerifyEmailScreen() {
   const { user, refreshUser, signOut } = useAuth();
+  const { t } = useI18n();
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
 
   async function handleVerify() {
     if (!code.trim()) {
-      Alert.alert('Missing code', 'Enter the 6-digit code from your email.');
+      Alert.alert(t('verify.missingTitle'), t('verify.missingBody'));
       return;
     }
     setSubmitting(true);
@@ -24,7 +26,7 @@ export default function VerifyEmailScreen() {
       await verifyEmail(code.trim());
       await refreshUser();
     } catch (err) {
-      Alert.alert('Verification failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('verify.failed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
     }
@@ -34,9 +36,9 @@ export default function VerifyEmailScreen() {
     setResending(true);
     try {
       await resendVerificationEmail();
-      Alert.alert('Code sent', 'Check your email for a new code.');
+      Alert.alert(t('verify.codeSentTitle'), t('verify.codeSentBody'));
     } catch (err) {
-      Alert.alert('Failed to resend', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('verify.resendFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setResending(false);
     }
@@ -48,18 +50,17 @@ export default function VerifyEmailScreen() {
         <IconBadge icon="mail-open" color={colors.accentAI} size={56} />
       </View>
       <SectionHeader
-        eyebrow="One More Step"
-        title="Verify your email"
-        highlight="email"
+        eyebrow={t('verify.eyebrow')}
+        title={t('verify.title')}
         highlightColor={colors.accentAI}
-        subtitle={user ? `We sent a 6-digit code to ${user.email}.` : 'We sent you a 6-digit code.'}
+        subtitle={user ? t('verify.subtitleWithEmail', { email: user.email }) : t('verify.subtitleNoEmail')}
       />
 
       <View style={styles.inputRow}>
         <Ionicons name="keypad-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="6-digit code"
+          placeholder={t('verify.codePlaceholder')}
           placeholderTextColor={colors.textMuted}
           keyboardType="number-pad"
           maxLength={6}
@@ -70,7 +71,7 @@ export default function VerifyEmailScreen() {
       </View>
 
       <GradientButton
-        label="Verify"
+        label={t('verify.submit')}
         icon="checkmark-circle"
         gradient={gradients.ai}
         onPress={handleVerify}
@@ -80,12 +81,13 @@ export default function VerifyEmailScreen() {
 
       <TouchableOpacity onPress={handleResend} disabled={resending} style={styles.linkRow}>
         <Text style={styles.linkText}>
-          Didn&rsquo;t get it? <Text style={styles.linkTextAccent}>{resending ? 'Sending…' : 'Resend code'}</Text>
+          {t('verify.resendPrefix')}{' '}
+          <Text style={styles.linkTextAccent}>{resending ? t('verify.resending') : t('verify.resend')}</Text>
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => signOut()} style={styles.linkRow}>
-        <Text style={styles.signOutText}>Sign out</Text>
+        <Text style={styles.signOutText}>{t('verify.signOut')}</Text>
       </TouchableOpacity>
     </View>
   );

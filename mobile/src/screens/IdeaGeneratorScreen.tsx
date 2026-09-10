@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { IdeaJobSummary, IdeaJobMode, RootStackParamList } from '../types';
 import { generateIdeas, getAllIdeaJobs, getIdeaJob } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -20,78 +22,43 @@ const MAX_TOPIC_LENGTH = 200;
 // Must match server's CONTENT_PLAN_DAY_OPTIONS.
 const CONTENT_PLAN_DAY_OPTIONS = [7, 14, 30] as const;
 
-// One generator, five switchable output shapes — a real mode per specialist, not five separate
-// screens. Each mode's `buttonLabel`/`placeholder`/`description` reflect what it actually produces
-// so a first-time user can tell the modes apart without trying each one.
+// One generator, five switchable output shapes — a real mode per specialist. Only the icon is
+// static here; every user-facing string is a translation key resolved through `t()` at render.
 const MODES: {
   key: IdeaJobMode;
-  label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  buttonLabel: string;
-  placeholder: string;
-  description: string;
+  labelKey: TranslationKey;
+  buttonKey: TranslationKey;
+  placeholderKey: TranslationKey;
+  descriptionKey: TranslationKey;
 }[] = [
-  {
-    key: 'topics',
-    label: 'Topics',
-    icon: 'bulb',
-    buttonLabel: 'Generate ideas',
-    placeholder: 'e.g. first-time homebuyer mistakes',
-    description: '5 short video ideas — each with a hook, a 30-60s spoken script, a CTA, and a ready caption. Pick one and record it.',
-  },
-  {
-    key: 'script',
-    label: 'Script',
-    icon: 'document-text',
-    buttonLabel: 'Generate scripts',
-    placeholder: 'e.g. morning skincare routine for oily skin',
-    description: '3 full scripts broken into sections (hook, setup, payoff) with per-shot visual notes and a length estimate. For when you already have the topic.',
-  },
-  {
-    key: 'contentPlan',
-    label: 'Content Plan',
-    icon: 'calendar',
-    buttonLabel: 'Generate content plan',
-    placeholder: 'e.g. home coffee brewing tips',
-    description: 'A day-by-day posting calendar — format (Reel/Story/Post…), title, caption and hashtags for each day. For running a social account.',
-  },
-  {
-    key: 'shotList',
-    label: 'Shot List',
-    icon: 'videocam',
-    buttonLabel: 'Generate shot list',
-    placeholder: 'e.g. 5-minute desk stretches',
-    description: 'A numbered list of shots to film on a phone — shot type, what’s in frame, length, and lighting/gear tips. What to point the camera at.',
-  },
-  {
-    key: 'targeting',
-    label: 'Targeting',
-    icon: 'megaphone',
-    buttonLabel: 'Generate targeting brief',
-    placeholder: 'e.g. eco-friendly cleaning products',
-    description: '3 audience segments (age, real ad-platform interests) plus 3 ad copy variants. For running paid ads on this topic.',
-  },
+  { key: 'topics', icon: 'bulb', labelKey: 'idea.mode.topics', buttonKey: 'idea.button.topics', placeholderKey: 'idea.placeholder.topics', descriptionKey: 'idea.desc.topics' },
+  { key: 'script', icon: 'document-text', labelKey: 'idea.mode.script', buttonKey: 'idea.button.script', placeholderKey: 'idea.placeholder.script', descriptionKey: 'idea.desc.script' },
+  { key: 'contentPlan', icon: 'calendar', labelKey: 'idea.mode.contentPlan', buttonKey: 'idea.button.contentPlan', placeholderKey: 'idea.placeholder.contentPlan', descriptionKey: 'idea.desc.contentPlan' },
+  { key: 'shotList', icon: 'videocam', labelKey: 'idea.mode.shotList', buttonKey: 'idea.button.shotList', placeholderKey: 'idea.placeholder.shotList', descriptionKey: 'idea.desc.shotList' },
+  { key: 'targeting', icon: 'megaphone', labelKey: 'idea.mode.targeting', buttonKey: 'idea.button.targeting', placeholderKey: 'idea.placeholder.targeting', descriptionKey: 'idea.desc.targeting' },
 ];
 
-const MODE_BADGE_LABELS: Record<IdeaJobMode, string> = {
-  topics: 'Topics',
-  script: 'Script',
-  contentPlan: 'Content Plan',
-  shotList: 'Shot List',
-  targeting: 'Targeting',
+const MODE_BADGE_KEYS: Record<IdeaJobMode, TranslationKey> = {
+  topics: 'idea.mode.topics',
+  script: 'idea.mode.script',
+  contentPlan: 'idea.mode.contentPlan',
+  shotList: 'idea.mode.shotList',
+  targeting: 'idea.mode.targeting',
+};
+
+const STATUS_KEYS: Record<IdeaJobSummary['status'], TranslationKey> = {
+  generating: 'idea.status.generating',
+  done: 'idea.status.done',
+  failed: 'idea.status.failed',
 };
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const STATUS_LABELS: Record<IdeaJobSummary['status'], string> = {
-  generating: 'Generating…',
-  done: 'Done',
-  failed: 'Failed',
-};
-
 export default function IdeaGeneratorScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<IdeaJobMode>('topics');
   const [days, setDays] = useState<(typeof CONTENT_PLAN_DAY_OPTIONS)[number]>(7);
   const [topic, setTopic] = useState('');
@@ -110,9 +77,9 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
     setLoadingPast(true);
     getAllIdeaJobs()
       .then(setPastIdeas)
-      .catch((err) => Alert.alert('Failed to load past ideas', err instanceof Error ? err.message : String(err)))
+      .catch((err) => Alert.alert(t('idea.loadPastFailed'), err instanceof Error ? err.message : String(err)))
       .finally(() => setLoadingPast(false));
-  }, []);
+  }, [t]);
 
   useFocusEffect(loadPastIdeas);
 
@@ -130,7 +97,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       if (job.status === 'failed') {
         setGenerating(false);
         loadPastIdeas();
-        Alert.alert('Generation failed', job.error ?? 'Something went wrong.');
+        Alert.alert(t('idea.generationFailed'), job.error ?? t('idea.somethingWrong'));
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -140,7 +107,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
   async function handleGenerate() {
     const trimmed = topic.trim();
     if (!trimmed) {
-      Alert.alert('Missing topic', 'Type a topic or niche first.');
+      Alert.alert(t('idea.missingTopicTitle'), t('idea.missingTopicBody'));
       return;
     }
     setGenerating(true);
@@ -150,7 +117,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       await pollUntilDone(ideaJobId);
     } catch (err) {
       setGenerating(false);
-      Alert.alert('Failed to start', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('idea.startFailed'), err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -159,11 +126,11 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <SectionHeader
-        eyebrow="Idea Generator"
-        title="Turn a topic into content ideas"
-        highlight="content ideas"
+        eyebrow={t('idea.eyebrow')}
+        title={t('idea.title')}
+        highlight={t('idea.titleHighlight')}
         highlightColor={colors.accentAI}
-        subtitle="Pick what you need, describe a topic, and get real, ready-to-use output."
+        subtitle={t('idea.subtitle')}
       />
 
       <View style={styles.modeRow}>
@@ -175,16 +142,16 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
             style={[styles.modeChip, mode === m.key && styles.modeChipActive]}
           >
             <Ionicons name={m.icon} size={13} color={mode === m.key ? colors.onAccent : colors.textSecondary} />
-            <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{m.label}</Text>
+            <Text style={[styles.modeChipText, mode === m.key && styles.modeChipTextActive]}>{t(m.labelKey)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={styles.modeDescription}>{activeMode.description}</Text>
+      <Text style={styles.modeDescription}>{t(activeMode.descriptionKey)}</Text>
 
       {mode === 'contentPlan' && (
         <View style={styles.dayRow}>
-          <Text style={styles.dayLabel}>Plan length:</Text>
+          <Text style={styles.dayLabel}>{t('idea.planLength')}</Text>
           {CONTENT_PLAN_DAY_OPTIONS.map((d) => (
             <TouchableOpacity
               key={d}
@@ -192,7 +159,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
               disabled={generating}
               style={[styles.dayChip, days === d && styles.dayChipActive]}
             >
-              <Text style={[styles.dayChipText, days === d && styles.dayChipTextActive]}>{d} days</Text>
+              <Text style={[styles.dayChipText, days === d && styles.dayChipTextActive]}>{t('idea.days', { n: d })}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -201,7 +168,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       <Card style={styles.inputCard}>
         <TextInput
           style={styles.input}
-          placeholder={activeMode.placeholder}
+          placeholder={t(activeMode.placeholderKey)}
           placeholderTextColor={colors.textMuted}
           value={topic}
           onChangeText={(text) => setTopic(text.slice(0, MAX_TOPIC_LENGTH))}
@@ -214,7 +181,7 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
       </Card>
 
       <GradientButton
-        label={activeMode.buttonLabel}
+        label={t(activeMode.buttonKey)}
         icon="sparkles"
         gradient={gradients.ai}
         onPress={handleGenerate}
@@ -222,15 +189,11 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
         style={styles.generateButton}
       />
 
-      <Text style={styles.sectionTitle}>Past ideas</Text>
+      <Text style={styles.sectionTitle}>{t('idea.pastIdeas')}</Text>
       {pastIdeas === null ? (
         <ActivityIndicator color={colors.accentAI} style={styles.pastLoading} />
       ) : pastIdeas.length === 0 ? (
-        <EmptyState
-          icon="bookmark"
-          title="No ideas yet"
-          body="Your generated ideas will appear here. Start by describing a topic above."
-        />
+        <EmptyState icon="bookmark" title={t('idea.noIdeasTitle')} body={t('idea.noIdeasBody')} />
       ) : (
         <FlatList
           style={styles.list}
@@ -250,16 +213,14 @@ export default function IdeaGeneratorScreen({ navigation }: Props) {
                     {item.topic}
                   </Text>
                   <View style={styles.modeBadge}>
-                    <Text style={styles.modeBadgeText}>{MODE_BADGE_LABELS[item.mode]}</Text>
+                    <Text style={styles.modeBadgeText}>{t(MODE_BADGE_KEYS[item.mode])}</Text>
                   </View>
                 </View>
                 <View style={styles.cardFooter}>
                   <Text style={styles.cardMeta}>{formatDate(item.createdAt)}</Text>
-                  <Text style={styles.cardMeta}>
-                    {item.ideaCount} item{item.ideaCount === 1 ? '' : 's'}
-                  </Text>
+                  <Text style={styles.cardMeta}>{t('idea.items', { n: item.ideaCount })}</Text>
                   <Text style={[styles.cardStatus, item.status === 'failed' && styles.cardStatusFailed]}>
-                    {STATUS_LABELS[item.status]}
+                    {t(STATUS_KEYS[item.status])}
                   </Text>
                 </View>
               </Card>

@@ -7,6 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from './src/types';
 import { AuthProvider, useAuth } from './src/AuthContext';
+import { LanguageProvider, useI18n } from './src/i18n/LanguageContext';
 import UploadScreen from './src/screens/UploadScreen';
 import ProcessingScreen from './src/screens/ProcessingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
@@ -128,7 +129,16 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Menu: 'menu',
 };
 
+const TAB_LABEL_KEYS = {
+  Create: 'tab.create',
+  Projects: 'tab.projects',
+  Calendar: 'tab.calendar',
+  Analytics: 'tab.analytics',
+  Menu: 'tab.menu',
+} as const;
+
 function AppTabs() {
+  const { t } = useI18n();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -137,6 +147,7 @@ function AppTabs() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
+        tabBarLabel: t(TAB_LABEL_KEYS[route.name as keyof typeof TAB_LABEL_KEYS]),
       })}
     >
       <Tab.Screen name="Create" component={CreateStack} />
@@ -169,11 +180,13 @@ function AppShell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <AppShell />
-      </NavigationContainer>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <NavigationContainer>
+          <StatusBar style="light" />
+          <AppShell />
+        </NavigationContainer>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

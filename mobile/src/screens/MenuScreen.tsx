@@ -4,15 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { useAuth } from '../AuthContext';
+import { useI18n } from '../i18n/LanguageContext';
 import Card from '../components/Card';
 import IconBadge from '../components/IconBadge';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
 
-const SETTINGS_ROWS: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; target: 'BrandKit' | 'Personas' }> = [
-  { icon: 'color-palette', label: 'Brand Kit', target: 'BrandKit' },
-  { icon: 'mic', label: 'Voice', target: 'Personas' },
+const SETTINGS_ROWS: Array<{ icon: keyof typeof Ionicons.glyphMap; labelKey: 'menu.brandKit' | 'menu.voice'; target: 'BrandKit' | 'Personas' }> = [
+  { icon: 'color-palette', labelKey: 'menu.brandKit', target: 'BrandKit' },
+  { icon: 'mic', labelKey: 'menu.voice', target: 'Personas' },
 ];
 
 export default function MenuScreen({ navigation }: Props) {
@@ -21,10 +23,11 @@ export default function MenuScreen({ navigation }: Props) {
   // Login/SignUp links are kept as a defensive fallback for the instant between signOut() and the
   // gate swapping the screen away.
   const { user, signOut } = useAuth();
+  const { t } = useI18n();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>Account</Text>
+      <Text style={styles.sectionTitle}>{t('menu.account')}</Text>
       <Card style={styles.accountCard}>
         <IconBadge icon="person" color={colors.accent} size={40} />
         <View style={styles.accountInfo}>
@@ -34,29 +37,34 @@ export default function MenuScreen({ navigation }: Props) {
                 {user.email}
               </Text>
               <TouchableOpacity onPress={signOut} style={styles.rowLink}>
-                <Text style={styles.rowLinkTextDanger}>Log out</Text>
+                <Text style={styles.rowLinkTextDanger}>{t('menu.logOut')}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <View style={styles.authLinksRow}>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.rowLinkTextAccent}>Log in</Text>
+                <Text style={styles.rowLinkTextAccent}>{t('menu.logIn')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                <Text style={styles.rowLinkTextAccent}>Sign up</Text>
+                <Text style={styles.rowLinkTextAccent}>{t('menu.signUp')}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
       </Card>
 
-      <Text style={styles.sectionTitle}>Content settings</Text>
+      <Text style={styles.sectionTitle}>{t('menu.language')}</Text>
+      <Card>
+        <LanguageSwitcher compact />
+      </Card>
+
+      <Text style={styles.sectionTitle}>{t('menu.contentSettings')}</Text>
       <Card style={styles.settingsCard}>
         {SETTINGS_ROWS.map((item, i) => (
           <View key={item.target}>
             <TouchableOpacity style={styles.row} onPress={() => navigation.navigate(item.target)} activeOpacity={0.7}>
               <Ionicons name={item.icon} size={18} color={colors.accent} style={styles.rowIcon} />
-              <Text style={styles.rowText}>{item.label}</Text>
+              <Text style={styles.rowText}>{t(item.labelKey)}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </TouchableOpacity>
             {i < SETTINGS_ROWS.length - 1 && <View style={styles.rowDivider} />}
