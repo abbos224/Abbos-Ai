@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { resetPassword } from '../api';
 import { useAuth } from '../AuthContext';
+import { useI18n } from '../i18n/LanguageContext';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -14,6 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ResetPassword'>;
 
 export default function ResetPasswordScreen({ route }: Props) {
   const { signIn } = useAuth();
+  const { t } = useI18n();
   const [email, setEmail] = useState(route.params.email);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -22,15 +24,15 @@ export default function ResetPasswordScreen({ route }: Props) {
 
   async function handleSubmit() {
     if (!email.trim() || !code.trim()) {
-      Alert.alert('Missing info', 'Enter the code from your email.');
+      Alert.alert(t('auth.missingInfoTitle'), t('reset.missingBody'));
       return;
     }
     if (newPassword.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      Alert.alert(t('reset.weakTitle'), t('reset.weakBody'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Passwords don't match", 'Make sure both password fields match.');
+      Alert.alert(t('reset.mismatchTitle'), t('reset.mismatchBody'));
       return;
     }
     setSubmitting(true);
@@ -38,7 +40,7 @@ export default function ResetPasswordScreen({ route }: Props) {
       const { token } = await resetPassword(email.trim(), code.trim(), newPassword);
       await signIn(token);
     } catch (err) {
-      Alert.alert('Reset failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('reset.failed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
     }
@@ -50,17 +52,16 @@ export default function ResetPasswordScreen({ route }: Props) {
         <IconBadge icon="key" color={colors.accent} size={56} />
       </View>
       <SectionHeader
-        eyebrow="Reset Password"
-        title="Enter your reset code"
-        highlight="reset code"
-        subtitle="Check your email for a 6-digit code, then choose a new password."
+        eyebrow={t('reset.eyebrow')}
+        title={t('reset.title')}
+        subtitle={t('reset.subtitle')}
       />
 
       <View style={styles.inputRow}>
         <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           autoComplete="email"
@@ -73,7 +74,7 @@ export default function ResetPasswordScreen({ route }: Props) {
         <Ionicons name="keypad-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="6-digit code"
+          placeholder={t('reset.codePlaceholder')}
           placeholderTextColor={colors.textMuted}
           keyboardType="number-pad"
           maxLength={6}
@@ -85,7 +86,7 @@ export default function ResetPasswordScreen({ route }: Props) {
         <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="New password (min 8 characters)"
+          placeholder={t('reset.newPasswordPlaceholder')}
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           autoComplete="password-new"
@@ -97,7 +98,7 @@ export default function ResetPasswordScreen({ route }: Props) {
         <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Confirm new password"
+          placeholder={t('reset.confirmPlaceholder')}
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           autoComplete="password-new"
@@ -107,14 +108,14 @@ export default function ResetPasswordScreen({ route }: Props) {
       </View>
 
       <GradientButton
-        label="Reset password"
+        label={t('reset.submit')}
         onPress={handleSubmit}
         loading={submitting}
         gradient={gradients.brand}
         style={styles.submitButton}
       />
 
-      <Text style={styles.hintText}>Didn&rsquo;t get a code? Go back and request a new one.</Text>
+      <Text style={styles.hintText}>{t('reset.hint')}</Text>
     </View>
   );
 }

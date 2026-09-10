@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { forgotPassword } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
@@ -12,13 +13,14 @@ import { colors, gradients, radius, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'ForgotPassword'>;
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
     const trimmed = email.trim();
     if (!trimmed) {
-      Alert.alert('Missing info', 'Enter your account email first.');
+      Alert.alert(t('auth.missingInfoTitle'), t('forgot.missingBody'));
       return;
     }
     setSubmitting(true);
@@ -26,7 +28,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       await forgotPassword(trimmed);
       navigation.navigate('ResetPassword', { email: trimmed });
     } catch (err) {
-      Alert.alert('Something went wrong', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('common.somethingWrong'), err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
     }
@@ -38,17 +40,16 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <IconBadge icon="key" color={colors.accent} size={56} />
       </View>
       <SectionHeader
-        eyebrow="Reset Password"
-        title="Forgot your password?"
-        highlight="password?"
-        subtitle="Enter your account email and we'll send you a reset code."
+        eyebrow={t('forgot.eyebrow')}
+        title={t('forgot.title')}
+        subtitle={t('forgot.subtitle')}
       />
 
       <View style={styles.inputRow}>
         <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           autoComplete="email"
@@ -59,7 +60,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       </View>
 
       <GradientButton
-        label="Send reset code"
+        label={t('forgot.submit')}
         onPress={handleSubmit}
         loading={submitting}
         gradient={gradients.brand}
@@ -68,7 +69,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.linkRow}>
         <Text style={styles.linkText}>
-          Remembered it? <Text style={styles.linkTextAccent}>Back to log in</Text>
+          {t('forgot.rememberedPrefix')} <Text style={styles.linkTextAccent}>{t('forgot.backToLogin')}</Text>
         </Text>
       </TouchableOpacity>
     </View>

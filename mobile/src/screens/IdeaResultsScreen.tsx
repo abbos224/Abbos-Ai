@@ -13,17 +13,20 @@ import type {
   RootStackParamList,
 } from '../types';
 import { getIdeaJob } from '../api';
+import { useI18n } from '../i18n/LanguageContext';
+import type { TranslationKey } from '../i18n';
 import Card from '../components/Card';
 import { colors, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'IdeaResults'>;
+type T = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
-async function copyAndNotify(text: string, message: string) {
+async function copyAndNotify(t: T, text: string, message: string) {
   await Clipboard.setStringAsync(text);
-  Alert.alert('Copied', message);
+  Alert.alert(t('results.copiedTitle'), message);
 }
 
-function CopyButton({ onPress, label = 'Copy' }: { onPress: () => void; label?: string }) {
+function CopyButton({ onPress, label }: { onPress: () => void; label: string }) {
   return (
     <TouchableOpacity style={styles.copyButton} onPress={onPress} activeOpacity={0.85}>
       <Ionicons name="copy-outline" size={16} color={colors.accentAI} style={styles.copyIcon} />
@@ -32,7 +35,7 @@ function CopyButton({ onPress, label = 'Copy' }: { onPress: () => void; label?: 
   );
 }
 
-function TopicsView({ ideas }: { ideas: Idea[] }) {
+function TopicsView({ ideas, t }: { ideas: Idea[]; t: T }) {
   return (
     <FlatList
       data={ideas}
@@ -46,10 +49,10 @@ function TopicsView({ ideas }: { ideas: Idea[] }) {
             <Text style={styles.cardHook}>&ldquo;{item.hook}&rdquo;</Text>
           </View>
           <Text style={styles.bodyText}>{item.script}</Text>
-          <Text style={styles.ctaText}>CTA: {item.cta}</Text>
+          <Text style={styles.ctaText}>{t('results.ctaLabel')} {item.cta}</Text>
           <CopyButton
-            label="Copy script"
-            onPress={() => copyAndNotify(`${item.hook}\n\n${item.script}\n\n${item.cta}`, 'Script copied — paste it into your notes or teleprompter app.')}
+            label={t('results.copyScript')}
+            onPress={() => copyAndNotify(t, `${item.hook}\n\n${item.script}\n\n${item.cta}`, t('results.scriptCopied'))}
           />
         </Card>
       )}
@@ -57,7 +60,7 @@ function TopicsView({ ideas }: { ideas: Idea[] }) {
   );
 }
 
-function ScriptView({ scripts }: { scripts: ProfessionalScript[] }) {
+function ScriptView({ scripts, t }: { scripts: ProfessionalScript[]; t: T }) {
   return (
     <FlatList
       data={scripts}
@@ -81,13 +84,14 @@ function ScriptView({ scripts }: { scripts: ProfessionalScript[] }) {
               {s.visualNotes && <Text style={styles.visualNotes}>🎥 {s.visualNotes}</Text>}
             </View>
           ))}
-          <Text style={styles.ctaText}>CTA: {item.cta}</Text>
+          <Text style={styles.ctaText}>{t('results.ctaLabel')} {item.cta}</Text>
           <CopyButton
-            label="Copy full script"
+            label={t('results.copyFullScript')}
             onPress={() =>
               copyAndNotify(
+                t,
                 `${item.title}\n\n${item.sections.map((s) => `[${s.label}]\n${s.script}`).join('\n\n')}\n\n${item.cta}`,
-                'Full script copied.',
+                t('results.fullScriptCopied'),
               )
             }
           />
@@ -97,7 +101,7 @@ function ScriptView({ scripts }: { scripts: ProfessionalScript[] }) {
   );
 }
 
-function ContentPlanView({ entries }: { entries: ContentPlanEntry[] }) {
+function ContentPlanView({ entries, t }: { entries: ContentPlanEntry[]; t: T }) {
   const sorted = [...entries].sort((a, b) => a.day - b.day);
   return (
     <FlatList
@@ -107,7 +111,7 @@ function ContentPlanView({ entries }: { entries: ContentPlanEntry[] }) {
         <Card style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.numberBadge}>
-              <Text style={styles.numberBadgeText}>Day {item.day}</Text>
+              <Text style={styles.numberBadgeText}>{t('results.day', { n: item.day })}</Text>
             </View>
             <Text style={styles.formatBadge}>{item.format}</Text>
           </View>
@@ -115,8 +119,10 @@ function ContentPlanView({ entries }: { entries: ContentPlanEntry[] }) {
           <Text style={styles.bodyText}>{item.captionShort}</Text>
           <Text style={styles.hashtagsText}>{item.hashtags.map((h) => `#${h}`).join(' ')}</Text>
           <CopyButton
-            label="Copy caption"
-            onPress={() => copyAndNotify(`${item.captionShort}\n\n${item.hashtags.map((h) => `#${h}`).join(' ')}`, 'Caption copied.')}
+            label={t('results.copyCaption')}
+            onPress={() =>
+              copyAndNotify(t, `${item.captionShort}\n\n${item.hashtags.map((h) => `#${h}`).join(' ')}`, t('results.captionCopied'))
+            }
           />
         </Card>
       )}
@@ -124,7 +130,7 @@ function ContentPlanView({ entries }: { entries: ContentPlanEntry[] }) {
   );
 }
 
-function ShotListView({ shotList }: { shotList: ShotList }) {
+function ShotListView({ shotList, t }: { shotList: ShotList; t: T }) {
   return (
     <ScrollView>
       {shotList.items.map((item) => (
@@ -142,7 +148,7 @@ function ShotListView({ shotList }: { shotList: ShotList }) {
       ))}
       {shotList.overallTips.length > 0 && (
         <Card style={styles.card}>
-          <Text style={styles.sectionLabel}>Filming tips</Text>
+          <Text style={styles.sectionLabel}>{t('results.filmingTips')}</Text>
           {shotList.overallTips.map((tip, i) => (
             <View key={i} style={styles.tipRow}>
               <Ionicons name="checkmark-circle" size={14} color={colors.accentAI} />
@@ -155,10 +161,10 @@ function ShotListView({ shotList }: { shotList: ShotList }) {
   );
 }
 
-function TargetingView({ targeting }: { targeting: TargetingBrief }) {
+function TargetingView({ targeting, t }: { targeting: TargetingBrief; t: T }) {
   return (
     <ScrollView>
-      <Text style={styles.groupTitle}>Audience segments</Text>
+      <Text style={styles.groupTitle}>{t('results.audienceSegments')}</Text>
       {targeting.audienceSegments.map((seg) => (
         <Card key={seg.id} style={styles.card}>
           <View style={styles.cardHeader}>
@@ -169,7 +175,7 @@ function TargetingView({ targeting }: { targeting: TargetingBrief }) {
           <Text style={styles.bodyText}>{seg.rationale}</Text>
         </Card>
       ))}
-      <Text style={styles.groupTitle}>Ad copy variants</Text>
+      <Text style={styles.groupTitle}>{t('results.adCopyVariants')}</Text>
       {targeting.adCopyVariants.map((ad) => (
         <Card key={ad.id} style={styles.card}>
           <View style={styles.cardHeader}>
@@ -177,30 +183,34 @@ function TargetingView({ targeting }: { targeting: TargetingBrief }) {
             <Text style={styles.formatBadge}>{ad.cta}</Text>
           </View>
           <Text style={styles.bodyText}>{ad.primaryText}</Text>
-          <CopyButton onPress={() => copyAndNotify(`${ad.headline}\n\n${ad.primaryText}\n\n[${ad.cta}]`, 'Ad copy copied.')} />
+          <CopyButton
+            label={t('results.copy')}
+            onPress={() => copyAndNotify(t, `${ad.headline}\n\n${ad.primaryText}\n\n[${ad.cta}]`, t('results.adCopyCopied'))}
+          />
         </Card>
       ))}
     </ScrollView>
   );
 }
 
-function titleFor(job: IdeaJob): string {
+function titleFor(job: IdeaJob, t: T): string {
   switch (job.mode) {
     case 'topics':
-      return `${job.ideas.length} ideas for "${job.topic}"`;
+      return t('results.ideasTitle', { n: job.ideas.length, topic: job.topic });
     case 'script':
-      return `${job.scripts.length} scripts for "${job.topic}"`;
+      return t('results.scriptsTitle', { n: job.scripts.length, topic: job.topic });
     case 'contentPlan':
-      return `${job.contentPlan.length}-day plan for "${job.topic}"`;
+      return t('results.planTitle', { n: job.contentPlan.length, topic: job.topic });
     case 'shotList':
-      return `Shot list for "${job.topic}"`;
+      return t('results.shotListTitle', { topic: job.topic });
     case 'targeting':
-      return `Targeting brief for "${job.topic}"`;
+      return t('results.targetingTitle', { topic: job.topic });
   }
 }
 
 export default function IdeaResultsScreen({ route }: Props) {
   const { ideaJobId } = route.params;
+  const { t } = useI18n();
   const [job, setJob] = useState<IdeaJob | null>(null);
 
   useEffect(() => {
@@ -217,12 +227,12 @@ export default function IdeaResultsScreen({ route }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{titleFor(job)}</Text>
-      {job.mode === 'topics' && <TopicsView ideas={job.ideas} />}
-      {job.mode === 'script' && <ScriptView scripts={job.scripts} />}
-      {job.mode === 'contentPlan' && <ContentPlanView entries={job.contentPlan} />}
-      {job.mode === 'shotList' && job.shotList && <ShotListView shotList={job.shotList} />}
-      {job.mode === 'targeting' && job.targeting && <TargetingView targeting={job.targeting} />}
+      <Text style={styles.title}>{titleFor(job, t)}</Text>
+      {job.mode === 'topics' && <TopicsView ideas={job.ideas} t={t} />}
+      {job.mode === 'script' && <ScriptView scripts={job.scripts} t={t} />}
+      {job.mode === 'contentPlan' && <ContentPlanView entries={job.contentPlan} t={t} />}
+      {job.mode === 'shotList' && job.shotList && <ShotListView shotList={job.shotList} t={t} />}
+      {job.mode === 'targeting' && job.targeting && <TargetingView targeting={job.targeting} t={t} />}
     </View>
   );
 }

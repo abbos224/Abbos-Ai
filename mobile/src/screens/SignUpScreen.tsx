@@ -6,15 +6,18 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import { registerUser, googleSignInUrl } from '../api';
 import { useAuth } from '../AuthContext';
+import { useI18n } from '../i18n/LanguageContext';
 import IconBadge from '../components/IconBadge';
 import GradientButton from '../components/GradientButton';
 import SectionHeader from '../components/SectionHeader';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import { colors, gradients, radius, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
 
 export default function SignUpScreen({ navigation }: Props) {
   const { signIn } = useAuth();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +25,7 @@ export default function SignUpScreen({ navigation }: Props) {
 
   async function handleSignUp() {
     if (!email.trim() || !password) {
-      Alert.alert('Missing info', 'Enter an email and password.');
+      Alert.alert(t('auth.missingInfoTitle'), t('auth.missingInfoBody'));
       return;
     }
     setSubmitting(true);
@@ -30,7 +33,7 @@ export default function SignUpScreen({ navigation }: Props) {
       const { token } = await registerUser(email.trim(), password);
       await signIn(token);
     } catch (err) {
-      Alert.alert('Sign up failed', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('signup.failed'), err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
     }
@@ -42,7 +45,7 @@ export default function SignUpScreen({ navigation }: Props) {
       const returnTo = Linking.createURL('/oauth-callback');
       await Linking.openURL(googleSignInUrl(returnTo));
     } catch (err) {
-      Alert.alert('Failed to start Google sign-in', err instanceof Error ? err.message : String(err));
+      Alert.alert(t('auth.googleStartFailed'), err instanceof Error ? err.message : String(err));
     } finally {
       setGoogleLoading(false);
     }
@@ -53,13 +56,13 @@ export default function SignUpScreen({ navigation }: Props) {
       <View style={styles.iconWrap}>
         <IconBadge icon="person-add" color={colors.accentAI} size={56} />
       </View>
-      <SectionHeader eyebrow="Create Account" title="Join ReelAI" highlight="ReelAI" highlightColor={colors.accentAI} />
+      <SectionHeader eyebrow={t('signup.eyebrow')} title={t('signup.title')} highlight="ReelAI" highlightColor={colors.accentAI} />
 
       <View style={styles.inputRow}>
         <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           autoComplete="email"
@@ -72,7 +75,7 @@ export default function SignUpScreen({ navigation }: Props) {
         <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
         <TextInput
           style={styles.input}
-          placeholder="Password (min 8 characters)"
+          placeholder={t('signup.passwordPlaceholder')}
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           autoComplete="password-new"
@@ -82,7 +85,7 @@ export default function SignUpScreen({ navigation }: Props) {
       </View>
 
       <GradientButton
-        label="Sign Up"
+        label={t('signup.submit')}
         onPress={handleSignUp}
         loading={submitting}
         gradient={gradients.ai}
@@ -91,7 +94,7 @@ export default function SignUpScreen({ navigation }: Props) {
 
       <View style={styles.dividerRow}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or</Text>
+        <Text style={styles.dividerText}>{t('common.or')}</Text>
         <View style={styles.dividerLine} />
       </View>
 
@@ -101,16 +104,20 @@ export default function SignUpScreen({ navigation }: Props) {
         ) : (
           <>
             <Ionicons name="logo-google" size={18} color="#1F1F1F" style={styles.googleIcon} />
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
+            <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
           </>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.replace('Login')} style={styles.linkRow}>
         <Text style={styles.linkText}>
-          Already have an account? <Text style={styles.linkTextAccent}>Log in</Text>
+          {t('signup.hasAccount')} <Text style={styles.linkTextAccent}>{t('signup.logInLink')}</Text>
         </Text>
       </TouchableOpacity>
+
+      <View style={styles.langWrap}>
+        <LanguageSwitcher compact />
+      </View>
     </View>
   );
 }
@@ -148,4 +155,5 @@ const styles = StyleSheet.create({
   linkRow: { marginTop: spacing.lg, alignItems: 'center' },
   linkText: { color: colors.textSecondary, fontSize: 13 },
   linkTextAccent: { color: colors.accentAI, fontWeight: '600' },
+  langWrap: { marginTop: spacing.xl, alignItems: 'center' },
 });
