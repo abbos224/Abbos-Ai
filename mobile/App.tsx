@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
@@ -29,6 +29,8 @@ import ImageResultScreen from './src/screens/ImageResultScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import VerifyEmailScreen from './src/screens/VerifyEmailScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+import { getOnboardingComplete } from './src/onboardingStorage';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -168,22 +170,38 @@ function AppTabs() {
 }
 
 // The mandatory-login gate: reads the shared auth status and renders exactly one of a loading
-// spinner, the sign-in flow, a mandatory email-verification screen, or the real app — nothing
-// behind AppTabs is reachable while logged out OR unverified.
+// spinner, the sign-in flow, a mandatory email-verification screen, a one-time first-run intro,
+// or the real app — nothing behind AppTabs is reachable while logged out OR unverified.
 function AppShell() {
   const { status } = useAuth();
+  // null = flag not read yet; only consulted once the user is actually logged in. Device-global
+  // (like the language preference), so it's dismissed once per install, not once per account.
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
-  if (status === 'loading') {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (status !== 'loggedIn') return;
+    let cancelled = false;
+    getOnboardingComplete().then((done) => {
+      if (!cancelled) setOnboardingDone(done);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
+  const spinner = (
+    <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color={colors.accent} />
+    </View>
+  );
+
+  if (status === 'loading') return spinner;
   if (status === 'pendingVerification') return <VerifyEmailScreen />;
+  if (status !== 'loggedIn') return <AuthStack />;
 
-  return status === 'loggedIn' ? <AppTabs /> : <AuthStack />;
+  if (onboardingDone === null) return spinner;
+  if (!onboardingDone) return <OnboardingScreen onDone={() => setOnboardingDone(true)} />;
+  return <AppTabs />;
 }
 
 export default function App() {
