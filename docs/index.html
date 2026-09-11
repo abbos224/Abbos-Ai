@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MrAiBos — AI video clipping &amp; content studio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="MrAiBos turns long-form video into AI-scored short clips, generates content ideas and scripts from a topic, and publishes straight to YouTube and TikTok.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF9FC;
+    --surface: #FFFFFF;
+    --border: #E4E1EC;
+    --text: #1C1A22;
+    --text-soft: #57536A;
+    --text-mute: #8B87A0;
+    --violet: #7C4FE0;
+    --violet-ink: #5A34B8;
+    --violet-tint: #F1ECFC;
+    --cyan: #14A0B2;
+    --cyan-ink: #0E7986;
+    --cyan-tint: #E8FAFB;
+    --shadow: 0 1px 2px rgba(28,26,34,0.04), 0 10px 28px rgba(28,26,34,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0B12; --surface: #15131C; --border: #29273A;
+      --text: #F1EFF7; --text-soft: #B7B3CB; --text-mute: #7E7A94;
+      --violet: #A480F2; --violet-ink: #C6ABF7; --violet-tint: #241B3D;
+      --cyan: #22D3EE; --cyan-ink: #7EE8F7; --cyan-tint: #0F2A30;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 14px 36px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0B12; --surface: #15131C; --border: #29273A;
+    --text: #F1EFF7; --text-soft: #B7B3CB; --text-mute: #7E7A94;
+    --violet: #A480F2; --violet-ink: #C6ABF7; --violet-tint: #241B3D;
+    --cyan: #22D3EE; --cyan-ink: #7EE8F7; --cyan-tint: #0F2A30;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 14px 36px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Manrope, ui-sans-serif, system-ui, sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, .brand, .eyebrow, .step-n, .pill { font-family: Sora, ui-sans-serif, system-ui, sans-serif; }
+  a { color: var(--violet-ink); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 3px; }
+
+  header.top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top-inner { max-width: 1080px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; text-decoration: none; color: var(--text); }
+  .mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--violet), var(--cyan)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; flex: none; }
+  .top-links { display: flex; gap: 22px; font-size: 13.5px; font-weight: 600; }
+  .top-links a { color: var(--text-soft); text-decoration: none; }
+  .top-links a:hover { color: var(--violet-ink); }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  .hero { padding: 64px 0 52px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--violet-ink); background: var(--violet-tint); padding: 5px 12px; border-radius: 999px; margin-bottom: 20px; }
+  .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--violet); }
+  h1 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.1; margin: 0 0 18px; text-wrap: balance; letter-spacing: -0.015em; max-width: 15ch; }
+  h1 .accent { color: var(--violet-ink); }
+  .hero p.lead { font-size: 18px; color: var(--text-soft); max-width: 52ch; margin: 0 0 28px; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 14.5px; text-decoration: none; }
+  .btn-primary { background: linear-gradient(135deg, var(--violet), #6D28D9); color: #fff; box-shadow: var(--shadow); }
+  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+
+  .platforms { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+  .platform-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 600; color: var(--text-soft); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-live { background: #34C77B; }
+  .dot-soon { background: var(--cyan); }
+
+  section { padding: 40px 0; border-top: 1px solid var(--border); }
+  .section-head { max-width: 60ch; margin-bottom: 30px; }
+  h2 { font-size: 24px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .section-head p { color: var(--text-soft); margin: 0; font-size: 15.5px; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } .grid4 { grid-template-columns: 1fr 1fr !important; } }
+  @media (max-width: 520px) { .grid4 { grid-template-columns: 1fr !important; } }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--shadow); }
+  .step-n { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 500; color: var(--violet); display: block; margin-bottom: 10px; }
+  .step h3 { font-size: 15.5px; margin: 0 0 6px; }
+  .step p { font-size: 14px; color: var(--text-soft); margin: 0; }
+
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .feature { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
+  .feature .icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 12px; }
+  .icon-v { background: var(--violet-tint); color: var(--violet-ink); }
+  .icon-c { background: var(--cyan-tint); color: var(--cyan-ink); }
+  .feature h3 { font-size: 14px; margin: 0 0 6px; }
+  .feature p { font-size: 13px; color: var(--text-soft); margin: 0; line-height: 1.55; }
+
+  footer { padding: 34px 0 48px; }
+  .foot-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--text-mute); }
+  .foot-row a { color: var(--text-soft); text-decoration: none; margin-right: 18px; }
+  .foot-row a:hover { color: var(--violet-ink); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="/Abbos-Ai/"><span class="mark">M</span> MrAiBos</a>
+    <nav class="top-links">
+      <a href="#how-it-works">How it works</a>
+      <a href="#features">Features</a>
+      <a href="legal/">Privacy &amp; Terms</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <span class="eyebrow">AI content studio</span>
+    <h1>Turn one long video into a week of <span class="accent">content</span>, with AI doing the first pass.</h1>
+    <p class="lead">MrAiBos scores and clips your long-form video with AI, writes hooks and captions, and can generate a full week of ideas, scripts, or a content calendar from a single topic — no source footage required.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="legal/">Privacy Policy &amp; Terms</a>
+      <a class="btn btn-ghost" href="mailto:mirabboskazimjanov@gmail.com">Contact</a>
+    </div>
+    <div class="platforms">
+      <span class="platform-chip"><span class="dot dot-live"></span> Publish to YouTube</span>
+      <span class="platform-chip"><span class="dot dot-soon"></span> Publish to TikTok</span>
+    </div>
+  </div>
+
+  <section id="how-it-works">
+    <div class="section-head">
+      <h2>How it works</h2>
+      <p>One upload, three AI passes, a finished vertical clip with captions burned in.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="step-n">01</span><h3>Upload a video</h3><p>Pick any long-form video from your device. MrAiBos transcribes it and finds natural pauses and silences to work with.</p></div>
+      <div class="step"><span class="step-n">02</span><h3>AI finds &amp; scores the clips</h3><p>Claude reads the transcript, scores candidate moments, and writes a hook, caption, and CTA for each one it picks.</p></div>
+      <div class="step"><span class="step-n">03</span><h3>Edit, schedule, publish</h3><p>Reorder captions, translate, regenerate a variant, schedule it on the calendar, or publish straight to YouTube.</p></div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="section-head">
+      <h2>What's inside</h2>
+      <p>Every feature ships as a real, working part of the app — nothing here is a mockup.</p>
+    </div>
+    <div class="grid4">
+      <div class="feature"><div class="icon icon-v">✂️</div><h3>AI video clipping</h3><p>Upload once, get multiple AI-scored vertical clips with burned-in captions in several animation styles.</p></div>
+      <div class="feature"><div class="icon icon-c">💡</div><h3>Idea generator</h3><p>Type a topic, pick a mode — quick ideas, full scripts, a content plan, a shot list, or an ad targeting brief.</p></div>
+      <div class="feature"><div class="icon icon-c">🖼️</div><h3>AI image studio</h3><p>Generate or edit thumbnails and cover art from a text prompt, with chained follow-up edits.</p></div>
+      <div class="feature"><div class="icon icon-v">🎨</div><h3>Brand Kit &amp; Voice</h3><p>Set a logo, accent color, and caption style once — every render and every generated script follows it.</p></div>
+      <div class="feature"><div class="icon icon-v">📅</div><h3>Content calendar</h3><p>Schedule clips ahead of time, or let auto-scheduling spread a batch across the week.</p></div>
+      <div class="feature"><div class="icon icon-v">📊</div><h3>YouTube analytics</h3><p>Real channel stats — views, retention, traffic sources, demographics — pulled straight from your connected channel.</p></div>
+      <div class="feature"><div class="icon icon-c">🌐</div><h3>Multilingual</h3><p>The app and its AI-generated content both run in Russian, Uzbek, or English, switchable anytime.</p></div>
+      <div class="feature"><div class="icon icon-v">🔗</div><h3>Direct publishing</h3><p>Push a finished clip straight to your connected YouTube channel — TikTok publishing is next.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-row">
+      <div><a href="legal/#privacy-top">Privacy Policy</a><a href="legal/#terms-top">Terms of Service</a><a href="mailto:mirabboskazimjanov@gmail.com">Contact</a></div>
+      <div>© 2026 MrAiBos</div>
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>
