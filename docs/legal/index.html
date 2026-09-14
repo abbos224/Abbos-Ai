@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MrAiBos — Privacy Policy &amp; Terms of Service</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF9FC;
+    --surface: #FFFFFF;
+    --border: #E4E1EC;
+    --text: #1C1A22;
+    --text-soft: #57536A;
+    --text-mute: #8B87A0;
+    --accent: #7C4FE0;
+    --accent-ink: #5A34B8;
+    --accent-tint: #F1ECFC;
+    --accent-cyan: #1AA6B8;
+    --code-bg: #F3F1F8;
+    --shadow: 0 1px 2px rgba(28,26,34,0.04), 0 8px 24px rgba(28,26,34,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0B12;
+      --surface: #15131C;
+      --border: #29273A;
+      --text: #F1EFF7;
+      --text-soft: #B7B3CB;
+      --text-mute: #7E7A94;
+      --accent: #A480F2;
+      --accent-ink: #C6ABF7;
+      --accent-tint: #241B3D;
+      --accent-cyan: #4CC8D8;
+      --code-bg: #1D1B29;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0B0B12;
+    --surface: #15131C;
+    --border: #29273A;
+    --text: #F1EFF7;
+    --text-soft: #B7B3CB;
+    --text-mute: #7E7A94;
+    --accent: #A480F2;
+    --accent-ink: #C6ABF7;
+    --accent-tint: #241B3D;
+    --accent-cyan: #4CC8D8;
+    --code-bg: #1D1B29;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .brand, nav, .eyebrow, .meta, .backtotop {
+    font-family: Sora, ui-sans-serif, system-ui, sans-serif;
+  }
+
+  a { color: var(--accent-ink); text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent); text-underline-offset: 2px; }
+  a:hover { text-decoration-color: currentColor; }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.88em; background: var(--code-bg); padding: 0.12em 0.4em; border-radius: 4px; }
+
+  /* ---------- top bar ---------- */
+  header.top {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top-inner {
+    max-width: 1180px; margin: 0 auto;
+    padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: 0.01em; }
+  .mark {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-cyan));
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 13px; flex: none;
+  }
+  .top-links { display: flex; gap: 22px; font-size: 13.5px; font-weight: 500; color: var(--text-soft); }
+  .top-links a { color: inherit; text-decoration: none; }
+  .top-links a:hover { color: var(--accent-ink); }
+
+  /* ---------- shell ---------- */
+  .shell {
+    max-width: 1180px; margin: 0 auto;
+    display: grid;
+    grid-template-columns: 232px minmax(0,1fr);
+    gap: 56px;
+    padding: 44px 28px 100px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; padding: 28px 20px 72px; gap: 28px; }
+    .toc { position: static; order: 2; }
+    main { order: 1; }
+  }
+
+  /* ---------- toc ---------- */
+  .toc { position: sticky; top: 76px; align-self: start; }
+  .toc-group + .toc-group { margin-top: 22px; }
+  .toc-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-mute); margin: 0 0 8px;
+  }
+  .toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--border); }
+  .toc li a {
+    display: block; padding: 5px 0 5px 14px; margin-left: -1px;
+    border-left: 1px solid transparent;
+    font-size: 13.5px; color: var(--text-soft); text-decoration: none;
+  }
+  .toc li a:hover { color: var(--text); border-left-color: var(--text-mute); }
+  .toc li.active a { color: var(--accent-ink); border-left-color: var(--accent); font-weight: 600; }
+
+  /* ---------- doc header ---------- */
+  .doc-head { max-width: 680px; margin-bottom: 40px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent-ink); background: var(--accent-tint);
+    padding: 5px 11px; border-radius: 999px; margin-bottom: 16px;
+  }
+  .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(28px, 4vw, 36px); line-height: 1.15; margin: 0 0 12px; text-wrap: balance; letter-spacing: -0.01em; }
+  .doc-head p { color: var(--text-soft); font-size: 16px; margin: 0; }
+  .meta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px; font-size: 12.5px; color: var(--text-mute); }
+  .meta b { color: var(--text-soft); font-weight: 600; }
+
+  /* ---------- doc body ---------- */
+  main { min-width: 0; }
+  .doc { max-width: 680px; }
+  .doc + .doc { margin-top: 88px; padding-top: 56px; border-top: 1px solid var(--border); }
+
+  section { scroll-margin-top: 84px; margin-bottom: 40px; }
+  section h2 {
+    font-size: 21px; font-weight: 700; letter-spacing: -0.005em;
+    display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px;
+  }
+  section h2 .num { font-family: "JetBrains Mono", monospace; font-size: 14px; font-weight: 500; color: var(--accent); }
+  section h3 { font-size: 15.5px; font-weight: 600; font-family: Sora, sans-serif; margin: 22px 0 8px; }
+  section p { margin: 0 0 14px; color: var(--text); }
+  section p.soft { color: var(--text-soft); }
+  section ul, section ol.plain { margin: 0 0 14px; padding-left: 22px; }
+  section li { margin-bottom: 7px; }
+  section li::marker { color: var(--accent); }
+  strong { font-weight: 600; }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 14px 16px; margin: 0 0 16px; font-size: 15px; color: var(--text-soft);
+    box-shadow: var(--shadow);
+  }
+  .callout b { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; margin: 4px 0 16px; font-size: 14.5px; }
+  caption { caption-side: top; text-align: left; font-family: Sora, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 8px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-family: Sora, sans-serif; font-weight: 600; font-size: 12.5px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+  td.mono { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--text-soft); }
+  .tablewrap { overflow-x: auto; }
+
+  .backtotop {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600; color: var(--text-mute); text-decoration: none;
+    margin-top: 6px;
+  }
+  .backtotop:hover { color: var(--accent-ink); }
+
+  footer {
+    max-width: 680px; margin: 70px auto 0; padding: 24px 0 0; border-top: 1px solid var(--border);
+    color: var(--text-mute); font-size: 12.5px; font-family: Sora, sans-serif;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><span class="mark">M</span> MrAiBos</div>
+    <nav class="top-links">
+      <a href="#privacy-top">Privacy Policy</a>
+      <a href="#terms-top">Terms of Service</a>
+      <a href="mailto:mirabboskazimjanov@gmail.com">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="toc">
+    <div class="toc-group">
+      <p class="toc-label">Privacy Policy</p>
+      <ol id="toc-privacy">
+        <li><a href="#p1">1. Who we are</a></li>
+        <li><a href="#p2">2. Information we collect</a></li>
+        <li><a href="#p3">3. How we use it</a></li>
+        <li><a href="#p4">4. Third-party services</a></li>
+        <li><a href="#p5">5. Storage &amp; security</a></li>
+        <li><a href="#p6">6. Retention &amp; deletion</a></li>
+        <li><a href="#p7">7. Your choices</a></li>
+        <li><a href="#p8">8. Children</a></li>
+        <li><a href="#p9">9. Changes</a></li>
+        <li><a href="#p10">10. Contact</a></li>
+      </ol>
+    </div>
+    <div class="toc-group">
+      <p class="toc-label">Terms of Service</p>
+      <ol id="toc-terms">
+        <li><a href="#t1">1. Acceptance</a></li>
+        <li><a href="#t2">2. The service</a></li>
+        <li><a href="#t3">3. Accounts</a></li>
+        <li><a href="#t4">4. Your content</a></li>
+        <li><a href="#t5">5. AI-generated output</a></li>
+        <li><a href="#t6">6. Connected platforms</a></li>
+        <li><a href="#t7">7. Acceptable use</a></li>
+        <li><a href="#t8">8. Termination</a></li>
+        <li><a href="#t9">9. Disclaimer &amp; liability</a></li>
+        <li><a href="#t10">10. Changes &amp; contact</a></li>
+      </ol>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ============ PRIVACY POLICY ============ -->
+    <article class="doc" id="privacy-top">
+      <div class="doc-head">
+        <span class="eyebrow">Legal</span>
+        <h1>Privacy Policy</h1>
+        <p>MrAiBos is an AI-assisted tool for turning long-form video into short clips, and for generating content ideas, scripts, and images. This page explains what we collect, why, and how you can control it — in plain language, not boilerplate.</p>
+        <div class="meta"><span><b>Last updated</b> September 11, 2026</span><span><b>Applies to</b> the MrAiBos mobile app &amp; API</span></div>
+      </div>
+
+      <section id="p1">
+        <h2><span class="num">1</span>Who we are</h2>
+        <p>MrAiBos is a small, independently operated app. There is one team behind it, reachable at the email address at the bottom of this page. We are the "controller" of the data described below — we don't sell it, and we don't share it with data brokers or advertisers.</p>
+      </section>
+
+      <section id="p2">
+        <h2><span class="num">2</span>Information we collect</h2>
+        <p>We collect only what's needed to run the features you actually use.</p>
+        <div class="tablewrap">
+        <table>
+          <caption>Data categories</caption>
+          <tr><th>Category</th><th>What it includes</th><th>Why</th></tr>
+          <tr><td>Account</td><td>Email address, a hashed (never plaintext) password, sign-in method (email or Google)</td><td>Create and secure your account, send verification &amp; reset codes</td></tr>
+          <tr><td>Your uploads</td><td>Video files you upload, and the clips, transcripts, and captions generated from them</td><td>Run the clipping/captioning pipeline and show you the results</td></tr>
+          <tr><td>Generated content</td><td>Topics you type in, and the ideas, scripts, content plans, shot lists, ad briefs, and images generated from them</td><td>Deliver the feature you asked for and let you revisit past generations</td></tr>
+          <tr><td>Brand &amp; voice settings</td><td>Brand Kit (logo, accent color, caption style), Persona/voice preferences</td><td>Apply your preferences to future renders automatically</td></tr>
+          <tr><td>Connected platforms</td><td>An OAuth access/refresh token for YouTube and, where you connect it, TikTok — plus basic channel/profile info those platforms return (name, thumbnail, follower/subscriber counts)</td><td>Publish clips on your behalf and show analytics, only when you explicitly connect an account</td></tr>
+          <tr><td>Usage &amp; device</td><td>App language, timestamps, and standard request metadata (IP address, basic device/browser info)</td><td>Keep the service reliable and localized to you</td></tr>
+        </table>
+        </div>
+      </section>
+
+      <section id="p3">
+        <h2><span class="num">3</span>How we use it</h2>
+        <ul>
+          <li>To run the core features: transcription, AI clip scoring, caption burning, idea/script/image generation, and calendar scheduling.</li>
+          <li>To publish content to YouTube or TikTok <strong>only when you tap Publish</strong> — we never post on your behalf automatically.</li>
+          <li>To send you account emails (verification, password reset) and, if you opt in, a local notification when a job finishes.</li>
+          <li>To fix bugs and understand which features are actually used, in aggregate — never to build an advertising profile.</li>
+        </ul>
+      </section>
+
+      <section id="p4">
+        <h2><span class="num">4</span>Third-party services we use</h2>
+        <p class="soft">To do its job, MrAiBos sends the minimum necessary data to a small number of specialist providers. Each only sees what it needs to perform its specific task:</p>
+        <div class="tablewrap">
+        <table>
+          <caption>Sub-processors</caption>
+          <tr><th>Provider</th><th>Used for</th><th>What it receives</th></tr>
+          <tr><td>Anthropic (Claude)</td><td>Clip scoring, hook/caption writing, idea &amp; script generation</td><td>Your transcript text or typed topic</td></tr>
+          <tr><td>AssemblyAI</td><td>Speech-to-text transcription</td><td>Your uploaded video/audio</td></tr>
+          <tr><td>Google (Gemini)</td><td>AI image generation &amp; editing</td><td>Your image prompt and, for edits, the source photo</td></tr>
+          <tr><td>Google (YouTube Data &amp; Analytics API)</td><td>Publishing and channel analytics</td><td>OAuth token, only after you connect your channel</td></tr>
+          <tr><td>TikTok (Content Posting API)</td><td>Publishing clips to TikTok</td><td>OAuth token, only after you connect your account</td></tr>
+          <tr><td>Resend</td><td>Transactional email</td><td>Your email address, for verification/reset codes only</td></tr>
+        </table>
+        </div>
+        <p class="soft">Each provider processes this data under its own privacy policy and only for the purpose listed above — never to train models on your data beyond what each provider's own terms already govern, and never to serve you ads.</p>
+      </section>
+
+      <section id="p5">
+        <h2><span class="num">5</span>Storage &amp; security</h2>
+        <p>Your account and content data live in a PostgreSQL database we operate; uploaded and rendered video files are stored on the same server. Passwords are hashed with bcrypt — we never store or can see your plaintext password. OAuth tokens for connected platforms are stored server-side and used only to make the specific API calls you request (publish, refresh analytics).</p>
+      </section>
+
+      <section id="p6">
+        <h2><span class="num">6</span>Retention &amp; deletion</h2>
+        <p>We keep your data for as long as your account is active. Email us (below) to request deletion of your account and everything tied to it — uploads, generated content, and connected-platform tokens are all removed; we may keep minimal records where we're legally required to.</p>
+      </section>
+
+      <section id="p7">
+        <h2><span class="num">7</span>Your choices</h2>
+        <ul>
+          <li><strong>Disconnect a platform</strong> anytime from the Menu — this revokes and deletes the stored token immediately.</li>
+          <li><strong>Turn off notifications</strong> in your device's system settings; nothing else about the app changes.</li>
+          <li><strong>Export or delete</strong> your data by emailing us — we'll respond within a reasonable time.</li>
+        </ul>
+      </section>
+
+      <section id="p8">
+        <h2><span class="num">8</span>Children</h2>
+        <p>MrAiBos is not directed at children under 13, and we don't knowingly collect data from them. If you believe a child has created an account, contact us and we'll remove it.</p>
+      </section>
+
+      <section id="p9">
+        <h2><span class="num">9</span>Changes to this policy</h2>
+        <p>If this policy changes materially, we'll update the date at the top of this page. Continuing to use MrAiBos after a change means you accept the update.</p>
+      </section>
+
+      <section id="p10">
+        <h2><span class="num">10</span>Contact</h2>
+        <p>Questions, requests, or concerns about your data: <a href="mailto:mirabboskazimjanov@gmail.com">mirabboskazimjanov@gmail.com</a>.</p>
+        <a class="backtotop" href="#privacy-top">↑ Back to top</a>
+      </section>
+    </article>
+
+    <!-- ============ TERMS OF SERVICE ============ -->
+    <article class="doc" id="terms-top">
+      <div class="doc-head">
+        <span class="eyebrow">Legal</span>
+        <h1>Terms of Service</h1>
+        <p>The plain-language rules for using MrAiBos. By creating an account or using the app, you agree to these terms.</p>
+        <div class="meta"><span><b>Last updated</b> September 11, 2026</span><span><b>Applies to</b> the MrAiBos mobile app &amp; API</span></div>
+      </div>
+
+      <section id="t1">
+        <h2><span class="num">1</span>Acceptance</h2>
+        <p>These terms form an agreement between you and MrAiBos. If you don't agree with them, please don't use the app.</p>
+      </section>
+
+      <section id="t2">
+        <h2><span class="num">2</span>The service</h2>
+        <p>MrAiBos lets you upload video and get back AI-selected, captioned short clips; generate content ideas, scripts, content plans, shot lists, and ad briefs from a topic; generate and edit images with AI; schedule content on a calendar; and, if you choose to connect an account, publish clips directly to YouTube or TikTok. Features may be added, changed, or removed as the app evolves.</p>
+      </section>
+
+      <section id="t3">
+        <h2><span class="num">3</span>Accounts</h2>
+        <p>You need an account to use MrAiBos. Keep your password secure and don't share your account — you're responsible for activity that happens under it. You must be at least 13 years old.</p>
+      </section>
+
+      <section id="t4">
+        <h2><span class="num">4</span>Your content</h2>
+        <p>You own the videos you upload and the clips, images, and text MrAiBos generates for you. By uploading a video, you confirm you have the rights to it and to let our AI processors (listed in the Privacy Policy) process it in order to produce your results. We don't claim ownership of your content, and we don't use it to train our own AI models.</p>
+      </section>
+
+      <section id="t5">
+        <h2><span class="num">5</span>AI-generated output</h2>
+        <p>Clips, captions, scripts, ideas, and images are generated by AI and may occasionally be inaccurate, generic, or need editing before you publish them. You're responsible for reviewing generated content before you post it anywhere, including to a connected YouTube or TikTok account.</p>
+      </section>
+
+      <section id="t6">
+        <h2><span class="num">6</span>Connected platforms</h2>
+        <p>Connecting YouTube or TikTok is optional and happens through that platform's own sign-in screen — we never see or store your platform password. Publishing only happens when you tap Publish; we don't post on a schedule or without your action. You can disconnect a platform at any time from the Menu, and your use of that platform remains subject to its own terms (YouTube's Terms of Service, TikTok's Terms of Service).</p>
+      </section>
+
+      <section id="t7">
+        <h2><span class="num">7</span>Acceptable use</h2>
+        <p>Don't use MrAiBos to:</p>
+        <ul>
+          <li>Upload content you don't have the rights to, or that infringes someone else's copyright or trademark.</li>
+          <li>Generate or publish content that's illegal, harassing, hateful, or sexually exploitative, especially involving minors.</li>
+          <li>Attempt to disrupt, reverse-engineer, or abuse the service (including scraping or excessive automated requests).</li>
+          <li>Impersonate another person or misrepresent your affiliation with anyone.</li>
+        </ul>
+        <p>We may suspend or remove accounts that violate this.</p>
+      </section>
+
+      <section id="t8">
+        <h2><span class="num">8</span>Termination</h2>
+        <p>You can stop using MrAiBos and request account deletion at any time. We may suspend or terminate an account that violates these terms, misuses the AI providers behind the app, or poses a security risk to the service.</p>
+      </section>
+
+      <section id="t9">
+        <h2><span class="num">9</span>Disclaimer &amp; limitation of liability</h2>
+        <p>MrAiBos is provided "as is," without warranties of any kind. We do our best to keep the service reliable, but we don't guarantee uninterrupted access, error-free AI output, or that generated content will meet any platform's specific policies. To the extent permitted by law, MrAiBos is not liable for indirect, incidental, or consequential damages arising from your use of the service, including consequences of publishing generated content to a third-party platform.</p>
+      </section>
+
+      <section id="t10">
+        <h2><span class="num">10</span>Changes &amp; contact</h2>
+        <p>We may update these terms as the app changes; we'll update the date above when we do. Questions about these terms: <a href="mailto:mirabboskazimjanov@gmail.com">mirabboskazimjanov@gmail.com</a>.</p>
+        <a class="backtotop" href="#terms-top">↑ Back to top</a>
+      </section>
+    </article>
+
+    <footer>
+      © 2026 MrAiBos. This page serves as the Privacy Policy &amp; Terms of Service referenced in MrAiBos's third-party app registrations (Google, YouTube, TikTok).
+    </footer>
+  </main>
+</div>
+
+<script>
+  // Lightweight scrollspy: highlight whichever TOC entry matches the section nearest the top.
+  (function () {
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var byId = {};
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+
+    function onScroll() {
+      var pos = window.scrollY + 100;
+      var current = sections[0];
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].offsetTop <= pos) current = sections[i];
+      }
+      links.forEach(function (a) { a.parentElement.classList.remove('active'); });
+      if (current && byId[current.id]) byId[current.id].parentElement.classList.add('active');
+    }
+    document.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
